@@ -579,36 +579,57 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <!-- Placeholder Foto 1 -->
-                        <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group">
-                            <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
-                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                            </div>
-                            <h4 class="font-display font-bold text-slate-800 mb-2">Foto Barang Belanjaan</h4>
-                            <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
-                                [Ruang Foto: Struk pembelian & detail barang belanjaan di kasir. Rasio 4:3]
-                            </p>
+                        <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group relative overflow-hidden">
+                            @if(file_exists(public_path('images/belanjaan.jpg')))
+                                <img src="{{ asset('images/belanjaan.jpg') }}" alt="Foto Barang Belanjaan" class="absolute inset-0 w-full h-full object-cover">
+                            @else
+                                <div class="flex flex-col items-center justify-center">
+                                    <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    </div>
+                                    <h4 class="font-display font-bold text-slate-800 mb-2">Foto Barang Belanjaan</h4>
+                                    <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
+                                        [Ruang Foto: Struk pembelian & detail barang belanjaan di kasir. Rasio 4:3]
+                                    </p>
+                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/belanjaan.jpg</p>
+                                </div>
+                            @endif
                         </div>
 
                         <!-- Placeholder Foto 2 -->
-                        <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group">
-                            <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
-                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                            </div>
-                            <h4 class="font-display font-bold text-slate-800 mb-2">Foto Proses Pengantaran</h4>
-                            <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
-                                [Ruang Foto: Jastiper terverifikasi membawa belanjaan menggunakan motor. Rasio 4:3]
-                            </p>
+                        <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group relative overflow-hidden">
+                            @if(file_exists(public_path('images/pengantaran.jpg')))
+                                <img src="{{ asset('images/pengantaran.jpg') }}" alt="Foto Proses Pengantaran" class="absolute inset-0 w-full h-full object-cover">
+                            @else
+                                <div class="flex flex-col items-center justify-center">
+                                    <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    </div>
+                                    <h4 class="font-display font-bold text-slate-800 mb-2">Foto Proses Pengantaran</h4>
+                                    <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
+                                        [Ruang Foto: Jastiper terverifikasi membawa belanjaan menggunakan motor. Rasio 4:3]
+                                    </p>
+                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/pengantaran.jpg</p>
+                                </div>
+                            @endif
                         </div>
 
                         <!-- Placeholder Foto 3 -->
-                        <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group">
-                            <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
-                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                            </div>
-                            <h4 class="font-display font-bold text-slate-800 mb-2">Foto Serah Terima Barang</h4>
-                            <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
-                                [Ruang Foto: Serah terima barang pesanan ke customer di depan rumah. Rasio 4:3]
-                            </p>
+                        <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group relative overflow-hidden">
+                            @if(file_exists(public_path('images/serah-terima.jpg')))
+                                <img src="{{ asset('images/serah-terima.jpg') }}" alt="Foto Serah Terima Barang" class="absolute inset-0 w-full h-full object-cover">
+                            @else
+                                <div class="flex flex-col items-center justify-center">
+                                    <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    </div>
+                                    <h4 class="font-display font-bold text-slate-800 mb-2">Foto Serah Terima Barang</h4>
+                                    <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
+                                        [Ruang Foto: Serah terima barang pesanan ke customer di depan rumah. Rasio 4:3]
+                                    </p>
+                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/serah-terima.jpg</p>
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>

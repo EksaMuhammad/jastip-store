@@ -580,8 +580,8 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <!-- Placeholder Foto 1 -->
                         <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group relative overflow-hidden">
-                            @if(file_exists(public_path('images/belanjaan.jpg')))
-                                <img src="{{ asset('images/belanjaan.jpg') }}" alt="Foto Barang Belanjaan" class="absolute inset-0 w-full h-full object-cover">
+                            @if(file_exists(public_path('images/belanjaan.png')))
+                                <img src="{{ asset('images/belanjaan.png') }}" alt="Foto Barang Belanjaan" class="absolute inset-0 w-full h-full object-cover">
                             @else
                                 <div class="flex flex-col items-center justify-center">
                                     <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
@@ -591,15 +591,15 @@
                                     <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
                                         [Ruang Foto: Struk pembelian & detail barang belanjaan di kasir. Rasio 4:3]
                                     </p>
-                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/belanjaan.jpg</p>
+                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/belanjaan.png</p>
                                 </div>
                             @endif
                         </div>
 
                         <!-- Placeholder Foto 2 -->
                         <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group relative overflow-hidden">
-                            @if(file_exists(public_path('images/pengantaran.jpg')))
-                                <img src="{{ asset('images/pengantaran.jpg') }}" alt="Foto Proses Pengantaran" class="absolute inset-0 w-full h-full object-cover">
+                            @if(file_exists(public_path('images/pengantaran.png')))
+                                <img src="{{ asset('images/pengantaran.png') }}" alt="Foto Proses Pengantaran" class="absolute inset-0 w-full h-full object-cover">
                             @else
                                 <div class="flex flex-col items-center justify-center">
                                     <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
@@ -609,15 +609,15 @@
                                     <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
                                         [Ruang Foto: Jastiper terverifikasi membawa belanjaan menggunakan motor. Rasio 4:3]
                                     </p>
-                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/pengantaran.jpg</p>
+                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/pengantaran.png</p>
                                 </div>
                             @endif
                         </div>
 
                         <!-- Placeholder Foto 3 -->
                         <div class="bg-[#F8FAFC] border-2 border-dashed border-slate-300 p-8 rounded-sm text-center flex flex-col items-center justify-center min-h-[300px] hover:border-rose-500 transition group relative overflow-hidden">
-                            @if(file_exists(public_path('images/serah-terima.jpg')))
-                                <img src="{{ asset('images/serah-terima.jpg') }}" alt="Foto Serah Terima Barang" class="absolute inset-0 w-full h-full object-cover">
+                            @if(file_exists(public_path('images/serah-terima.png')))
+                                <img src="{{ asset('images/serah-terima.png') }}" alt="Foto Serah Terima Barang" class="absolute inset-0 w-full h-full object-cover">
                             @else
                                 <div class="flex flex-col items-center justify-center">
                                     <div class="w-16 h-16 bg-white border border-slate-200 rounded-sm flex items-center justify-center shadow-sm text-slate-400 group-hover:text-rose-600 transition mb-6">
@@ -627,7 +627,7 @@
                                     <p class="text-xs text-slate-500 max-w-[200px] leading-relaxed">
                                         [Ruang Foto: Serah terima barang pesanan ke customer di depan rumah. Rasio 4:3]
                                     </p>
-                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/serah-terima.jpg</p>
+                                    <p class="text-[10px] text-slate-400 mt-2 font-mono">Simpan foto di: public/images/serah-terima.png</p>
                                 </div>
                             @endif
                         </div>

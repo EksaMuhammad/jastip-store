@@ -607,17 +607,28 @@
                     baseJastipFee += Math.floor((priceVal - 500000) * 0.02); // 2% of value over 500k
                 }
 
-                // Delivery Fee Calculation based on Wilayah & Weight
-                let baseDeliveryFee = 8000;
-                const selectedWilayah = parseInt(wilayahSelect.value);
-                if (selectedWilayah === 2) {
-                    baseDeliveryFee += 5000; // Kabupaten Malang
-                } else if (selectedWilayah === 3) {
-                    baseDeliveryFee += 12000; // Kota Batu & Sekitarnya
+                // Delivery Fee Calculation (Base Fee + Price Per KM after 2km)
+                const selectedOption = wilayahSelect.options[wilayahSelect.selectedIndex];
+                const distance = parseFloat(selectedOption.getAttribute('data-radius') || 5);
+                
+                const baseFee = 5000;
+                const baseKmIncluded = 2;
+                const pricePerKm = 2000;
+
+                let baseDeliveryFee = baseFee;
+                if (distance > baseKmIncluded) {
+                    baseDeliveryFee += (distance - baseKmIncluded) * pricePerKm;
                 }
 
-                // Weight adjustment
-                const deliveryFee = baseDeliveryFee + ((weightVal - 1) * 3000); // 3000 per additional kg
+                // Weight adjustment based on weight categories (ringan, sedang, berat)
+                let weightFee = 0;
+                if (weightVal > 1 && weightVal <= 5) {
+                    weightFee = 3000; // Sedang
+                } else if (weightVal > 5) {
+                    weightFee = 7000; // Berat
+                }
+
+                const deliveryFee = baseDeliveryFee + weightFee;
                 const platformFee = 5000; // Escrow fee fixed
                 const totalEstimated = baseJastipFee + deliveryFee + platformFee;
 

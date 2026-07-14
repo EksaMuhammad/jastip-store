@@ -35,7 +35,9 @@
         <main>
             <!-- Hero Section -->
             <section id="hero" class="relative overflow-hidden py-16 lg:py-24 bg-white border-b border-slate-100">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <!-- Subtle Background Image Overlay -->
+                <div class="absolute inset-0 z-0 opacity-[0.06] pointer-events-none bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1600&q=80');"></div>
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
                         
                         <!-- Left Hero Info Column -->
@@ -565,8 +567,10 @@
             </section>
 
             <!-- Bottom CTA Banner Section (Professional design style) -->
-            <section class="py-16 bg-slate-900 text-white relative">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
+            <section class="py-16 bg-slate-900 text-white relative overflow-hidden">
+                <!-- Subtle Background Image Overlay -->
+                <div class="absolute inset-0 z-0 opacity-[0.08] pointer-events-none bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1607344645866-009c320c5ab8?auto=format&fit=crop&w=1600&q=80');"></div>
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6 relative z-10">
                     <h2 class="font-display font-black text-3xl sm:text-4xl lg:text-5xl leading-tight">
                         Siap Menitip Barang atau Ingin <br />Mulai Menghasilkan Uang Bersama Kami?
                     </h2>

@@ -36,7 +36,7 @@
             <!-- Hero Section -->
             <section id="hero" class="relative overflow-hidden py-16 lg:py-24 bg-white border-b border-slate-100">
                 <!-- Subtle Background Image Overlay -->
-                <div class="absolute inset-0 z-0 opacity-[0.06] pointer-events-none bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1600&q=80');"></div>
+                <div class="absolute inset-0 z-0 opacity-[0.06] pointer-events-none bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1573855564982-8f28d8881047?auto=format&fit=crop&w=1600&q=80');"></div>
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
                         

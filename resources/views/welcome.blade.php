@@ -17,17 +17,14 @@
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 
         <!-- Styles / Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         
         <style>
-            body {
-                font-family: 'Inter', sans-serif;
-            }
-            h1, h2, h3, h4, .font-display {
-                font-family: 'Outfit', sans-serif;
+            body, h1, h2, h3, h4, .font-display {
+                font-family: 'Plus Jakarta Sans', sans-serif;
             }
         </style>
     </head>
@@ -43,10 +40,6 @@
                         
                         <!-- Left Hero Info Column -->
                         <div class="lg:col-span-7 flex flex-col items-start space-y-6 lg:pr-6">
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm bg-rose-50 border border-rose-100 text-xs font-bold text-rose-600 uppercase tracking-wider">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                                Jasa Titip On-Demand & Escrow Aman
-                            </span>
                             <h1 class="font-display font-black text-4xl sm:text-5xl lg:text-6xl text-slate-900 leading-tight tracking-tight">
                                 Titip Belanja Apa Saja, <br class="hidden sm:inline" />
                                 <span class="text-rose-600">Aman & Sampai</span> Hari Ini.
@@ -288,7 +281,6 @@
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex flex-col md:flex-row md:items-end justify-between mb-16">
                         <div class="max-w-2xl">
-                            <span class="text-rose-600 font-extrabold text-xs uppercase tracking-wider">📦 Ragam Layanan Jastip</span>
                             <h2 class="font-display font-black text-3xl sm:text-4xl text-slate-900 mt-2 tracking-tight">
                                 Apa Saja Yang Bisa Anda Titipkan?
                             </h2>
@@ -376,7 +368,6 @@
             <section id="keunggulan" class="py-20 bg-slate-900 text-white">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="max-w-3xl mx-auto text-center mb-16">
-                        <span class="text-rose-500 font-extrabold text-xs uppercase tracking-wider">🛡️ Keamanan & Transparansi</span>
                         <h2 class="font-display font-black text-3xl sm:text-4xl mt-2 tracking-tight">
                             Solusi Jasa Titip Paling Profesional & Terpercaya
                         </h2>
@@ -445,7 +436,6 @@
             <section id="testimoni" class="py-20 bg-slate-50 border-b border-slate-200">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="text-center max-w-3xl mx-auto mb-16">
-                        <span class="text-rose-600 font-extrabold text-xs uppercase tracking-wider">⭐ Pengalaman Pengguna</span>
                         <h2 class="font-display font-black text-3xl sm:text-4xl text-slate-900 mt-2 tracking-tight">
                             Ulasan Nyata Komunitas JastipKuy
                         </h2>
@@ -508,7 +498,6 @@
             <section class="py-20 bg-white border-b border-slate-200">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="text-center max-w-3xl mx-auto mb-16">
-                        <span class="text-rose-600 font-extrabold text-xs uppercase tracking-wider">📸 Galeri Operasional</span>
                         <h2 class="font-display font-black text-3xl sm:text-4xl text-slate-900 mt-2 tracking-tight">
                             Dokumentasi Aktivitas Jastip
                         </h2>

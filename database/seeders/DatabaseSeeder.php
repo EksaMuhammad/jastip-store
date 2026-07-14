@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
 
         // 2. Seed Wilayah
         $wilayah = Wilayah::create([
-            'name' => 'Jakarta Selatan',
+            'name' => 'Malang Kota',
             'default_radius_km' => 5.00,
             'is_active' => true,
         ]);

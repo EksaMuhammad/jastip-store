@@ -175,7 +175,7 @@
                     </button>
                     <div class="faq-answer max-h-0 opacity-0 overflow-hidden transition-all duration-300 ease-in-out">
                         <div class="p-5 pt-0 text-slate-600 text-sm leading-relaxed border-t border-slate-50">
-                            Ya. JastipKuy memprioritaskan efisiensi pengantaran wilayah lokal (Depok, Jakarta Selatan, dll). Jastiper disarankan hanya menerima pesanan belanja yang tokonya dan alamat kirimnya berada dalam radius operasional Anda agar menghemat waktu dan bahan bakar.
+                            Ya. JastipKuy memprioritaskan efisiensi pengantaran wilayah lokal (Malang Kota, Kabupaten Malang, dll). Jastiper disarankan hanya menerima pesanan belanja yang tokonya dan alamat kirimnya berada dalam radius operasional Anda agar menghemat waktu dan bahan bakar.
                         </div>
                     </div>
                 </div>

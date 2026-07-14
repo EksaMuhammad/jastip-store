@@ -121,7 +121,7 @@
                         </div>
                         <div>
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block">Kantor Operasional</span>
-                            <span class="text-sm font-semibold text-slate-900 block mt-0.5">Sudirman Central Business District (SCBD), Tower A, Jakarta Selatan, 12190</span>
+                            <span class="text-sm font-semibold text-slate-900 block mt-0.5">Perum Bumi Papan Selaras, AF 11, Sidoarjo</span>
                         </div>
                     </div>
                 </div>

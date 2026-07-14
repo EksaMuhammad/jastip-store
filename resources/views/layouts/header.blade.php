@@ -1,6 +1,6 @@
 <!-- Top Notification Bar -->
 <div class="bg-slate-900 text-white py-2 px-4 text-center text-xs font-medium tracking-wide">
-    🚀 JastipKuy Wilayah Baru: Layanan Kini Tersedia di Area Jakarta Selatan & Sekitarnya!
+    🚀 JastipKuy Malang: Layanan Kini Tersedia di Area Malang Raya & Sekitarnya!
 </div>
 
 <!-- Navbar Header -->

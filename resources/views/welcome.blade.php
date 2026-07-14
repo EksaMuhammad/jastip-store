@@ -97,9 +97,9 @@
                                     <div>
                                         <label for="calc-wilayah" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Wilayah Pembelian</label>
                                         <select id="calc-wilayah" class="w-full bg-slate-50 border border-slate-300 focus:border-rose-600 focus:ring-1 focus:ring-rose-600 text-slate-800 text-sm font-medium p-3 rounded-sm outline-none transition" onchange="calculateEstimates()">
-                                            <option value="1" data-radius="5">Jakarta Selatan (Area Terdekat)</option>
-                                            <option value="2" data-radius="10">Depok & Sekitarnya (+ Rp5,000)</option>
-                                            <option value="3" data-radius="15">Tangerang/Bekasi (+ Rp12,000)</option>
+                                            <option value="1" data-radius="5">Malang Kota (Area Terdekat)</option>
+                                            <option value="2" data-radius="10">Kabupaten Malang (+ Rp5,000)</option>
+                                            <option value="3" data-radius="15">Kota Batu & Area Luar (+ Rp12,000)</option>
                                         </select>
                                     </div>
 
@@ -450,7 +450,7 @@
                             Ulasan Nyata Komunitas JastipKuy
                         </h2>
                         <p class="text-slate-600 mt-3 text-base">
-                            Berikut testimoni jujur dari para penitip belanjaan dan Jastiper kami di wilayah operasional Jakarta Selatan.
+                            Berikut testimoni jujur dari para penitip belanjaan dan Jastiper kami di wilayah operasional Malang.
                         </p>
                     </div>
 
@@ -473,9 +473,9 @@
                                 </div>
                             </div>
                             <p class="text-slate-600 text-sm leading-relaxed italic">
-                                "Sangat terbantu titip batagor bandung dari mal di Jakarta Selatan langsung sampai sore hari dalam kondisi hangat. Escrow system membuat transaksi sangat tenang karena uang tidak akan ditransfer ke kurir sebelum barang kita terima secara lengkap."
+                                "Sangat terbantu titip makanan khas dari mal di Malang Kota langsung sampai sore hari dalam kondisi hangat. Escrow system membuat transaksi sangat tenang karena uang tidak akan ditransfer ke kurir sebelum barang kita terima secara lengkap."
                             </p>
-                            <div class="text-xs text-slate-400 font-semibold">📍 Jakarta Selatan &bull; Transaksi Selesai: 48 Kali</div>
+                            <div class="text-xs text-slate-400 font-semibold">📍 Malang Kota &bull; Transaksi Selesai: 48 Kali</div>
                         </div>
 
                         <!-- Testimonial 2 (Jastiper Siti Aminah) -->
@@ -622,9 +622,9 @@
                 let baseDeliveryFee = 8000;
                 const selectedWilayah = parseInt(wilayahSelect.value);
                 if (selectedWilayah === 2) {
-                    baseDeliveryFee += 5000; // Depok
+                    baseDeliveryFee += 5000; // Kabupaten Malang
                 } else if (selectedWilayah === 3) {
-                    baseDeliveryFee += 12000; // Tangerang/Bekasi
+                    baseDeliveryFee += 12000; // Kota Batu & Sekitarnya
                 }
 
                 // Weight adjustment

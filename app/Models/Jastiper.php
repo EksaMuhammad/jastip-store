@@ -48,6 +48,11 @@ class Jastiper extends Authenticatable
         return $this->hasMany(JastiperVerification::class, 'jastiper_id');
     }
 
+    public function latestVerification()
+    {
+        return $this->hasOne(JastiperVerification::class, 'jastiper_id')->latestOfMany();
+    }
+
     public function badge()
     {
         return $this->hasOne(Badge::class, 'jastiper_id');

@@ -51,4 +51,45 @@ class WhatsAppService
             return false;
         }
     }
+
+    /**
+     * Kirim pesan teks umum via WhatsApp
+     */
+    public static function sendMessage(string $phoneNumber, string $message)
+    {
+        // Format nomor HP Indonesia (misal 0812345678 -> 62812345678)
+        $formattedPhone = preg_replace('/^0/', '62', $phoneNumber);
+        if (!str_starts_with($formattedPhone, '62') && !str_starts_with($formattedPhone, '+')) {
+            $formattedPhone = '62' . $formattedPhone;
+        }
+
+        $apiKey = env('WHATSAPP_API_KEY');
+
+        if (!$apiKey) {
+            // Mocking log jika API Key belum dipasang
+            Log::info("[MOCK WHATSAPP MSG] Mengirim ke +{$formattedPhone}: {$message}");
+            return true;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $apiKey
+            ])->post('https://api.fonnte.com/send', [
+                'target' => $formattedPhone,
+                'message' => $message,
+                'countryCode' => '62',
+            ]);
+
+            if ($response->successful()) {
+                Log::info("[WHATSAPP MSG SUCCESS] Berhasil mengirim WA ke +{$formattedPhone}");
+                return true;
+            }
+
+            Log::error("[WHATSAPP MSG ERROR] Gagal mengirim WA: " . $response->body());
+            return false;
+        } catch (\Exception $e) {
+            Log::error("[WHATSAPP MSG EXCEPTION] Gagal memproses kirim WA: " . $e->getMessage());
+            return false;
+        }
+    }
 }

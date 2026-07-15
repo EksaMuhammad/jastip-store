@@ -74,12 +74,31 @@
                                 @endif
                             </span>
                         </div>
+                        @if ($jastiper->verification_status === 'rejected' && $jastiper->latestVerification)
+                            <div class="bg-rose-50 border border-rose-100 p-2.5 rounded-sm text-[11px] text-rose-700 font-semibold leading-normal mt-2 animate-pulse">
+                                ❌ Ditolak: "{{ $jastiper->latestVerification->rejection_reason }}"
+                            </div>
+                        @endif
                     </div>
                 </div>
-                <div class="pt-6 mt-6 border-t border-slate-100">
-                    <button onclick="showMaintenanceToast(event)" class="w-full text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 font-bold text-xs py-2.5 rounded-sm transition">
-                        Edit Wilayah / Profil
-                    </button>
+                <div class="pt-4 mt-4 border-t border-slate-100 space-y-2">
+                    @if ($jastiper->verification_status === 'approved')
+                        <button onclick="showMaintenanceToast(event)" class="w-full text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 font-bold text-xs py-2.5 rounded-sm transition">
+                            Edit Wilayah / Profil
+                        </button>
+                    @elseif ($jastiper->verification_status === 'menunggu')
+                        <a href="{{ route('jastiper.verification') }}" class="block text-center bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 rounded-sm border-2 border-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:shadow-none transition uppercase tracking-wide">
+                            Pantau Verifikasi
+                        </a>
+                    @elseif ($jastiper->verification_status === 'rejected')
+                        <a href="{{ route('jastiper.verification') }}" class="block text-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-sm border-2 border-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:shadow-none transition uppercase tracking-wide">
+                            Kirim Ulang Verifikasi
+                        </a>
+                    @else
+                        <a href="{{ route('jastiper.verification') }}" class="block text-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-sm border-2 border-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:shadow-none transition uppercase tracking-wide">
+                            Verifikasi Akun Sekarang
+                        </a>
+                    @endif
                 </div>
             </div>
 

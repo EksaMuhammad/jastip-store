@@ -35,6 +35,51 @@
         <!-- Footer -->
         @include('layouts.footer')
 
+        <!-- Toast Container -->
+        <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+        <style>
+            @keyframes toast-slide-in {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            .animate-toast-slide-in {
+                animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            }
+        </style>
+
+        <script>
+            function showMaintenanceToast(e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                
+                const container = document.getElementById('toast-container');
+                if (!container) return;
+
+                const toast = document.createElement('div');
+                toast.className = "pointer-events-auto bg-slate-900 text-white border-2 border-slate-900 p-4 rounded-sm shadow-[4px_4px_0px_0px_rgba(244,63,94,1)] flex items-center gap-3 animate-toast-slide-in text-xs font-bold font-mono tracking-wide transform transition-all duration-300";
+                toast.innerHTML = `
+                    <span class="text-base">🛠️</span>
+                    <div>
+                        <p class="font-black text-slate-100 uppercase tracking-widest">UNDER MAINTENANCE</p>
+                        <p class="text-slate-400 font-medium mt-0.5 font-sans">Fitur ini sedang dalam pengembangan & pemeliharaan.</p>
+                    </div>
+                `;
+
+                container.appendChild(toast);
+
+                // Auto remove after 4 seconds
+                setTimeout(() => {
+                    toast.classList.add('translate-y-2', 'opacity-0');
+                    setTimeout(() => {
+                        toast.remove();
+                    }, 300);
+                }, 4000);
+            }
+        </script>
+
         @yield('scripts')
     </body>
 </html>

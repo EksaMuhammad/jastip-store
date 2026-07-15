@@ -14,6 +14,7 @@ class Jastiper extends Authenticatable
     protected $fillable = [
         'phone_number',
         'name',
+        'password',
         'otp_code',
         'otp_expires_at',
         'verification_status',
@@ -22,6 +23,11 @@ class Jastiper extends Authenticatable
         'current_lat',
         'current_lng',
         'is_available',
+    ];
+
+    protected $hidden = [
+        'password',
+        'otp_code',
     ];
 
     protected $casts = [

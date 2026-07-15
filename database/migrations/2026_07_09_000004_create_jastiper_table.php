@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('phone_number');
             $table->string('name');
+            $table->string('password')->nullable();
             $table->string('otp_code')->nullable();
             $table->timestamp('otp_expires_at')->nullable();
             $table->enum('verification_status', ['belum', 'menunggu', 'approved', 'rejected'])->default('belum');

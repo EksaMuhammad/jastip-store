@@ -14,8 +14,14 @@ class Customer extends Authenticatable
     protected $fillable = [
         'phone_number',
         'name',
+        'password',
         'otp_code',
         'otp_expires_at',
+    ];
+
+    protected $hidden = [
+        'password',
+        'otp_code',
     ];
 
     protected $casts = [

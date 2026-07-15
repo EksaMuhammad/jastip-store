@@ -31,27 +31,19 @@
 
             <!-- Authentication / Action Buttons -->
             <div class="flex items-center gap-3">
-                @if (Route::has('login'))
-                    @auth
-                        <a href="{{ url('/dashboard') }}" id="btn-dashboard" class="inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-4 py-2.5 rounded-sm shadow-sm transition">
-                            Dashboard
-                        </a>
-                    @else
-                        <a href="{{ route('login') }}" id="btn-login" class="inline-flex items-center justify-center border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-sm transition">
-                            Masuk
-                        </a>
-                        @if (Route::has('register'))
-                            <a href="{{ route('register') }}" id="btn-register" class="inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm px-4 py-2.5 rounded-sm shadow-sm transition">
-                                Daftar
-                            </a>
-                        @endif
-                    @endauth
+                @if (Auth::guard('customer')->check())
+                    <a href="{{ route('customer.dashboard') }}" id="btn-dashboard" class="inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-4 py-2.5 rounded-sm shadow-sm transition">
+                        Dashboard
+                    </a>
+                @elseif (Auth::guard('jastiper')->check())
+                    <a href="{{ route('jastiper.dashboard') }}" id="btn-dashboard" class="inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-4 py-2.5 rounded-sm shadow-sm transition">
+                        Dashboard
+                    </a>
                 @else
-                    <!-- Fallback Links when Laravel Breeze is not active yet -->
-                    <a href="#" id="btn-login-fallback" class="inline-flex items-center justify-center border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-sm transition">
+                    <a href="{{ route('login') }}" id="btn-login" class="inline-flex items-center justify-center border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-sm transition">
                         Masuk
                     </a>
-                    <a href="#" id="btn-register-fallback" class="inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm px-4 py-2.5 rounded-sm shadow-sm transition">
+                    <a href="{{ route('login') }}" id="btn-register" class="inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm px-4 py-2.5 rounded-sm shadow-sm transition">
                         Daftar Sekarang
                     </a>
                 @endif

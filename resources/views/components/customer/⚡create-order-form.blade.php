@@ -307,13 +307,23 @@ new class extends Component
                     @if(in_array($category, ['beli-antar', 'ambil-antar', 'toko-kirim']))
                         <div class="space-y-1.5">
                             <label for="origin_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Asal / Toko Belanja</label>
-                            <input 
-                                type="text" 
-                                id="origin_address" 
-                                wire:model.live="origin_address"
-                                placeholder="Tulis nama warung / lokasi belanja..."
-                                class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
-                            >
+                            <div class="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    id="origin_address" 
+                                    wire:model.live="origin_address"
+                                    placeholder="Tulis nama warung / lokasi belanja..."
+                                    class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                                >
+                                <button 
+                                    type="button"
+                                    onclick="searchOriginLocation()"
+                                    id="btn-search-origin"
+                                    class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    🔍 Cari Toko
+                                </button>
+                            </div>
                             @error('origin_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                         </div>
                     @endif
@@ -321,13 +331,23 @@ new class extends Component
                     <!-- Destination -->
                     <div class="space-y-1.5">
                         <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Tujuan Pengantaran</label>
-                        <input 
-                            type="text" 
-                            id="destination_address" 
-                            wire:model.live="destination_address"
-                            placeholder="Alamat rumah / kos Anda..."
-                            class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
-                        >
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                id="destination_address" 
+                                wire:model.live="destination_address"
+                                placeholder="Alamat rumah / kos Anda..."
+                                class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                            >
+                            <button 
+                                type="button"
+                                onclick="searchDestinationLocation()"
+                                id="btn-search-destination"
+                                class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                🔍 Cari Lokasi
+                            </button>
+                        </div>
                         @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                     </div>
                 </div>
@@ -387,7 +407,7 @@ new class extends Component
                 class="h-64 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10 shadow-inner"
             ></div>
             <p class="text-[10px] text-slate-400 leading-normal">
-                💡 Geser **Pin Merah (Asal Belanja)** dan **Pin Biru (Tujuan Pengantaran)** untuk menyesuaikan jarak belanja Anda. Tarif ongkir akan otomatis dikalkulasi berdasarkan jarak kedua titik.
+                💡 Gunakan tombol <strong>🔍 Cari Toko</strong> / <strong>🔍 Cari Lokasi</strong> di atas untuk langsung menemukan titik di peta berdasarkan nama, atau geser manual **Pin Merah (Asal Belanja)** dan **Pin Biru (Tujuan Pengantaran)**. Tarif ongkir akan otomatis dikalkulasi berdasarkan jarak kedua titik.
             </p>
         </div>
 
@@ -444,6 +464,7 @@ new class extends Component
         let markerOrigin;
         let markerDest;
         let polyline;
+        let updateDistanceAndRoute; // di-hoist ke scope luar agar bisa dipanggil dari fungsi geocoding
 
         // Default: Malang Kota center
         let lat = -7.9839;
@@ -504,7 +525,7 @@ new class extends Component
                 weight: 3
             }).addTo(map);
 
-            function updateDistanceAndRoute() {
+            updateDistanceAndRoute = function() {
                 const originLatLng = markerOrigin.getLatLng();
                 const destLatLng = markerDest.getLatLng();
                 
@@ -518,7 +539,7 @@ new class extends Component
 
                 // Kirim ke Livewire component
                 @this.set('distance', distanceKM);
-            }
+            };
 
             // Bind drag events
             markerOrigin.on('dragend', updateDistanceAndRoute);
@@ -545,5 +566,96 @@ new class extends Component
         }
 
         tryInitMap();
+
+        // ================= NOMINATIM GEOCODING (Cari Toko / Cari Lokasi) =================
+
+        // Sederhana throttle biar tidak spam request Nominatim (max ~1 req/detik)
+        let lastGeocodeRequestAt = 0;
+        const GEOCODE_MIN_INTERVAL_MS = 1100;
+
+        async function geocodeAndMove(query, marker, btnId) {
+            const btn = document.getElementById(btnId);
+            const originalText = btn ? btn.innerText : '';
+
+            if (!query || query.trim().length < 3) {
+                alert('Ketik nama toko / alamat minimal 3 karakter dulu ya.');
+                return;
+            }
+
+            if (!map || !marker) {
+                alert('Peta belum siap, coba tunggu sebentar lalu ulangi.');
+                return;
+            }
+
+            const now = Date.now();
+            const waitTime = Math.max(0, GEOCODE_MIN_INTERVAL_MS - (now - lastGeocodeRequestAt));
+            lastGeocodeRequestAt = now + waitTime;
+
+            if (btn) {
+                btn.innerText = '⏳ Mencari...';
+                btn.disabled = true;
+            }
+
+            try {
+                if (waitTime > 0) {
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
+
+                // Filter area Malang otomatis ditambahkan ke query secara terprogram
+                const searchQuery = `${query.trim()} Malang`;
+                const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1&countrycodes=id`;
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept-Language': 'id'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+
+                const results = await response.json();
+
+                if (!results || results.length === 0) {
+                    alert('Lokasi "' + query + '" tidak ditemukan di area Malang. Coba nama lain, atau geser pin secara manual di peta.');
+                    return;
+                }
+
+                const foundLat = parseFloat(results[0].lat);
+                const foundLng = parseFloat(results[0].lon);
+
+                // Pindahkan marker bersangkutan ke koordinat baru
+                marker.setLatLng([foundLat, foundLng]);
+
+                // Geser titik tengah peta ke lokasi tersebut
+                map.setView([foundLat, foundLng], 16);
+
+                // Hitung kembali jarak, polyline, dan estimasi fare via Livewire
+                if (typeof updateDistanceAndRoute === 'function') {
+                    updateDistanceAndRoute();
+                }
+
+            } catch (error) {
+                console.error('Geocoding error:', error);
+                alert('Gagal menghubungi layanan pencarian lokasi (Nominatim). Coba lagi sebentar.');
+            } finally {
+                if (btn) {
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // Expose ke window supaya bisa dipanggil dari atribut onclick di HTML
+        window.searchOriginLocation = function () {
+            const input = document.getElementById('origin_address');
+            geocodeAndMove(input ? input.value : '', markerOrigin, 'btn-search-origin');
+        };
+
+        window.searchDestinationLocation = function () {
+            const input = document.getElementById('destination_address');
+            geocodeAndMove(input ? input.value : '', markerDest, 'btn-search-destination');
+        };
     });
 </script>

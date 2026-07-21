@@ -33,7 +33,9 @@
         </main>
 
         <!-- Footer -->
-        @include('layouts.footer')
+        @if(!request()->is('customer/*', 'jastiper/*', 'admin/*', 'customer', 'jastiper', 'admin'))
+            @include('layouts.footer')
+        @endif
 
         <!-- Toast Container -->
         <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>

@@ -42,5 +42,3 @@ Route::middleware('auth:admin')->group(function () {
     // Admin endpoint for updating verification status (simulation/actual)
     Route::post('/admin/verification/{id}/update', [DashboardController::class, 'adminVerificationUpdate'])->name('admin.verification.update');
 });
-
-

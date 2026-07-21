@@ -6,11 +6,11 @@
 <div class="min-h-screen bg-[#F3F4F6] py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <!-- Grid Layout for Sidebar and Content -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <!-- Flex Layout for Sidebar and Content -->
+        <div class="flex flex-col lg:flex-row gap-8 items-start">
             
-            <!-- SIDEBAR COLUMN (3/12 on Desktop) -->
-            <div class="lg:col-span-3 space-y-6">
+            <!-- SIDEBAR COLUMN -->
+            <div class="w-full lg:w-[280px] shrink-0 space-y-6">
                 <!-- Admin Brand & Profile Panel -->
                 <div class="bg-slate-950 text-white rounded-3xl p-6 shadow-md border border-slate-800 relative overflow-hidden">
                     <div class="absolute -right-8 -top-8 w-20 h-20 bg-white/5 rounded-full blur-lg"></div>
@@ -91,8 +91,8 @@
                 </div>
             </div>
 
-            <!-- MAIN CONTENT COLUMN (9/12 on Desktop) -->
-            <div class="lg:col-span-9">
+            <!-- MAIN CONTENT COLUMN -->
+            <div class="flex-grow w-full">
                 <!-- Livewire Component -->
                 @livewire('admin.admin-verification')
             </div>

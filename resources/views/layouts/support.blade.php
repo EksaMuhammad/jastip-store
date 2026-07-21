@@ -30,9 +30,70 @@
         @endif
 
         <!-- Main Content -->
-        <main class="flex-grow">
+        <main class="flex-grow {{ request()->is('customer/*', 'jastiper/*', 'customer', 'jastiper') ? 'pb-20 md:pb-0' : '' }}">
             @yield('content')
         </main>
+
+        <!-- Sticky Bottom Navigation for Mobile Dashboards -->
+        @if(request()->is('customer/*', 'customer'))
+            <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] px-6 py-2 flex justify-around items-center">
+                
+                <!-- Beranda -->
+                <a href="{{ route('customer.dashboard') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('customer/dashboard') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    <span>Beranda</span>
+                </a>
+
+                <!-- Pesan Jastip -->
+                <a href="{{ route('customer.orders.create') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('customer/orders/create') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
+                    <div class="w-10 h-10 -mt-5 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-rose-600/35 border-4 border-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </div>
+                    <span class="text-rose-600">Pesan</span>
+                </a>
+
+                <!-- Riwayat -->
+                <a href="#" onclick="showMaintenanceToast(event)" class="flex flex-col items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-slate-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    <span>Riwayat</span>
+                </a>
+
+                <!-- Profil -->
+                <a href="#" onclick="showMaintenanceToast(event)" class="flex flex-col items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-slate-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    <span>Profil</span>
+                </a>
+
+            </div>
+        @elseif(request()->is('jastiper/*', 'jastiper'))
+            <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] px-6 py-2 flex justify-around items-center">
+                
+                <!-- Beranda / Driver Portal -->
+                <a href="{{ route('jastiper.dashboard') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('jastiper/dashboard') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    <span>Beranda</span>
+                </a>
+
+                <!-- Area Kerja -->
+                <a href="{{ route('jastiper.area') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('jastiper/area') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <span>Area Kerja</span>
+                </a>
+
+                <!-- Verifikasi Akun -->
+                <a href="{{ route('jastiper.verification') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('jastiper/verification') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span>Verifikasi</span>
+                </a>
+
+                <!-- Profil Jastiper -->
+                <a href="#" onclick="showMaintenanceToast(event)" class="flex flex-col items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-slate-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    <span>Profil</span>
+                </a>
+
+            </div>
+        @endif
 
         <!-- Footer -->
         @if(!request()->is('customer/*', 'jastiper/*', 'admin/*', 'customer', 'jastiper', 'admin'))

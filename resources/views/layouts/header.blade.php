@@ -21,13 +21,29 @@
             </a>
 
             <!-- Navigation Links -->
-            <nav class="hidden md:flex items-center gap-8">
-                <a href="{{ request()->is('/') ? '#hero' : url('/#hero') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Beranda</a>
-                <a href="{{ request()->is('/') ? '#cara-kerja' : url('/#cara-kerja') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Cara Kerja</a>
-                <a href="{{ request()->is('/') ? '#layanan' : url('/#layanan') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Layanan</a>
-                <a href="{{ request()->is('/') ? '#keunggulan' : url('/#keunggulan') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Mengapa Kami</a>
-                <a href="{{ request()->is('/') ? '#testimoni' : url('/#testimoni') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Testimoni</a>
-            </nav>
+            @if(request()->is('customer/*', 'customer'))
+                <nav class="hidden md:flex items-center gap-8">
+                    <a href="{{ route('customer.dashboard') }}" class="text-sm font-semibold {{ request()->is('customer/dashboard') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Beranda</a>
+                    <a href="{{ route('customer.orders.create') }}" class="text-sm font-semibold {{ request()->is('customer/orders/create') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Pesan Jastip</a>
+                    <a href="#" onclick="showMaintenanceToast(event)" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Riwayat</a>
+                    <a href="#" onclick="showMaintenanceToast(event)" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Profil Saya</a>
+                </nav>
+            @elseif(request()->is('jastiper/*', 'jastiper'))
+                <nav class="hidden md:flex items-center gap-8">
+                    <a href="{{ route('jastiper.dashboard') }}" class="text-sm font-semibold {{ request()->is('jastiper/dashboard') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Beranda</a>
+                    <a href="{{ route('jastiper.area') }}" class="text-sm font-semibold {{ request()->is('jastiper/area') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Area Kerja</a>
+                    <a href="{{ route('jastiper.verification') }}" class="text-sm font-semibold {{ request()->is('jastiper/verification') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Verifikasi Akun</a>
+                    <a href="#" onclick="showMaintenanceToast(event)" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Profil Jastiper</a>
+                </nav>
+            @else
+                <nav class="hidden md:flex items-center gap-8">
+                    <a href="{{ request()->is('/') ? '#hero' : url('/#hero') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Beranda</a>
+                    <a href="{{ request()->is('/') ? '#cara-kerja' : url('/#cara-kerja') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Cara Kerja</a>
+                    <a href="{{ request()->is('/') ? '#layanan' : url('/#layanan') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Layanan</a>
+                    <a href="{{ request()->is('/') ? '#keunggulan' : url('/#keunggulan') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Mengapa Kami</a>
+                    <a href="{{ request()->is('/') ? '#testimoni' : url('/#testimoni') }}" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Testimoni</a>
+                </nav>
+            @endif
 
             <!-- Authentication / Action Buttons -->
             <div class="flex items-center gap-3">

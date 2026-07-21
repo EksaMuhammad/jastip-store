@@ -129,26 +129,26 @@ new class extends Component
 
 <div class="space-y-6">
     <!-- Card Utama -->
-    <div class="bg-white border-2 border-slate-900 shadow-[8px_8px_0px_0px_rgba(15,23,42,1)] rounded-sm p-6 sm:p-8">
+    <div class="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm">
         
-        <div class="border-b-2 border-dashed border-slate-100 pb-4 mb-6">
-            <h3 class="font-display font-black text-xl text-slate-900 uppercase tracking-tight">Wilayah & Radius Jangkauan</h3>
-            <p class="text-xs text-slate-500 mt-1">
+        <div class="border-b border-slate-100 pb-4 mb-6">
+            <h3 class="font-display font-black text-lg text-slate-800 uppercase tracking-wider">Wilayah & Radius Jangkauan</h3>
+            <p class="text-xs text-slate-400 mt-1">
                 Tentukan wilayah operasional utama Anda, batasan radius pengantaran belanjaan, serta simulasikan lokasi GPS Anda untuk mematchingkan pesanan terdekat.
             </p>
         </div>
 
         <!-- Alerts -->
         @if ($success_message)
-            <div class="mb-6 bg-emerald-50 border-2 border-emerald-200 p-4 text-emerald-700 text-sm font-semibold rounded-sm flex items-start gap-2.5">
-                <svg class="w-5 h-5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div class="mb-6 bg-emerald-50 border border-emerald-100 p-4 text-emerald-700 text-xs font-semibold rounded-2xl flex items-start gap-2.5 shadow-sm">
+                <svg class="w-4.5 h-4.5 mt-0.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <span>{{ $success_message }}</span>
             </div>
         @endif
 
         @if ($error_message)
-            <div class="mb-6 bg-rose-50 border-2 border-rose-200 p-4 text-rose-700 text-sm font-semibold rounded-sm flex items-start gap-2.5">
-                <svg class="w-5 h-5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <div class="mb-6 bg-rose-50 border border-rose-100 p-4 text-rose-700 text-xs font-semibold rounded-2xl flex items-start gap-2.5 shadow-sm">
+                <svg class="w-4.5 h-4.5 mt-0.5 shrink-0 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                 <span>{{ $error_message }}</span>
             </div>
         @endif
@@ -163,10 +163,10 @@ new class extends Component
                 <div 
                     wire:ignore
                     id="leaflet-jastiper-map" 
-                    class="h-96 w-full border-2 border-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] rounded-sm bg-slate-100 z-10"
+                    class="h-96 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10 shadow-sm"
                 ></div>
 
-                <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-3 rounded-sm text-xs">
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-3 rounded-2xl text-xs shadow-sm">
                     <div class="font-mono text-[10px] text-slate-500">
                         📍 Lat: <span class="font-bold text-slate-800" id="disp-lat">{{ number_format($current_lat, 6) }}</span> 
                         | Lng: <span class="font-bold text-slate-800" id="disp-lng">{{ number_format($current_lng, 6) }}</span>
@@ -175,7 +175,7 @@ new class extends Component
                     <button 
                         type="button" 
                         onclick="geolocateMe()" 
-                        class="bg-white hover:bg-slate-100 border-2 border-slate-900 px-3 py-1.5 font-bold text-[10px] uppercase rounded-sm shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] transition shrink-0"
+                        class="bg-white hover:bg-slate-100 border border-slate-200 px-4 py-2 font-bold text-[10px] uppercase rounded-full transition duration-150 shadow-sm shrink-0 flex items-center gap-1.5"
                     >
                         🎯 Lacak GPS Saya
                     </button>
@@ -192,7 +192,7 @@ new class extends Component
                         <select 
                             id="wilayah_id" 
                             wire:model="wilayah_id" 
-                            class="w-full bg-white border-2 border-slate-900 px-3.5 py-3 rounded-sm shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] text-sm font-semibold outline-none focus:shadow-none focus:translate-x-[2px] focus:translate-y-[2px] transition duration-150"
+                            class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-700 px-3.5 py-3 rounded-2xl text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150"
                         >
                             <option value="">-- Pilih Wilayah Operasional --</option>
                             @foreach($wilayah_list as $w)
@@ -206,7 +206,7 @@ new class extends Component
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
                             <label for="radius_km" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Radius Jangkauan</label>
-                            <span class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-sm">
+                            <span class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full">
                                 <span id="disp-radius">{{ number_format($radius_km, 1) }}</span> KM
                             </span>
                         </div>
@@ -235,7 +235,7 @@ new class extends Component
                     <div class="pt-4 border-t border-slate-100">
                         <button 
                             type="submit" 
-                            class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm py-3 rounded-sm border-2 border-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition duration-150 uppercase tracking-wide"
+                            class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-3.5 rounded-full transition duration-150 uppercase tracking-wider shadow-md shadow-rose-600/10"
                         >
                             💾 Simpan Pengaturan Wilayah
                         </button>
@@ -243,7 +243,7 @@ new class extends Component
                 </form>
 
                 <!-- PANEL SIMULASI GPS REALTIME -->
-                <div class="mt-8 bg-slate-900 border-2 border-slate-800 text-slate-300 p-5 rounded-sm shadow-md font-mono text-[11px] space-y-3.5">
+                <div class="mt-8 bg-slate-900 border border-slate-800 text-slate-300 p-5 rounded-3xl shadow-sm space-y-3.5">
                     <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
                         <span class="font-bold text-rose-500 flex items-center gap-1.5 text-xs">
                             <span class="w-2.5 h-2.5 bg-rose-500 rounded-full {{ $is_simulating ? 'animate-ping' : '' }}"></span>
@@ -267,7 +267,8 @@ new class extends Component
                         <button 
                             type="button" 
                             wire:click="toggleSimulation" 
-                            class="border font-bold text-[9px] px-3.5 py-2 rounded-sm uppercase transition {{ $is_simulating ? 'bg-rose-600 border-rose-500 text-white hover:bg-rose-700' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750' }}"
+                            class="font-bold text-[9px] px-4 py-2.5 rounded-full uppercase transition duration-150 shadow-sm"
+                            style="{{ $is_simulating ? 'background-color: #e11d48; border-color: #e11d48; color: white;' : 'background-color: #1e293b; border-color: #334155; color: #cbd5e1;' }}"
                         >
                             {{ $is_simulating ? 'Hentikan Simulasi' : 'Mulai Simulasi GPS' }}
                         </button>

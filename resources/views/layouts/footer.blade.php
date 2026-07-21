@@ -65,6 +65,8 @@
                 <a href="#" class="hover:text-slate-300 transition">Mitra Jastip</a>
                 <a href="#" class="hover:text-slate-300 transition">Lokasi Layanan</a>
                 <a href="#" class="hover:text-slate-300 transition">Peta Situs</a>
+                <span class="text-slate-700">|</span>
+                <a href="{{ route('admin.login') }}" class="hover:text-slate-300 transition font-semibold text-rose-500/80 hover:text-rose-500">Portal Admin 🔒</a>
             </div>
         </div>
     </div>

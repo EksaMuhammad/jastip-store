@@ -102,9 +102,9 @@
                     <!-- Verification Button Action -->
                     <div class="pt-4 mt-6 border-t border-slate-100">
                         @if ($jastiper->verification_status === 'approved')
-                            <button onclick="showMaintenanceToast(event)" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs py-3 rounded-xl transition border border-slate-200">
+                            <a href="{{ route('jastiper.area') }}" class="block text-center bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs py-3 rounded-xl transition border border-slate-200">
                                 Edit Profil & Wilayah
-                            </button>
+                            </a>
                         @elseif ($jastiper->verification_status === 'menunggu')
                             <a href="{{ route('jastiper.verification') }}" class="block text-center bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-3 rounded-xl transition uppercase tracking-wide">
                                 Pantau Pengajuan ↗

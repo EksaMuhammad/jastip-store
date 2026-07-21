@@ -73,4 +73,21 @@ class DashboardController extends Controller
 
         return redirect()->back()->with('success', 'Status verifikasi berhasil diperbarui dan notifikasi WhatsApp telah dikirim!');
     }
+
+    /**
+     * Halaman pilih wilayah & radius operasional untuk Jastiper.
+     */
+    public function jastiperArea()
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        return view('jastiper.area', compact('jastiper'));
+    }
+
+    /**
+     * Halaman dashboard antrian verifikasi Admin.
+     */
+    public function adminVerification()
+    {
+        return view('admin.verification');
+    }
 }

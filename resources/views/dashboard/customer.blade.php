@@ -180,21 +180,59 @@
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Pesanan Aktif Anda</h3>
             
-            <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between gap-4">
-                <div class="flex items-center gap-3 text-left">
-                    <div class="w-10 h-10 bg-slate-200/50 rounded-full flex items-center justify-center shrink-0">
-                        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            @forelse($orders as $order)
+                <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3 text-left">
+                        <div class="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center shrink-0 text-lg">
+                            @php
+                                $categoryIcons = [
+                                    'beli-antar' => '🍔',
+                                    'ambil-antar' => '🛍️',
+                                    'toko-kirim' => '🛒',
+                                    'dokumen' => '📄',
+                                    'multi-stop' => '📍',
+                                    'kirim-pihak-ketiga' => '🚀',
+                                ];
+                                $catIcon = $categoryIcons[$order->category] ?? '📦';
+                            @endphp
+                            {{ $catIcon }}
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-[11px] text-slate-750 line-clamp-1">{{ $order->description }}</h4>
+                            <p class="text-[9px] text-slate-400 leading-normal mt-0.5">
+                                Status: 
+                                <span class="font-extrabold uppercase {{ $order->status === 'menunggu_tawaran' ? 'text-amber-500' : 'text-emerald-500' }}">
+                                    {{ $order->status === 'menunggu_tawaran' ? 'Menunggu Jastiper' : 'Sedang Diproses' }}
+                                </span>
+                            </p>
+                            @if($order->jastiper)
+                                <p class="text-[8px] text-slate-500 mt-0.5">Mitra Jastiper: <b>{{ $order->jastiper->name }}</b> ({{ $order->jastiper->phone_number }})</p>
+                            @endif
+                        </div>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-[11px] text-slate-700">Belum Ada Belanjaan Aktif</h4>
-                        <p class="text-[9px] text-slate-400 leading-normal mt-0.5">Riwayat & posisi kurir akan muncul di sini setelah memesan.</p>
+
+                    <div class="text-right shrink-0">
+                        <span class="text-[8px] uppercase font-bold text-slate-400 block tracking-wide">Ongkos Kirim</span>
+                        <span class="text-xs font-black text-rose-600">Rp {{ number_format($order->estimated_fare, 0, ',', '.') }}</span>
                     </div>
                 </div>
+            @empty
+                <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3 text-left">
+                        <div class="w-10 h-10 bg-slate-200/50 rounded-full flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-[11px] text-slate-700">Belum Ada Belanjaan Aktif</h4>
+                            <p class="text-[9px] text-slate-400 leading-normal mt-0.5">Riwayat & posisi kurir akan muncul di sini setelah memesan.</p>
+                        </div>
+                    </div>
 
-                <a href="{{ url('/#calculator') }}" class="inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] px-4 py-2.5 rounded-full transition uppercase tracking-wider whitespace-nowrap shadow-sm">
-                    Pesan Jastip
-                </a>
-            </div>
+                    <a href="{{ route('customer.orders.create') }}" class="inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] px-4 py-2.5 rounded-full transition uppercase tracking-wider whitespace-nowrap shadow-sm">
+                        Pesan Jastip
+                    </a>
+                </div>
+            @endforelse
         </div>
 
     </div>

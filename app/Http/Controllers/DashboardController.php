@@ -15,7 +15,15 @@ class DashboardController extends Controller
     public function customerDashboard()
     {
         $customer = Auth::guard('customer')->user();
-        return view('dashboard.customer', compact('customer'));
+        
+        // Ambil order nyata milik customer yang masih aktif (belum selesai/batal)
+        $orders = \App\Models\Order::with('jastiper')
+            ->where('customer_id', $customer->id)
+            ->whereIn('status', ['menunggu_tawaran', 'diproses'])
+            ->latest()
+            ->get();
+
+        return view('dashboard.customer', compact('customer', 'orders'));
     }
 
     /**

@@ -458,8 +458,8 @@ new class extends Component
 
 </div>
 
+@script
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
         let map;
         let markerOrigin;
         let markerDest;
@@ -538,7 +538,7 @@ new class extends Component
                 document.getElementById('disp-distance').innerText = distanceKM.toFixed(2);
 
                 // Kirim ke Livewire component
-                @this.set('distance', distanceKM);
+                $wire.set('distance', distanceKM);
             };
 
             // Bind drag events
@@ -657,5 +657,5 @@ new class extends Component
             const input = document.getElementById('destination_address');
             geocodeAndMove(input ? input.value : '', markerDest, 'btn-search-destination');
         };
-    });
 </script>
+@endscript

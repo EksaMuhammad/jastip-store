@@ -106,42 +106,54 @@
             </div>
         </div>
 
-        <!-- Gojek Services Circular Grid (Menu Grid Redesign) -->
+        <!-- JastipKuy Services Horizontal Row (Menu Grid Redesign with Flexbox to force horizontal layout) -->
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Layanan Belanja Jastip</h3>
             
-            <div class="grid grid-cols-4 gap-4 justify-between text-center">
+            <div class="flex items-start justify-between text-center px-1">
                 
-                <!-- GoFood (Titip Kuliner) -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none">
-                    <div class="w-12 h-12 bg-red-100 group-hover:bg-red-200 group-hover:scale-105 rounded-full flex items-center justify-center transition duration-150 shadow-sm shrink-0">
-                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <!-- Jastip Kuliner -->
+                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                    <div class="w-12 h-12 bg-rose-600 hover:bg-rose-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-rose-600/20 shrink-0">
+                        <!-- Food Cloche Icon -->
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3a9 9 0 00-9 9h18a9 9 0 00-9-9zM3 12h18M5 12v3a2 2 0 002 2h10a2 2 0 002-2v-3M12 2v1" />
+                        </svg>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-700 leading-tight">GoFood<br><span class="text-[8px] text-slate-400 font-medium">(Kuliner)</span></span>
+                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Kuliner<br><span class="text-[8px] text-slate-500 font-medium">(Kuliner)</span></span>
                 </button>
 
-                <!-- GoMart (Titip Minimarket) -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none">
-                    <div class="w-12 h-12 bg-sky-100 group-hover:bg-sky-200 group-hover:scale-105 rounded-full flex items-center justify-center transition duration-150 shadow-sm shrink-0">
-                        <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                <!-- Jastip Minimarket -->
+                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                    <div class="w-12 h-12 bg-sky-600 hover:bg-sky-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-sky-600/20 shrink-0">
+                        <!-- Shopping Bag Icon -->
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-700 leading-tight">GoMart<br><span class="text-[8px] text-slate-400 font-medium">(Minimarket)</span></span>
+                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Toko<br><span class="text-[8px] text-slate-500 font-medium">(Minimarket)</span></span>
                 </button>
 
-                <!-- GoShop (Belanja Pasar) -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none">
-                    <div class="w-12 h-12 bg-amber-100 group-hover:bg-amber-200 group-hover:scale-105 rounded-full flex items-center justify-center transition duration-150 shadow-sm shrink-0">
-                        <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <!-- Jastip Pasar -->
+                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                    <div class="w-12 h-12 bg-amber-500 hover:bg-amber-600 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-amber-500/20 shrink-0">
+                        <!-- Shopping Cart Icon -->
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-700 leading-tight">GoShop<br><span class="text-[8px] text-slate-400 font-medium">(Pasar)</span></span>
+                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Pasar<br><span class="text-[8px] text-slate-500 font-medium">(Pasar)</span></span>
                 </button>
 
-                <!-- GoSend (Titip Bebas) -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none">
-                    <div class="w-12 h-12 bg-emerald-100 group-hover:bg-emerald-200 group-hover:scale-105 rounded-full flex items-center justify-center transition duration-150 shadow-sm shrink-0">
-                        <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l-1.977-1.977a2.25 2.25 0 113.182-3.182l1.977 1.977M21 21l-3.5-3.5m0 0A7.5 7.5 0 1118 6.5a7.5 7.5 0 010 11z"></path></svg>
+                <!-- Jastip Bebas -->
+                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                    <div class="w-12 h-12 bg-emerald-600 hover:bg-emerald-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-emerald-600/20 shrink-0">
+                        <!-- 3D Box Package Icon -->
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-700 leading-tight">GoSend<br><span class="text-[8px] text-slate-400 font-medium">(Titip Bebas)</span></span>
+                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Bebas<br><span class="text-[8px] text-slate-500 font-medium">(Titip Bebas)</span></span>
                 </button>
 
             </div>

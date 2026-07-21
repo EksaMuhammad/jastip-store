@@ -28,12 +28,14 @@ Route::post('/admin/logout', [AdminAuthController::class, 'logout'])->name('admi
 // Dashboard Routes (protected by role-based auth middleware)
 Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/dashboard', [DashboardController::class, 'customerDashboard'])->name('customer.dashboard');
+    Route::get('/customer/orders/create', [DashboardController::class, 'customerCreateOrder'])->name('customer.orders.create');
 });
 
 Route::middleware('auth:jastiper')->group(function () {
     Route::get('/jastiper/dashboard', [DashboardController::class, 'jastiperDashboard'])->name('jastiper.dashboard');
     Route::get('/jastiper/verification', [DashboardController::class, 'jastiperVerification'])->name('jastiper.verification');
     Route::get('/jastiper/area', [DashboardController::class, 'jastiperArea'])->name('jastiper.area');
+    Route::post('/jastiper/orders/{id}/accept', [DashboardController::class, 'jastiperAcceptOrder'])->name('jastiper.orders.accept');
 });
 
 // Admin Dashboard Routes

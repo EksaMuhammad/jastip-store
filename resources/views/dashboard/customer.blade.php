@@ -113,7 +113,7 @@
             <div class="flex items-start justify-between text-center px-1">
                 
                 <!-- Jastip Kuliner -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                <a href="{{ route('customer.orders.create') }}?cat=beli-antar" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
                     <div class="w-12 h-12 bg-rose-600 hover:bg-rose-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-rose-600/20 shrink-0">
                         <!-- Food Cloche Icon -->
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,10 +121,10 @@
                         </svg>
                     </div>
                     <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Kuliner<br><span class="text-[8px] text-slate-500 font-medium">(Kuliner)</span></span>
-                </button>
+                </a>
 
                 <!-- Jastip Minimarket -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                <a href="{{ route('customer.orders.create') }}?cat=toko-kirim" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
                     <div class="w-12 h-12 bg-sky-600 hover:bg-sky-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-sky-600/20 shrink-0">
                         <!-- Shopping Bag Icon -->
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -132,10 +132,10 @@
                         </svg>
                     </div>
                     <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Toko<br><span class="text-[8px] text-slate-500 font-medium">(Minimarket)</span></span>
-                </button>
+                </a>
 
                 <!-- Jastip Pasar -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                <a href="{{ route('customer.orders.create') }}?cat=ambil-antar" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
                     <div class="w-12 h-12 bg-amber-500 hover:bg-amber-600 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-amber-500/20 shrink-0">
                         <!-- Shopping Cart Icon -->
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,10 +143,10 @@
                         </svg>
                     </div>
                     <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Pasar<br><span class="text-[8px] text-slate-500 font-medium">(Pasar)</span></span>
-                </button>
+                </a>
 
                 <!-- Jastip Bebas -->
-                <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
+                <a href="{{ route('customer.orders.create') }}?cat=kirim-pihak-ketiga" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
                     <div class="w-12 h-12 bg-emerald-600 hover:bg-emerald-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-emerald-600/20 shrink-0">
                         <!-- 3D Box Package Icon -->
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,7 +154,7 @@
                         </svg>
                     </div>
                     <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Bebas<br><span class="text-[8px] text-slate-500 font-medium">(Titip Bebas)</span></span>
-                </button>
+                </a>
 
             </div>
         </div>

@@ -165,41 +165,63 @@
                         <p class="text-[9px] text-slate-400 mt-1 max-w-[200px] leading-normal mx-auto">Selesaikan verifikasi akun KTP Anda terlebih dahulu di bagian atas untuk membuka akses order.</p>
                     </div>
                 @else
-                    <!-- Mock Driver Request Card (Gojek App Style) -->
-                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 hover:border-slate-300 transition">
-                        
-                        <!-- Header info card -->
-                        <div class="flex justify-between items-start border-b border-slate-200/60 pb-2.5">
-                            <div>
-                                <span class="text-[8px] font-black bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Titip Kuliner</span>
-                                <h4 class="font-extrabold text-xs text-slate-800 mt-1.5 leading-tight">Titip Nasi Goreng Gila Malang</h4>
-                                <span class="text-[9px] text-slate-400 block mt-0.5">Warung Pak Kumis (1.2 km dari Anda)</span>
+                    @forelse($orders as $order)
+                        <!-- Real Driver Request Card (Gojek App Style) -->
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 hover:border-slate-300 transition animate-fade-in">
+                            
+                            <!-- Header info card -->
+                            <div class="flex justify-between items-start border-b border-slate-200/60 pb-2.5">
+                                <div>
+                                    @php
+                                        $categoryNames = [
+                                            'beli-antar' => 'Titip Kuliner',
+                                            'ambil-antar' => 'Titip Ambil',
+                                            'toko-kirim' => 'Titip Toko',
+                                            'dokumen' => 'Dokumen Kecil',
+                                            'multi-stop' => 'Multi-Stop',
+                                            'kirim-pihak-ketiga' => 'Titip Ekspedisi',
+                                        ];
+                                        $catLabel = $categoryNames[$order->category] ?? 'Jastip';
+                                    @endphp
+                                    <span class="text-[8px] font-black bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full uppercase tracking-wider">{{ $catLabel }}</span>
+                                    <h4 class="font-extrabold text-xs text-slate-800 mt-1.5 leading-tight">{{ $order->description }}</h4>
+                                    <span class="text-[9px] text-slate-400 block mt-0.5">Asal: {{ $order->origin_address ?: '-' }}</span>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Komisi Jastip</span>
+                                    <span class="text-xs font-black text-rose-600">+ Rp {{ number_format($order->estimated_fare, 0, ',', '.') }}</span>
+                                </div>
                             </div>
-                            <div class="text-right shrink-0">
-                                <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Komisi Jastip</span>
-                                <span class="text-xs font-black text-rose-600">+ Rp15.000</span>
-                            </div>
-                        </div>
 
-                        <!-- Details & Addresses -->
-                        <div class="space-y-2 text-[9px] text-slate-500">
-                            <div>Total Belanja: <span class="font-extrabold text-slate-800">Rp42.000</span></div>
-                            <div class="flex items-start gap-1">
-                                <svg class="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                <span class="leading-tight">Antar: Lowokwaru, Malang Kota</span>
+                            <!-- Details & Addresses -->
+                            <div class="space-y-2 text-[9px] text-slate-500">
+                                <div class="flex items-start gap-1">
+                                    <svg class="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                    <span class="leading-tight">Antar: {{ $order->destination_address }}</span>
+                                </div>
+                                <div>Penerima: <span class="font-extrabold text-slate-800">{{ $order->recipient_name }}</span> ({{ $order->recipient_phone }})</div>
+                                <div>Kategori Berat: <span class="font-bold text-slate-700 capitalize">{{ $order->weight_category }}</span></div>
+                            </div>
+
+                            <!-- Action buttons -->
+                            <div class="pt-1">
+                                <form action="{{ route('jastiper.orders.accept', $order->id) }}" method="POST">
+                                    @csrf
+                                    <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                        Terima Orderan Ini
+                                    </button>
+                                </form>
                             </div>
                         </div>
-
-                        <!-- Action buttons -->
-                        <div class="grid grid-cols-2 gap-2 pt-1">
-                            <button onclick="showMaintenanceToast(event)" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] py-2 rounded-xl transition uppercase tracking-wide shadow-sm">
-                                Terima
-                            </button>
-                            <button onclick="showMaintenanceToast(event)" class="border border-slate-200 hover:bg-slate-100 text-slate-500 font-bold text-[9px] py-2 rounded-xl transition uppercase tracking-wide">
-                                Abaikan
-                            </button>
+                    @empty
+                        <div class="py-10 text-center flex flex-col items-center justify-center">
+                            <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </div>
+                            <h4 class="font-bold text-xs text-slate-700">Tidak Ada Orderan Aktif</h4>
+                            <p class="text-[9px] text-slate-400 mt-1 max-w-[220px] leading-normal mx-auto">Saat ini belum ada permintaan jastip baru di wilayah operasional Anda.</p>
                         </div>
-                    </div>
+                    @endforelse
                 @endif
             </div>
         </div>

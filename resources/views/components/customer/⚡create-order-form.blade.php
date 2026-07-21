@@ -1,0 +1,549 @@
+<?php
+
+use Livewire\Component;
+use Livewire\WithFileUploads;
+use App\Models\Order;
+use App\Models\Wilayah;
+use App\Services\WhatsAppService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+
+new class extends Component
+{
+    use WithFileUploads;
+
+    // Form inputs
+    public string $category = 'beli-antar'; // beli-antar, ambil-antar, toko-kirim, dokumen, multi-stop, kirim-pihak-ketiga
+    public string $weight_category = 'ringan'; // ringan, sedang, berat
+    public string $description = '';
+    public $reference_photo;
+    
+    public string $origin_address = '';
+    public string $destination_address = '';
+    public string $recipient_name = '';
+    public string $recipient_phone = '';
+
+    // Calculation states
+    public float $distance = 1.0; // in KM
+    public float $estimated_fare = 0.0;
+
+    // Messages
+    public string $success_message = '';
+    public string $error_message = '';
+
+    protected function rules()
+    {
+        return [
+            'category' => ['required', 'in:beli-antar,ambil-antar,toko-kirim,dokumen,multi-stop,kirim-pihak-ketiga'],
+            'weight_category' => ['required', 'in:ringan,sedang,berat'],
+            'description' => ['required', 'string', 'min:5'],
+            'origin_address' => ['required_if:category,beli-antar,ambil-antar,toko-kirim'],
+            'destination_address' => ['required', 'string', 'min:5'],
+            'recipient_name' => ['required', 'string', 'min:2'],
+            'recipient_phone' => ['required', 'string', 'min:9'],
+            'reference_photo' => ['nullable', 'image', 'max:2048'], // Max 2MB
+        ];
+    }
+
+    protected function messages()
+    {
+        return [
+            'description.required' => 'Deskripsi pesanan wajib diisi.',
+            'description.min' => 'Deskripsi minimal berisi 5 karakter.',
+            'origin_address.required_if' => 'Alamat asal/toko wajib diisi untuk kategori belanja ini.',
+            'destination_address.required' => 'Alamat tujuan pengantaran wajib diisi.',
+            'destination_address.min' => 'Alamat tujuan minimal berisi 5 karakter.',
+            'recipient_name.required' => 'Nama penerima wajib diisi.',
+            'recipient_phone.required' => 'No HP penerima wajib diisi.',
+            'reference_photo.max' => 'Ukuran foto maksimal 2MB.',
+        ];
+    }
+
+    public function mount()
+    {
+        // Auto fill recipient details with customer's own details as default
+        $customer = Auth::guard('customer')->user();
+        if ($customer) {
+            $this->recipient_name = $customer->name;
+            $this->recipient_phone = $customer->phone_number;
+        }
+
+        // Calculate initial fare
+        $this->calculateFare();
+    }
+
+    public function updated($propertyName)
+    {
+        $this->calculateFare();
+    }
+
+    /**
+     * Hitung tarif estimasi jastip secara real-time
+     */
+    public function calculateFare()
+    {
+        // Tarif dasar per KM
+        $ratePerKm = 5000.0;
+        
+        // Biaya tambahan kategori barang
+        $categoryAdditions = [
+            'beli-antar' => 5000.0,
+            'ambil-antar' => 3000.0,
+            'toko-kirim' => 2000.0,
+            'dokumen' => 0.0,
+            'multi-stop' => 15000.0,
+            'kirim-pihak-ketiga' => 5000.0,
+        ];
+
+        // Biaya tambahan berat
+        $weightAdditions = [
+            'ringan' => 0.0,
+            'sedang' => 10000.0,
+            'berat' => 25000.0,
+        ];
+
+        $baseAddition = $categoryAdditions[$this->category] ?? 0.0;
+        $weightAddition = $weightAdditions[$this->weight_category] ?? 0.0;
+
+        // Formula: (Jarak * Tarif/KM) + Tambahan Kategori + Tambahan Berat
+        $fare = ($this->distance * $ratePerKm) + $baseAddition + $weightAddition;
+        
+        // Minimal fare Rp 10.000
+        $this->estimated_fare = max(10000.0, $fare);
+    }
+
+    /**
+     * Simpan request order baru ke database
+     */
+    public function submitOrder()
+    {
+        $this->validate();
+
+        $customer = Auth::guard('customer')->user();
+        
+        // Gunakan wilayah operasional default pertama (Malang Kota)
+        $wilayah = Wilayah::first();
+        if (!$wilayah) {
+            $this->error_message = 'Wilayah operasional tidak aktif. Hubungi Admin.';
+            return;
+        }
+
+        try {
+            $photoPath = null;
+            if ($this->reference_photo) {
+                $photoPath = $this->reference_photo->store('orders/references', 'public');
+            }
+
+            // Buat record order baru
+            $order = Order::create([
+                'customer_id' => $customer->id,
+                'wilayah_id' => $wilayah->id,
+                'category' => $this->category,
+                'weight_category' => $this->weight_category,
+                'description' => $this->description,
+                'reference_photo' => $photoPath,
+                'origin_address' => $this->origin_address ?: 'Lokasi Pin Peta Asal',
+                'destination_address' => $this->destination_address,
+                'recipient_name' => $this->recipient_name,
+                'recipient_phone' => $this->recipient_phone,
+                'estimated_fare' => $this->estimated_fare,
+                'status' => 'menunggu_tawaran',
+            ]);
+
+            // Kirim notifikasi WhatsApp simulasi ke customer
+            $categoryNames = [
+                'beli-antar' => 'Jastip Kuliner (Beli-Antar)',
+                'ambil-antar' => 'Jastip Ambil Barang (Ambil-Antar)',
+                'toko-kirim' => 'Jastip Toko',
+                'dokumen' => 'Jastip Dokumen Kecil',
+                'multi-stop' => 'Jastip Multi-Stop',
+                'kirim-pihak-ketiga' => 'Jastip Pihak Ketiga',
+            ];
+            $catLabel = $categoryNames[$this->category] ?? 'Jastip';
+
+            $msg = "Halo *{$customer->name}*!\n\nPermintaan Jastip baru Anda telah berhasil dikirim ke sistem:\n\n📦 *Layanan*: {$catLabel}\n📝 *Deskripsi*: {$this->description}\n🎯 *Radius/Jarak*: {$this->distance} KM\n💰 *Estimasi Ongkir*: Rp " . number_format($this->estimated_fare, 0, ',', '.') . "\n\nSistem sedang mencarikan Jastiper terdekat di area Malang. Mohon tunggu tawaran masuk! 🚀";
+            WhatsAppService::sendMessage($customer->phone_number, $msg);
+
+            session()->flash('success', 'Request Jastip Baru Berhasil Dibuat! Mohon tunggu tawaran dari Jastiper.');
+            return redirect()->route('customer.dashboard');
+
+        } catch (\Exception $e) {
+            Log::error("Error Customer Submit Order: " . $e->getMessage());
+            $this->error_message = 'Gagal menyimpan pesanan. Silakan coba lagi.';
+        }
+    }
+};
+?>
+
+<div class="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm space-y-8">
+    
+    <div class="border-b border-slate-100 pb-4 mb-6">
+        <h3 class="font-display font-black text-lg text-slate-800 uppercase tracking-wider">Form Request Jastip Baru</h3>
+        <p class="text-xs text-slate-400 mt-1">Silakan pilih kategori jastip, isi deskripsi kebutuhan titipan, serta tentukan rute pengantaran.</p>
+    </div>
+
+    <!-- Error Alert -->
+    @if ($error_message)
+        <div class="bg-rose-50 border border-rose-100 p-4 text-rose-700 text-xs font-semibold rounded-2xl flex items-start gap-2.5 shadow-sm">
+            <svg class="w-4.5 h-4.5 mt-0.5 shrink-0 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span>{{ $error_message }}</span>
+        </div>
+    @endif
+
+    <form wire:submit.prevent="submitOrder" class="space-y-6">
+        
+        <!-- 1. PILIH KATEGORI (6 Kategori JastipKuy) -->
+        <div class="space-y-3">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Pilih Layanan Jastip</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                
+                <!-- Beli-Antar -->
+                <button 
+                    type="button" 
+                    wire:click="$set('category', 'beli-antar')"
+                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    style="{{ $category === 'beli-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                >
+                    <span class="w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center text-white text-sm">🍔</span>
+                    <div>
+                        <h5 class="text-xs font-bold text-slate-800">Beli-Antar</h5>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Jastip Kuliner / Makanan</span>
+                    </div>
+                </button>
+
+                <!-- Ambil-Antar -->
+                <button 
+                    type="button" 
+                    wire:click="$set('category', 'ambil-antar')"
+                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    style="{{ $category === 'ambil-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                >
+                    <span class="w-8 h-8 bg-sky-500 rounded-full flex items-center justify-center text-white text-sm">🛍️</span>
+                    <div>
+                        <h5 class="text-xs font-bold text-slate-800">Ambil & Antar</h5>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Ambil barang / COD</span>
+                    </div>
+                </button>
+
+                <!-- Toko Kirim -->
+                <button 
+                    type="button" 
+                    wire:click="$set('category', 'toko-kirim')"
+                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    style="{{ $category === 'toko-kirim' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                >
+                    <span class="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm">🛒</span>
+                    <div>
+                        <h5 class="text-xs font-bold text-slate-800">Toko Kirim</h5>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Belanja Minimarket/Pasar</span>
+                    </div>
+                </button>
+
+                <!-- Dokumen -->
+                <button 
+                    type="button" 
+                    wire:click="$set('category', 'dokumen')"
+                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    style="{{ $category === 'dokumen' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                >
+                    <span class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-sm">📄</span>
+                    <div>
+                        <h5 class="text-xs font-bold text-slate-800">Dokumen Kecil</h5>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Kirim surat / dokumen</span>
+                    </div>
+                </button>
+
+                <!-- Multi-stop -->
+                <button 
+                    type="button" 
+                    wire:click="$set('category', 'multi-stop')"
+                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    style="{{ $category === 'multi-stop' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                >
+                    <span class="w-8 h-8 bg-violet-500 rounded-full flex items-center justify-center text-white text-sm">📍</span>
+                    <div>
+                        <h5 class="text-xs font-bold text-slate-800">Multi-Stop</h5>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Banyak titik belanja/antar</span>
+                    </div>
+                </button>
+
+                <!-- Pihak Ketiga -->
+                <button 
+                    type="button" 
+                    wire:click="$set('category', 'kirim-pihak-ketiga')"
+                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    style="{{ $category === 'kirim-pihak-ketiga' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                >
+                    <span class="w-8 h-8 bg-fuchsia-500 rounded-full flex items-center justify-center text-white text-sm">🚀</span>
+                    <div>
+                        <h5 class="text-xs font-bold text-slate-800">Pihak Ketiga</h5>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Ekspedisi / Agen Kirim</span>
+                    </div>
+                </button>
+
+            </div>
+        </div>
+
+        <!-- 2. DETAIL PESANAN & UPLOADER -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            
+            <div class="md:col-span-8 space-y-4">
+                <!-- Deskripsi -->
+                <div class="space-y-1.5">
+                    <label for="description" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Detail Belanjaan / Deskripsi Barang</label>
+                    <textarea 
+                        id="description" 
+                        wire:model.live="description"
+                        rows="3"
+                        placeholder="Contoh: Titip Nasi Goreng Gila 1 porsi pedas sedang, es teh manis 1..."
+                        class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-3 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                    ></textarea>
+                    @error('description') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+                </div>
+
+                <!-- Alamat Origin & Destination -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Origin -->
+                    @if(in_array($category, ['beli-antar', 'ambil-antar', 'toko-kirim']))
+                        <div class="space-y-1.5">
+                            <label for="origin_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Asal / Toko Belanja</label>
+                            <input 
+                                type="text" 
+                                id="origin_address" 
+                                wire:model.live="origin_address"
+                                placeholder="Tulis nama warung / lokasi belanja..."
+                                class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                            >
+                            @error('origin_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
+
+                    <!-- Destination -->
+                    <div class="space-y-1.5">
+                        <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Tujuan Pengantaran</label>
+                        <input 
+                            type="text" 
+                            id="destination_address" 
+                            wire:model.live="destination_address"
+                            placeholder="Alamat rumah / kos Anda..."
+                            class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                        >
+                        @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Box & Weight Category -->
+            <div class="md:col-span-4 space-y-4">
+                <!-- Berat Category -->
+                <div class="space-y-1.5">
+                    <label for="weight_category" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Estimasi Berat Barang</label>
+                    <select 
+                        id="weight_category" 
+                        wire:model.live="weight_category"
+                        class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-3 rounded-2xl text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150"
+                    >
+                        <option value="ringan">Ringan (Baju, Makanan, Dokumen) - +Rp0</option>
+                        <option value="sedang">Sedang (Dus Sedang, Helm) - +Rp10.000</option>
+                        <option value="berat">Berat (Kardus Besar, Galon) - +Rp25.000</option>
+                    </select>
+                </div>
+
+                <!-- Foto Uploader -->
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Foto Referensi (Opsional)</label>
+                    <div class="border border-dashed border-slate-200 hover:border-rose-500 rounded-2xl p-4 text-center cursor-pointer relative bg-slate-50/50 hover:bg-white transition duration-150 shadow-inner">
+                        <input type="file" wire:model="reference_photo" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        @if ($reference_photo)
+                            <div class="flex flex-col items-center">
+                                <img src="{{ $reference_photo->temporaryUrl() }}" class="max-h-20 object-contain rounded-xl border border-slate-200">
+                                <span class="text-[9px] text-emerald-600 font-bold mt-1.5">✓ Terpilih</span>
+                            </div>
+                        @else
+                            <div class="flex flex-col items-center py-2">
+                                <span class="text-xs font-bold text-slate-700">Pilih Foto</span>
+                                <span class="text-[8px] text-slate-400 mt-0.5">PNG, JPG (Maks 2MB)</span>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 3. INTERACTIVE MAP SECTION -->
+        <div class="space-y-3">
+            <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Tentukan Titik di Peta (Geser Pin)</label>
+                <span class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full">
+                    Jarak: <span id="disp-distance">{{ number_format($distance, 2) }}</span> KM
+                </span>
+            </div>
+
+            <!-- Leaflet Container -->
+            <div 
+                wire:ignore
+                id="leaflet-order-map" 
+                class="h-64 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10 shadow-inner"
+            ></div>
+            <p class="text-[10px] text-slate-400 leading-normal">
+                💡 Geser **Pin Merah (Asal Belanja)** dan **Pin Biru (Tujuan Pengantaran)** untuk menyesuaikan jarak belanja Anda. Tarif ongkir akan otomatis dikalkulasi berdasarkan jarak kedua titik.
+            </p>
+        </div>
+
+        <!-- 4. RECIPIENT DATA -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+            <div class="space-y-1.5">
+                <label for="recipient_name" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Nama Penerima Paket / Titipan</label>
+                <input 
+                    type="text" 
+                    id="recipient_name" 
+                    wire:model.live="recipient_name"
+                    placeholder="Nama lengkap penerima..."
+                    class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                >
+                @error('recipient_name') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+            </div>
+
+            <div class="space-y-1.5">
+                <label for="recipient_phone" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Nomor HP Penerima</label>
+                <input 
+                    type="text" 
+                    id="recipient_phone" 
+                    wire:model.live="recipient_phone"
+                    placeholder="Contoh: 08123456789..."
+                    class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                >
+                @error('recipient_phone') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+            </div>
+        </div>
+
+        <!-- 5. FARE ESTIMATION BOX & SUBMIT -->
+        <div class="bg-rose-50 border border-rose-100 p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 shadow-sm">
+            <div>
+                <span class="text-[9px] uppercase font-bold text-rose-500 tracking-wider block">Total Estimasi Ongkos Kirim</span>
+                <span class="text-2xl font-black text-rose-600 font-display">Rp {{ number_format($estimated_fare, 0, ',', '.') }}</span>
+                <span class="text-[9px] text-slate-400 block mt-0.5">*(Ongkir disesuaikan berdasarkan jarak {{ number_format($distance, 1) }} KM & kategori berat)</span>
+            </div>
+
+            <button 
+                type="submit" 
+                class="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs px-8 py-3.5 rounded-full transition shadow-md shadow-rose-600/10 uppercase tracking-wider shrink-0"
+            >
+                Kirim Request Jastip
+            </button>
+        </div>
+
+    </form>
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let map;
+        let markerOrigin;
+        let markerDest;
+        let polyline;
+
+        // Default: Malang Kota center
+        let lat = -7.9839;
+        let lng = 112.6214;
+
+        function initOrderMap() {
+            if (typeof L === 'undefined') return;
+
+            let container = L.DomUtil.get('leaflet-order-map');
+            if (container !== null && container._leaflet_id !== undefined && container._leaflet_id !== null) {
+                return;
+            }
+
+            map = L.map('leaflet-order-map', {
+                zoomControl: true,
+                attributionControl: false
+            }).setView([lat, lng], 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18
+            }).addTo(map);
+
+            // Merah untuk Asal Belanja
+            const redIcon = L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
+
+            // Biru untuk Tujuan Antar
+            const blueIcon = L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
+
+            // Tambahkan markers
+            markerOrigin = L.marker([lat + 0.005, lng - 0.005], {
+                icon: redIcon,
+                draggable: true
+            }).bindTooltip("Toko Belanja (Asal)", {permanent: true, direction: "top"}).addTo(map);
+
+            markerDest = L.marker([lat - 0.005, lng + 0.005], {
+                icon: blueIcon,
+                draggable: true
+            }).bindTooltip("Alamat Pengantaran (Tujuan)", {permanent: true, direction: "top"}).addTo(map);
+
+            // Tambahkan garis pembantu
+            polyline = L.polyline([markerOrigin.getLatLng(), markerDest.getLatLng()], {
+                color: '#e11d48',
+                dashArray: '5, 5',
+                weight: 3
+            }).addTo(map);
+
+            function updateDistanceAndRoute() {
+                const originLatLng = markerOrigin.getLatLng();
+                const destLatLng = markerDest.getLatLng();
+                
+                polyline.setLatLngs([originLatLng, destLatLng]);
+
+                const distanceMeters = originLatLng.distanceTo(destLatLng);
+                const distanceKM = Math.max(0.5, parseFloat((distanceMeters / 1000).toFixed(2)));
+
+                // Update UI display
+                document.getElementById('disp-distance').innerText = distanceKM.toFixed(2);
+
+                // Kirim ke Livewire component
+                @this.set('distance', distanceKM);
+            }
+
+            // Bind drag events
+            markerOrigin.on('dragend', updateDistanceAndRoute);
+            markerDest.on('dragend', updateDistanceAndRoute);
+
+            // Update distance initial
+            updateDistanceAndRoute();
+
+            setTimeout(() => {
+                if (map) {
+                    map.invalidateSize();
+                }
+            }, 300);
+        }
+
+        let initAttempts = 0;
+        function tryInitMap() {
+            if (typeof L !== 'undefined') {
+                initOrderMap();
+            } else if (initAttempts < 50) {
+                initAttempts++;
+                setTimeout(tryInitMap, 100);
+            }
+        }
+
+        tryInitMap();
+    });
+</script>

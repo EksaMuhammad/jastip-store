@@ -26,7 +26,55 @@ class DashboardController extends Controller
         $jastiper = Auth::guard('jastiper')->user();
         // Load relation wilayah to display location
         $jastiper->load(['wilayah', 'latestVerification']);
-        return view('dashboard.jastiper', compact('jastiper'));
+
+        // Ambil order nyata yang berstatus menunggu tawaran di wilayah kerja Jastiper
+        $orders = \App\Models\Order::where('status', 'menunggu_tawaran')
+            ->where('wilayah_id', $jastiper->wilayah_id)
+            ->latest()
+            ->get();
+
+        return view('dashboard.jastiper', compact('jastiper', 'orders'));
+    }
+
+    /**
+     * Halaman Buat Request Baru oleh Customer.
+     */
+    public function customerCreateOrder()
+    {
+        $customer = Auth::guard('customer')->user();
+        return view('dashboard.customer.create_order', compact('customer'));
+    }
+
+    /**
+     * Aksi terima order oleh Jastiper.
+     */
+    public function jastiperAcceptOrder($id)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+
+        if ($jastiper->verification_status !== 'approved') {
+            return redirect()->back()->with('error', 'Akun Anda belum terverifikasi oleh Admin.');
+        }
+
+        $order = \App\Models\Order::findOrFail($id);
+
+        if ($order->status !== 'menunggu_tawaran') {
+            return redirect()->back()->with('error', 'Orderan ini sudah diambil oleh Jastiper lain.');
+        }
+
+        // Update order status dan relasi jastiper
+        $order->update([
+            'jastiper_id' => $jastiper->id,
+            'status' => 'diproses',
+            'agreed_fare' => $order->estimated_fare,
+        ]);
+
+        // Simulasikan pesan WhatsApp ke Customer
+        $customer = $order->customer;
+        $msg = "Halo *{$customer->name}*!\n\nPesanan jastip Anda (*{$order->description}*) telah *DITERIMA* oleh Jastiper *{$jastiper->name}*! Hubungi jastiper di nomor: {$jastiper->phone_number} untuk koordinasi belanjaan. Terima kasih. 🙏";
+        WhatsAppService::sendMessage($customer->phone_number, $msg);
+
+        return redirect()->route('jastiper.dashboard')->with('success', 'Orderan berhasil diambil! Silakan hubungi customer.');
     }
 
     /**

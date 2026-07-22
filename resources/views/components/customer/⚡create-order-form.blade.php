@@ -213,14 +213,19 @@ new class extends Component
     @if ($jastiper_id)
         <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center justify-between text-xs shadow-sm">
             <div class="flex items-center gap-3">
-                <span class="text-xl">🤝</span>
+                <div class="p-1.5 bg-rose-100 text-rose-600 rounded-xl shrink-0">
+                    <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
                 <div>
                     <span class="text-[8px] text-rose-500 uppercase tracking-widest font-black block">Mode Booking Langsung</span>
                     <p class="text-slate-800 font-bold mt-0.5">Mengirim pesanan langsung ke: <span class="text-rose-600 font-black">{{ $direct_jastiper_name }}</span></p>
                 </div>
             </div>
-            <button type="button" wire:click="$set('jastiper_id', null)" class="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-wider focus:outline-none">
-                ❌ Batal & Kirim ke Umum
+            <button type="button" wire:click="$set('jastiper_id', null)" class="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-wider focus:outline-none flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                <span>Batal & Kirim ke Umum</span>
             </button>
         </div>
     @endif

@@ -29,16 +29,22 @@
                 <button 
                     @click="tab = 'checkin'" 
                     :class="tab === 'checkin' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
-                    class="px-5 py-2 rounded-full text-xs font-extrabold transition duration-150 uppercase tracking-wide focus:outline-none"
+                    class="px-5 py-2 rounded-full text-xs font-extrabold transition duration-150 uppercase tracking-wide focus:outline-none flex items-center gap-1.5"
                 >
-                    🗺️ Check-in List
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    <span>Check-in List</span>
                 </button>
                 <button 
                     @click="tab = 'favorites'" 
                     :class="tab === 'favorites' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
-                    class="px-5 py-2 rounded-full text-xs font-extrabold transition duration-150 uppercase tracking-wide focus:outline-none"
+                    class="px-5 py-2 rounded-full text-xs font-extrabold transition duration-150 uppercase tracking-wide focus:outline-none flex items-center gap-1.5"
                 >
-                    ❤️ Favorit & Riwayat
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    <span>Favorit & Riwayat</span>
                 </button>
             </div>
         </div>
@@ -85,10 +91,16 @@
                                     </div>
                                     
                                     <!-- Ratings and Response Time -->
-                                    <div class="flex items-center gap-2 mt-1.5 text-[9px] text-slate-400 font-semibold">
-                                        <span class="text-amber-500">★ {{ $jastiper->badge ? number_format($jastiper->badge->avg_rating, 1) : '5.0' }}</span>
+                                    <div class="flex items-center gap-2.5 mt-1.5 text-[9px] text-slate-400 font-semibold">
+                                        <span class="text-amber-500 flex items-center gap-0.5">
+                                            <svg class="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                            {{ $jastiper->badge ? number_format($jastiper->badge->avg_rating, 1) : '5.0' }}
+                                        </span>
                                         <span>•</span>
-                                        <span>⚡ {{ $jastiper->badge ? $jastiper->badge->avg_response_time_minutes : '5' }} m respon</span>
+                                        <span class="flex items-center gap-0.5">
+                                            <svg class="w-3 h-3 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            {{ $jastiper->badge ? $jastiper->badge->avg_response_time_minutes : '5' }} m respon
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -108,8 +120,13 @@
                         </div>
 
                         <!-- Check-in Location Info Box -->
-                        <div class="bg-rose-50/50 border border-rose-100/60 p-3.5 rounded-2xl flex items-start gap-2.5 shadow-sm">
-                            <span class="text-base shrink-0">📍</span>
+                        <div class="bg-rose-50/50 border border-rose-100/60 p-3.5 rounded-2xl flex items-start gap-3 shadow-sm">
+                            <div class="p-1.5 bg-rose-100 text-rose-600 rounded-xl shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </div>
                             <div>
                                 <span class="text-[8px] text-rose-500 uppercase tracking-widest font-black block">Sedang Check-in di</span>
                                 <p class="text-xs font-black text-slate-800 leading-tight mt-0.5">{{ $jastiper->checkin_location }}</p>
@@ -119,8 +136,11 @@
 
                         <!-- Action Button -->
                         <div class="pt-2">
-                            <a href="{{ route('customer.orders.create') }}?jastiper_id={{ $jastiper->id }}&location={{ urlencode($jastiper->checkin_location) }}" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3 rounded-2xl transition uppercase tracking-wider shadow-sm text-center block">
-                                🤝 Booking Langsung
+                            <a href="{{ route('customer.orders.create') }}?jastiper_id={{ $jastiper->id }}&location={{ urlencode($jastiper->checkin_location) }}" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3.5 rounded-2xl transition uppercase tracking-wider shadow-sm text-center flex items-center justify-center gap-1.5">
+                                <span>Booking Langsung</span>
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
                             </a>
                         </div>
 
@@ -128,7 +148,9 @@
                 @empty
                     <div class="md:col-span-2 bg-white border border-slate-200/80 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-3">
                         <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-2">
-                            <span class="text-2xl">🗺️</span>
+                            <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                            </svg>
                         </div>
                         <h4 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Belum Ada Jastiper Check-in</h4>
                         <p class="text-[10px] text-slate-400 max-w-[280px] leading-normal mx-auto">Saat ini belum ada Jastiper yang mengumumkan posisi belanjanya di Malang. Silakan pesan lewat orderan umum.</p>
@@ -160,9 +182,12 @@
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-2 mt-1.5 text-[9px] text-slate-400 font-semibold">
-                                        <span class="text-amber-500">★ {{ $jastiper->badge ? number_format($jastiper->badge->avg_rating, 1) : '5.0' }}</span>
+                                        <span class="text-amber-500 flex items-center gap-0.5">
+                                            <svg class="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                            {{ $jastiper->badge ? number_format($jastiper->badge->avg_rating, 1) : '5.0' }}
+                                        </span>
                                         <span>•</span>
-                                        <span class="inline-flex items-center gap-1">
+                                        <span class="inline-flex items-center gap-1.5">
                                             <!-- Availability Dot -->
                                             <span class="w-1.5 h-1.5 rounded-full {{ $jastiper->is_available ? 'bg-emerald-500' : 'bg-slate-400' }}"></span>
                                             {{ $jastiper->is_available ? 'Tersedia' : 'Sibuk' }}
@@ -184,21 +209,24 @@
 
                         <!-- Real-time Availability Widget -->
                         <div class="bg-slate-50 border border-slate-200/60 p-3.5 rounded-2xl flex items-center justify-between text-xs">
-                            <span class="text-slate-500 font-medium">Status Real-time:</span>
-                            <span class="font-extrabold uppercase {{ $jastiper->is_available ? 'text-emerald-600' : 'text-slate-500' }}">
-                                {{ $jastiper->is_available ? '🟢 Ready Booking' : '⚫ Offline / Sibuk' }}
+                            <span class="text-slate-500 font-semibold">Status Real-time:</span>
+                            <span class="font-extrabold uppercase flex items-center gap-1.5 {{ $jastiper->is_available ? 'text-emerald-600' : 'text-slate-500' }}">
+                                <span class="w-2 h-2 rounded-full {{ $jastiper->is_available ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400' }}"></span>
+                                {{ $jastiper->is_available ? 'Ready Booking' : 'Offline / Sibuk' }}
                             </span>
                         </div>
 
                         <!-- Action Button -->
                         <div class="pt-2">
                             @if($jastiper->is_available)
-                                <a href="{{ route('customer.orders.create') }}?jastiper_id={{ $jastiper->id }}" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3 rounded-2xl transition uppercase tracking-wider shadow-sm text-center block">
-                                    ❤️ Booking Kembali
+                                <a href="{{ route('customer.orders.create') }}?jastiper_id={{ $jastiper->id }}" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3.5 rounded-2xl transition uppercase tracking-wider shadow-sm text-center flex items-center justify-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" /></svg>
+                                    <span>Booking Kembali</span>
                                 </a>
                             @else
-                                <button disabled class="w-full bg-slate-200 text-slate-400 font-extrabold text-[10px] py-3 rounded-2xl uppercase tracking-wider cursor-not-allowed text-center block">
-                                    ❌ Jastiper Sedang Sibuk
+                                <button disabled class="w-full bg-slate-200 text-slate-400 font-extrabold text-[10px] py-3.5 rounded-2xl uppercase tracking-wider cursor-not-allowed text-center flex items-center justify-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                    <span>Jastiper Sedang Sibuk</span>
                                 </button>
                             @endif
                         </div>
@@ -207,7 +235,9 @@
                 @empty
                     <div class="md:col-span-2 bg-white border border-slate-200/80 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-3">
                         <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-2">
-                            <span class="text-2xl">❤️</span>
+                            <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
                         </div>
                         <h4 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Belum Ada Jastiper Favorit</h4>
                         <p class="text-[10px] text-slate-400 max-w-[280px] leading-normal mx-auto">Anda belum menambahkan Jastiper favorit. Sukai Jastiper Anda melalui menu Check-in List di sebelah kiri.</p>

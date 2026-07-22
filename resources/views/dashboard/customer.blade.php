@@ -111,8 +111,10 @@
             <div class="absolute -right-6 -bottom-6 w-20 h-20 bg-rose-600/20 rounded-full blur-lg"></div>
             <div class="flex justify-between items-center gap-3 relative z-10">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-rose-600 rounded-2xl flex items-center justify-center text-lg shrink-0">
-                        🗺️
+                    <div class="w-10 h-10 bg-rose-600 rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-rose-600/30">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
                     </div>
                     <div>
                         <h4 class="font-display font-black text-xs uppercase tracking-wider text-rose-500">Booking Jastiper</h4>
@@ -265,7 +267,7 @@
                                 <div class="w-2.5 h-2.5 rounded-full" :class="available ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></div>
                                 <div>
                                     <span class="font-bold text-slate-800">{{ $fav->name }}</span>
-                                    <span class="text-[9px] text-slate-400 block mt-0.5" x-text="checkin ? '📍 Sedang di ' + checkin : 'Tidak check-in'"></span>
+                                    <span class="text-[9px] text-slate-400 block mt-0.5" x-text="checkin ? 'Check-in: ' + checkin : 'Tidak check-in'"></span>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
@@ -276,10 +278,13 @@
                                             available = data.is_available;
                                             checkin = data.checkin_location;
                                         })
-                                " class="bg-white hover:bg-slate-100 border border-slate-200 px-2 py-1 rounded-full text-[9px] font-bold text-slate-600 transition shrink-0 uppercase tracking-wider">
-                                    🔄 Cek
+                                " class="bg-white hover:bg-slate-105 border border-slate-200 px-2.5 py-1 rounded-full text-[9px] font-bold text-slate-600 transition shrink-0 uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                                    <svg class="w-2.5 h-2.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12" />
+                                    </svg>
+                                    <span>Cek</span>
                                 </button>
-                                <a :href="available ? '{{ route('customer.orders.create') }}?jastiper_id={{ $fav->id }}' : '#'" :class="available ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm' : 'bg-slate-200 text-slate-400 cursor-not-allowed'" class="px-3 py-1 rounded-full text-[9px] font-black transition shrink-0 uppercase tracking-wider">
+                                <a :href="available ? '{{ route('customer.orders.create') }}?jastiper_id={{ $fav->id }}' : '#'" :class="available ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm' : 'bg-slate-200 text-slate-400 cursor-not-allowed'" class="px-3.5 py-1.5 rounded-full text-[9px] font-black transition shrink-0 uppercase tracking-wider">
                                     Pesan
                                 </a>
                             </div>

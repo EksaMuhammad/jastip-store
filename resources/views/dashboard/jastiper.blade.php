@@ -130,8 +130,13 @@
 
                 @if ($jastiper->checkin_location)
                     <div class="bg-rose-50/50 border border-rose-100/60 p-3 rounded-2xl flex items-center justify-between gap-4">
-                        <div class="flex items-start gap-2">
-                            <span class="text-base shrink-0">📍</span>
+                        <div class="flex items-start gap-2.5">
+                            <div class="p-1.5 bg-rose-100 text-rose-600 rounded-xl shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </div>
                             <div>
                                 <span class="text-[8px] text-rose-500 uppercase tracking-widest font-black block">Sedang Aktif di</span>
                                 <p class="text-xs font-black text-slate-800 mt-0.5">{{ $jastiper->checkin_location }}</p>
@@ -155,11 +160,11 @@
                             <div>
                                 <label for="location_select" class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pilih Lokasi Populer</label>
                                 <select id="location_select" x-model="location" class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-[11px] font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150">
-                                    <option value="Mie Gacoan Lowokwaru">Mie Gacoan Lowokwaru 🌶️</option>
-                                    <option value="Starbucks Ijen">Starbucks Ijen ☕</option>
-                                    <option value="Matos (Malang Town Square)">Matos (Malang Town Square) 🛒</option>
-                                    <option value="Pasar Besar Malang">Pasar Besar Malang 🧅</option>
-                                    <option value="Bakso Bakar Pak Man">Bakso Bakar Pak Man 🍲</option>
+                                    <option value="Mie Gacoan Lowokwaru">Mie Gacoan Lowokwaru</option>
+                                    <option value="Starbucks Ijen">Starbucks Ijen</option>
+                                    <option value="Matos (Malang Town Square)">Matos (Malang Town Square)</option>
+                                    <option value="Pasar Besar Malang">Pasar Besar Malang</option>
+                                    <option value="Bakso Bakar Pak Man">Bakso Bakar Pak Man</option>
                                     <option value="custom">-- Tulis Kustom --</option>
                                 </select>
                             </div>
@@ -173,8 +178,11 @@
                         <!-- Fallback input name if not custom -->
                         <input type="hidden" name="location_name" :value="location !== 'custom' ? location : document.getElementById('location_custom')?.value">
 
-                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3 rounded-2xl transition uppercase tracking-wider shadow-sm">
-                            📢 Umumkan Check-in Saya
+                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3.5 rounded-2xl transition uppercase tracking-wider shadow-sm flex items-center justify-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                            <span>Umumkan Check-in Saya</span>
                         </button>
                     </form>
                 @endif
@@ -233,8 +241,14 @@
                     @if($directOrders->isNotEmpty())
                         <div class="space-y-3">
                             <h4 class="font-display font-black text-[10px] text-rose-600 uppercase tracking-wider flex items-center gap-1.5">
-                                <span class="w-2 h-2 bg-rose-600 rounded-full animate-ping"></span>
-                                🎯 Booking Langsung Khusus Untuk Anda
+                                <span class="relative flex h-2 w-2">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-450 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-650"></span>
+                                </span>
+                                <svg class="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                                <span>Booking Langsung Khusus Untuk Anda</span>
                             </h4>
                             @foreach($directOrders as $direct)
                                 <div class="bg-rose-50/50 border border-rose-200/70 rounded-2xl p-4 space-y-3 relative overflow-hidden">

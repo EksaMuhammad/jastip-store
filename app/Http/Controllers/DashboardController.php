@@ -424,6 +424,13 @@ class DashboardController extends Controller
     public function jastiperOrderFeed(Request $request)
     {
         $jastiper = Auth::guard('jastiper')->user();
+        \Illuminate\Support\Facades\Log::info('FEED REQUESTED BY CLIENT', [
+            'jastiper_id' => $jastiper ? $jastiper->id : 'null',
+            'online' => $jastiper ? $jastiper->work_status : 'null',
+            'current_lat' => $jastiper ? $jastiper->current_lat : 'null',
+            'current_lng' => $jastiper ? $jastiper->current_lng : 'null',
+            'radius' => $jastiper ? $jastiper->radius_km : 'null',
+        ]);
 
         if ($jastiper->verification_status !== 'approved') {
             return response()->json([

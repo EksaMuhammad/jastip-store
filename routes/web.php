@@ -29,6 +29,9 @@ Route::post('/admin/logout', [AdminAuthController::class, 'logout'])->name('admi
 Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/dashboard', [DashboardController::class, 'customerDashboard'])->name('customer.dashboard');
     Route::get('/customer/orders/create', [DashboardController::class, 'customerCreateOrder'])->name('customer.orders.create');
+    Route::get('/customer/booking', [DashboardController::class, 'customerBookingView'])->name('customer.booking');
+    Route::post('/customer/jastiper/{id}/favorite', [DashboardController::class, 'customerToggleFavorite'])->name('customer.jastiper.favorite');
+    Route::get('/customer/jastiper/{id}/availability', [DashboardController::class, 'customerJastiperAvailability'])->name('customer.jastiper.availability');
 });
 
 Route::middleware('auth:jastiper')->group(function () {
@@ -36,6 +39,9 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::get('/jastiper/verification', [DashboardController::class, 'jastiperVerification'])->name('jastiper.verification');
     Route::get('/jastiper/area', [DashboardController::class, 'jastiperArea'])->name('jastiper.area');
     Route::post('/jastiper/orders/{id}/accept', [DashboardController::class, 'jastiperAcceptOrder'])->name('jastiper.orders.accept');
+    Route::post('/jastiper/checkin', [DashboardController::class, 'jastiperCheckin'])->name('jastiper.checkin');
+    Route::post('/jastiper/orders/{id}/direct-accept', [DashboardController::class, 'jastiperDirectAccept'])->name('jastiper.orders.direct-accept');
+    Route::post('/jastiper/orders/{id}/direct-reject', [DashboardController::class, 'jastiperDirectReject'])->name('jastiper.orders.direct-reject');
 });
 
 // Admin Dashboard Routes

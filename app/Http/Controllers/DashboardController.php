@@ -35,13 +35,20 @@ class DashboardController extends Controller
         // Load relation wilayah to display location
         $jastiper->load(['wilayah', 'latestVerification']);
 
-        // Ambil order nyata yang berstatus menunggu tawaran di wilayah kerja Jastiper
+        // Ambil direct orders khusus untuk Jastiper ini yang belum direspons
+        $directOrders = \App\Models\Order::where('status', 'menunggu_tawaran')
+            ->where('jastiper_id', $jastiper->id)
+            ->latest()
+            ->get();
+
+        // Ambil order umum (jastiper_id = null) di wilayah kerja Jastiper
         $orders = \App\Models\Order::where('status', 'menunggu_tawaran')
+            ->whereNull('jastiper_id')
             ->where('wilayah_id', $jastiper->wilayah_id)
             ->latest()
             ->get();
 
-        return view('dashboard.jastiper', compact('jastiper', 'orders'));
+        return view('dashboard.jastiper', compact('jastiper', 'orders', 'directOrders'));
     }
 
     /**
@@ -145,5 +152,157 @@ class DashboardController extends Controller
     public function adminVerification()
     {
         return view('admin.verification');
+    }
+
+    /**
+     * Halaman Booking Favorit & Lihat Checkin List untuk Customer.
+     */
+    public function customerBookingView()
+    {
+        $customer = Auth::guard('customer')->user();
+
+        // Ambil jastiper yang sedang check-in aktif
+        $checkinJastipers = \App\Models\Jastiper::whereNotNull('checkin_location')
+            ->where('verification_status', 'approved')
+            ->with('badge')
+            ->get();
+
+        // Ambil jastiper favorit milik customer
+        $favoriteJastipers = $customer->favorites()->with('badge')->get();
+        $favorites = $customer->favorites()->pluck('jastiper_id');
+
+        return view('dashboard.customer.booking', compact('customer', 'checkinJastipers', 'favoriteJastipers', 'favorites'));
+    }
+
+    /**
+     * Toggle status favorit jastiper oleh customer.
+     */
+    public function customerToggleFavorite($id)
+    {
+        $customer = Auth::guard('customer')->user();
+        
+        // Cek apakah sudah difavoritkan
+        $exists = \App\Models\CustomerFavorite::where('customer_id', $customer->id)
+            ->where('jastiper_id', $id)
+            ->first();
+
+        if ($exists) {
+            $exists->delete();
+            $msg = 'Jastiper berhasil dihapus dari daftar favorit Anda.';
+        } else {
+            \App\Models\CustomerFavorite::create([
+                'customer_id' => $customer->id,
+                'jastiper_id' => $id,
+            ]);
+            $msg = 'Jastiper berhasil ditambahkan ke daftar favorit Anda! ❤️';
+        }
+
+        return redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Endpoint API cek ketersediaan real-time jastiper favorit.
+     */
+    public function customerJastiperAvailability($id)
+    {
+        $jastiper = \App\Models\Jastiper::findOrFail($id);
+
+        return response()->json([
+            'id' => $jastiper->id,
+            'name' => $jastiper->name,
+            'is_available' => (bool)$jastiper->is_available,
+            'checkin_location' => $jastiper->checkin_location,
+            'checked_in_at' => $jastiper->checked_in_at ? $jastiper->checked_in_at->diffForHumans() : null,
+        ]);
+    }
+
+    /**
+     * Action Jastiper untuk melakukan check-in / check-out.
+     */
+    public function jastiperCheckin(\Illuminate\Http\Request $request)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+
+        $request->validate([
+            'action' => 'required|in:checkin,checkout',
+            'location_name' => 'required_if:action,checkin|nullable|string|max:255',
+        ]);
+
+        if ($request->action === 'checkout') {
+            $jastiper->update([
+                'checkin_location' => null,
+                'checked_in_at' => null,
+                'is_available' => true,
+            ]);
+            $msg = 'Anda berhasil check-out. Status ketersediaan Anda diatur ke Siap Menerima Order.';
+        } else {
+            $jastiper->update([
+                'checkin_location' => $request->location_name,
+                'checked_in_at' => now(),
+                'is_available' => true,
+            ]);
+            $msg = "Anda berhasil check-in di {$request->location_name}! Customer kini dapat membooking Anda secara langsung.";
+        }
+
+        return redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Aksi terima order booking langsung dari sisi jastiper.
+     */
+    public function jastiperDirectAccept($id)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $order = \App\Models\Order::findOrFail($id);
+
+        if ($order->jastiper_id !== $jastiper->id) {
+            return redirect()->back()->with('error', 'Pesanan ini bukan ditujukan langsung untuk Anda.');
+        }
+
+        if ($order->status !== 'menunggu_tawaran') {
+            return redirect()->back()->with('error', 'Status pesanan ini sudah berubah.');
+        }
+
+        $order->update([
+            'status' => 'diproses',
+            'agreed_fare' => $order->estimated_fare,
+        ]);
+
+        // Simulasikan pesan WhatsApp ke Customer
+        $customer = $order->customer;
+        $msg = "Halo *{$customer->name}*!\n\nBooking langsung Anda untuk Jastiper *{$jastiper->name}* (*{$order->description}*) telah *DITERIMA*! Hubungi jastiper di nomor: {$jastiper->phone_number} untuk koordinasi belanjaan. Terima kasih. 🙏";
+        WhatsAppService::sendMessage($customer->phone_number, $msg);
+
+        return redirect()->route('jastiper.dashboard')->with('success', 'Booking langsung berhasil diterima! Silakan proses belanjaan.');
+    }
+
+    /**
+     * Aksi tolak order booking langsung dari sisi jastiper (dikembalikan ke lelang umum).
+     */
+    public function jastiperDirectReject($id)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $order = \App\Models\Order::findOrFail($id);
+
+        if ($order->jastiper_id !== $jastiper->id) {
+            return redirect()->back()->with('error', 'Pesanan ini bukan ditujukan langsung untuk Anda.');
+        }
+
+        if ($order->status !== 'menunggu_tawaran') {
+            return redirect()->back()->with('error', 'Status pesanan ini sudah berubah.');
+        }
+
+        // Kembalikan ke lelang umum dengan menghapus jastiper_id
+        $order->update([
+            'jastiper_id' => null,
+            'status' => 'menunggu_tawaran',
+        ]);
+
+        // Simulasikan pesan WhatsApp ke Customer bahwa jastiper menolak tapi order dilempar ke umum
+        $customer = $order->customer;
+        $msg = "Halo *{$customer->name}*!\n\nJastiper favorit Anda *{$jastiper->name}* saat ini sedang sibuk dan terpaksa melewatkan booking Anda. Jangan khawatir, request Anda kini dialihkan ke *Tawaran Terbuka* agar bisa diambil oleh Jastiper aktif lainnya! 🚀";
+        WhatsAppService::sendMessage($customer->phone_number, $msg);
+
+        return redirect()->route('jastiper.dashboard')->with('success', 'Booking langsung ditolak, pesanan dialihkan ke tawaran terbuka.');
     }
 }

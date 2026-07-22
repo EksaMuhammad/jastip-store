@@ -117,6 +117,70 @@
             </div>
         </div>
 
+        <!-- Check-in Lokasi Widget -->
+        @if ($jastiper->verification_status === 'approved')
+            <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3.5">
+                <div class="border-b border-slate-100 pb-2.5 flex justify-between items-center">
+                    <div>
+                        <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Check-in Lokasi Belanja</h3>
+                        <p class="text-[9px] text-slate-400 mt-0.5">Kabarkan posisi Anda agar Customer dapat membooking Anda secara instan.</p>
+                    </div>
+                    <span class="w-2.5 h-2.5 rounded-full {{ $jastiper->checkin_location ? 'bg-emerald-500 animate-pulse' : 'bg-slate-350' }}"></span>
+                </div>
+
+                @if ($jastiper->checkin_location)
+                    <div class="bg-rose-50/50 border border-rose-100/60 p-3 rounded-2xl flex items-center justify-between gap-4">
+                        <div class="flex items-start gap-2">
+                            <span class="text-base shrink-0">📍</span>
+                            <div>
+                                <span class="text-[8px] text-rose-500 uppercase tracking-widest font-black block">Sedang Aktif di</span>
+                                <p class="text-xs font-black text-slate-800 mt-0.5">{{ $jastiper->checkin_location }}</p>
+                                <span class="text-[8px] text-slate-400 block mt-0.5">Sejak {{ $jastiper->checked_in_at ? $jastiper->checked_in_at->diffForHumans() : 'Baru saja' }}</span>
+                            </div>
+                        </div>
+                        <form action="{{ route('jastiper.checkin') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="action" value="checkout">
+                            <button type="submit" class="bg-slate-900 hover:bg-slate-850 text-white text-[9px] font-black px-4 py-2.5 rounded-xl uppercase tracking-wider transition shrink-0 shadow-sm">
+                                Check-out
+                            </button>
+                        </form>
+                    </div>
+                @else
+                    <form action="{{ route('jastiper.checkin') }}" method="POST" class="space-y-3" x-data="{ location: 'Mie Gacoan Lowokwaru' }">
+                        @csrf
+                        <input type="hidden" name="action" value="checkin">
+                        
+                        <div class="grid grid-cols-1 gap-3">
+                            <div>
+                                <label for="location_select" class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pilih Lokasi Populer</label>
+                                <select id="location_select" x-model="location" class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-[11px] font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150">
+                                    <option value="Mie Gacoan Lowokwaru">Mie Gacoan Lowokwaru 🌶️</option>
+                                    <option value="Starbucks Ijen">Starbucks Ijen ☕</option>
+                                    <option value="Matos (Malang Town Square)">Matos (Malang Town Square) 🛒</option>
+                                    <option value="Pasar Besar Malang">Pasar Besar Malang 🧅</option>
+                                    <option value="Bakso Bakar Pak Man">Bakso Bakar Pak Man 🍲</option>
+                                    <option value="custom">-- Tulis Kustom --</option>
+                                </select>
+                            </div>
+
+                            <div x-show="location === 'custom'">
+                                <label for="location_custom" class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nama Tempat Kustom</label>
+                                <input type="text" id="location_custom" name="location_name" placeholder="Misal: Indomaret Veteran..." class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-[11px] font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150">
+                            </div>
+                        </div>
+
+                        <!-- Fallback input name if not custom -->
+                        <input type="hidden" name="location_name" :value="location !== 'custom' ? location : document.getElementById('location_custom')?.value">
+
+                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3 rounded-2xl transition uppercase tracking-wider shadow-sm">
+                            📢 Umumkan Check-in Saya
+                        </button>
+                    </form>
+                @endif
+            </div>
+        @endif
+
         <!-- Live Area Map Card (Leaflet Map on Dashboard) -->
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3">
             <div class="flex justify-between items-center">
@@ -165,6 +229,52 @@
                         <p class="text-[9px] text-slate-400 mt-1 max-w-[200px] leading-normal mx-auto">Selesaikan verifikasi akun KTP Anda terlebih dahulu di bagian atas untuk membuka akses order.</p>
                     </div>
                 @else
+                    <!-- Direct Request Bookings List -->
+                    @if($directOrders->isNotEmpty())
+                        <div class="space-y-3">
+                            <h4 class="font-display font-black text-[10px] text-rose-600 uppercase tracking-wider flex items-center gap-1.5">
+                                <span class="w-2 h-2 bg-rose-600 rounded-full animate-ping"></span>
+                                🎯 Booking Langsung Khusus Untuk Anda
+                            </h4>
+                            @foreach($directOrders as $direct)
+                                <div class="bg-rose-50/50 border border-rose-200/70 rounded-2xl p-4 space-y-3 relative overflow-hidden">
+                                    <div class="flex justify-between items-start border-b border-rose-100 pb-2.5">
+                                        <div>
+                                            <span class="text-[8px] font-black bg-rose-650 text-rose-600 border border-rose-200 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Direct Request</span>
+                                            <h4 class="font-extrabold text-xs text-slate-800 mt-2 leading-tight">{{ $direct->description }}</h4>
+                                            <span class="text-[9px] text-slate-400 block mt-0.5">Asal: {{ $direct->origin_address ?: '-' }}</span>
+                                        </div>
+                                        <div class="text-right shrink-0">
+                                            <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block font-mono">Ongkir</span>
+                                            <span class="text-xs font-black text-rose-600">Rp {{ number_format($direct->estimated_fare, 0, ',', '.') }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2 text-[9px] text-slate-500">
+                                        <div class="flex items-start gap-1">
+                                            <span class="leading-tight">Antar: <b>{{ $direct->destination_address }}</b></span>
+                                        </div>
+                                        <div>Customer: <b>{{ $direct->customer->name }}</b> ({{ $direct->customer->phone_number }})</div>
+                                        <div>Kategori Berat: <span class="font-bold text-slate-700 capitalize">{{ $direct->weight_category }}</span></div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 pt-1.5">
+                                        <form action="{{ route('jastiper.orders.direct-accept', $direct->id) }}" method="POST">
+                                            @csrf
+                                            <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                                Terima Booking
+                                            </button>
+                                        </form>
+                                        <form action="{{ route('jastiper.orders.direct-reject', $direct->id) }}" method="POST">
+                                            @csrf
+                                            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-850 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide text-center block focus:outline-none">
+                                                Tolak & Buka Ke Umum
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <hr class="border-slate-100 my-4">
+                    @endif
                     @forelse($orders as $order)
                         <!-- Real Driver Request Card (Gojek App Style) -->
                         <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 hover:border-slate-300 transition animate-fade-in">

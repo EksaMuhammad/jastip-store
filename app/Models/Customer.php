@@ -57,4 +57,9 @@ class Customer extends Authenticatable
     {
         return $this->morphMany(Order::class, 'cancelledBy', 'cancelled_by_role', 'cancelled_by_id');
     }
+
+    public function favorites()
+    {
+        return $this->belongsToMany(Jastiper::class, 'customer_favorites', 'customer_id', 'jastiper_id');
+    }
 }

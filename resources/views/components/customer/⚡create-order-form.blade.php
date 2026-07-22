@@ -27,6 +27,10 @@ new class extends Component
     public float $distance = 1.0; // in KM
     public float $estimated_fare = 0.0;
 
+    // Direct booking states
+    public ?int $jastiper_id = null;
+    public ?string $direct_jastiper_name = null;
+
     // Messages
     public string $success_message = '';
     public string $error_message = '';
@@ -66,6 +70,22 @@ new class extends Component
         if ($customer) {
             $this->recipient_name = $customer->name;
             $this->recipient_phone = $customer->phone_number;
+        }
+
+        // Tangkap parameter query booking langsung
+        $jastiperId = request()->query('jastiper_id');
+        if ($jastiperId) {
+            $jastiper = \App\Models\Jastiper::find($jastiperId);
+            if ($jastiper) {
+                $this->jastiper_id = $jastiper->id;
+                $this->direct_jastiper_name = $jastiper->name;
+
+                // Pre-fill lokasi belanja jika dirujuk dari check-in
+                $loc = request()->query('location');
+                if ($loc) {
+                    $this->origin_address = urldecode($loc);
+                }
+            }
         }
 
         // Calculate initial fare
@@ -137,6 +157,7 @@ new class extends Component
             // Buat record order baru
             $order = Order::create([
                 'customer_id' => $customer->id,
+                'jastiper_id' => $this->jastiper_id, // Direct booking jika terisi
                 'wilayah_id' => $wilayah->id,
                 'category' => $this->category,
                 'weight_category' => $this->weight_category,
@@ -161,10 +182,16 @@ new class extends Component
             ];
             $catLabel = $categoryNames[$this->category] ?? 'Jastip';
 
-            $msg = "Halo *{$customer->name}*!\n\nPermintaan Jastip baru Anda telah berhasil dikirim ke sistem:\n\n📦 *Layanan*: {$catLabel}\n📝 *Deskripsi*: {$this->description}\n🎯 *Radius/Jarak*: {$this->distance} KM\n💰 *Estimasi Ongkir*: Rp " . number_format($this->estimated_fare, 0, ',', '.') . "\n\nSistem sedang mencarikan Jastiper terdekat di area Malang. Mohon tunggu tawaran masuk! 🚀";
+            if ($this->jastiper_id) {
+                $msg = "Halo *{$customer->name}*!\n\nBooking langsung Anda untuk Jastiper *{$this->direct_jastiper_name}* (*{$this->description}*) telah dikirim.\n\nSistem sedang meneruskan pesanan ini eksklusif ke Jastiper bersangkutan. Mohon tunggu konfirmasi! 🚀";
+                session()->flash('success', "Booking langsung ke {$this->direct_jastiper_name} berhasil dikirim! Menunggu persetujuan Jastiper.");
+            } else {
+                $msg = "Halo *{$customer->name}*!\n\nPermintaan Jastip baru Anda telah berhasil dikirim ke sistem:\n\n📦 *Layanan*: {$catLabel}\n📝 *Deskripsi*: {$this->description}\n🎯 *Radius/Jarak*: {$this->distance} KM\n💰 *Estimasi Ongkir*: Rp " . number_format($this->estimated_fare, 0, ',', '.') . "\n\nSistem sedang mencarikan Jastiper terdekat di area Malang. Mohon tunggu tawaran masuk! 🚀";
+                session()->flash('success', 'Request Jastip Baru Berhasil Dibuat! Mohon tunggu tawaran dari Jastiper.');
+            }
+            
             WhatsAppService::sendMessage($customer->phone_number, $msg);
 
-            session()->flash('success', 'Request Jastip Baru Berhasil Dibuat! Mohon tunggu tawaran dari Jastiper.');
             return redirect()->route('customer.dashboard');
 
         } catch (\Exception $e) {
@@ -181,6 +208,22 @@ new class extends Component
         <h3 class="font-display font-black text-lg text-slate-800 uppercase tracking-wider">Form Request Jastip Baru</h3>
         <p class="text-xs text-slate-400 mt-1">Silakan pilih kategori jastip, isi deskripsi kebutuhan titipan, serta tentukan rute pengantaran.</p>
     </div>
+
+    <!-- Direct Request Info Banner -->
+    @if ($jastiper_id)
+        <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center justify-between text-xs shadow-sm">
+            <div class="flex items-center gap-3">
+                <span class="text-xl">🤝</span>
+                <div>
+                    <span class="text-[8px] text-rose-500 uppercase tracking-widest font-black block">Mode Booking Langsung</span>
+                    <p class="text-slate-800 font-bold mt-0.5">Mengirim pesanan langsung ke: <span class="text-rose-600 font-black">{{ $direct_jastiper_name }}</span></p>
+                </div>
+            </div>
+            <button type="button" wire:click="$set('jastiper_id', null)" class="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-wider focus:outline-none">
+                ❌ Batal & Kirim ke Umum
+            </button>
+        </div>
+    @endif
 
     <!-- Error Alert -->
     @if ($error_message)

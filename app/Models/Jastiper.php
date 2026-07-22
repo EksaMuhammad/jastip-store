@@ -23,6 +23,8 @@ class Jastiper extends Authenticatable
         'current_lat',
         'current_lng',
         'is_available',
+        'checkin_location',
+        'checked_in_at',
     ];
 
     protected $hidden = [
@@ -36,6 +38,7 @@ class Jastiper extends Authenticatable
         'radius_km' => 'decimal:2',
         'current_lat' => 'decimal:8',
         'current_lng' => 'decimal:8',
+        'checked_in_at' => 'datetime',
     ];
 
     public function wilayah()
@@ -56,6 +59,11 @@ class Jastiper extends Authenticatable
     public function badge()
     {
         return $this->hasOne(Badge::class, 'jastiper_id');
+    }
+
+    public function favoritedBy()
+    {
+        return $this->belongsToMany(Customer::class, 'customer_favorites', 'jastiper_id', 'customer_id');
     }
 
     public function orders()

@@ -106,6 +106,25 @@
             </div>
         </div>
 
+        <!-- Instant Booking Banner (Gojek Promo style) -->
+        <a href="{{ route('customer.booking') }}" class="block bg-slate-950 border border-slate-800 text-white rounded-3xl p-4 shadow-sm hover:scale-[1.01] transition duration-150 relative overflow-hidden">
+            <div class="absolute -right-6 -bottom-6 w-20 h-20 bg-rose-600/20 rounded-full blur-lg"></div>
+            <div class="flex justify-between items-center gap-3 relative z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-rose-600 rounded-2xl flex items-center justify-center text-lg shrink-0">
+                        🗺️
+                    </div>
+                    <div>
+                        <h4 class="font-display font-black text-xs uppercase tracking-wider text-rose-500">Booking Jastiper</h4>
+                        <p class="text-[10px] text-slate-300 font-semibold mt-0.5 leading-tight">Lihat Jastiper yang sedang check-in di Mie Gacoan & Toko terdekat!</p>
+                    </div>
+                </div>
+                <span class="text-xs bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider shrink-0">
+                    Cek
+                </span>
+            </div>
+        </a>
+
         <!-- JastipKuy Services Horizontal Row (Menu Grid Redesign with Flexbox to force horizontal layout) -->
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Layanan Belanja Jastip</h3>
@@ -234,6 +253,41 @@
                 </div>
             @endforelse
         </div>
+
+        <!-- Jastiper Favorit Real-time Status -->
+        @if($customer->favorites->isNotEmpty())
+            <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3">
+                <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Jastiper Favorit Anda</h3>
+                <div class="space-y-2">
+                    @foreach($customer->favorites as $fav)
+                        <div class="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs shadow-inner" x-data="{ available: @json($fav->is_available), checkin: @json($fav->checkin_location) }">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-2.5 h-2.5 rounded-full" :class="available ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></div>
+                                <div>
+                                    <span class="font-bold text-slate-800">{{ $fav->name }}</span>
+                                    <span class="text-[9px] text-slate-400 block mt-0.5" x-text="checkin ? '📍 Sedang di ' + checkin : 'Tidak check-in'"></span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @click="
+                                    fetch('/customer/jastiper/{{ $fav->id }}/availability')
+                                        .then(r => r.json())
+                                        .then(data => {
+                                            available = data.is_available;
+                                            checkin = data.checkin_location;
+                                        })
+                                " class="bg-white hover:bg-slate-100 border border-slate-200 px-2 py-1 rounded-full text-[9px] font-bold text-slate-600 transition shrink-0 uppercase tracking-wider">
+                                    🔄 Cek
+                                </button>
+                                <a :href="available ? '{{ route('customer.orders.create') }}?jastiper_id={{ $fav->id }}' : '#'" :class="available ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm' : 'bg-slate-200 text-slate-400 cursor-not-allowed'" class="px-3 py-1 rounded-full text-[9px] font-black transition shrink-0 uppercase tracking-wider">
+                                    Pesan
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
 
     </div>
 </div>

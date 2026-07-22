@@ -15,6 +15,9 @@
         <!-- Styles / Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         
+        <!-- Alpine.js -->
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        
         <style>
             body, h1, h2, h3, h4, .font-display {
                 font-family: 'Plus Jakarta Sans', sans-serif;

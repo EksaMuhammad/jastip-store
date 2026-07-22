@@ -31,6 +31,13 @@
 
             <!-- Toggle Button (Gopartner Style Switcher) -->
             <div class="flex items-center gap-3">
+                <!-- Status Badge Label -->
+                <span class="text-[9px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider transition border shadow-sm flex items-center gap-1.5"
+                      :class="online ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-slate-800 text-slate-400 border-slate-700'">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="online ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'"></span>
+                    <span x-text="online ? 'ONLINE' : 'OFFLINE'"></span>
+                </span>
+
                 <form id="toggle-status-form" action="{{ route('jastiper.toggle-status') }}" method="POST" class="hidden">
                     @csrf
                 </form>
@@ -40,6 +47,7 @@
                     onclick="document.getElementById('toggle-status-form').submit()" 
                     class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
                     :class="online ? 'bg-emerald-600' : 'bg-slate-700'"
+                    title="Ubah Status Kerja"
                 >
                     <span 
                         class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
@@ -224,17 +232,18 @@
                 <span class="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2.5 py-0.5 rounded-full" x-show="online">Mencari...</span>
             </div>
 
-            <!-- Case: Offline -->
-            <div x-show="!online" class="py-10 text-center flex flex-col items-center justify-center">
-                <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                    <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+            @if (!$jastiper->is_available)
+                <!-- Case: Offline -->
+                <div class="py-10 text-center flex flex-col items-center justify-center">
+                    <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                    </div>
+                    <h4 class="font-bold text-xs text-slate-700">Status Anda: Offline</h4>
+                    <p class="text-[9px] text-slate-400 mt-1 max-w-[220px] leading-normal mx-auto">Nyalakan status "Menerima Order" di banner atas untuk melihat permintaan belanjaan masuk.</p>
                 </div>
-                <h4 class="font-bold text-xs text-slate-700">Status Anda: Offline</h4>
-                <p class="text-[9px] text-slate-400 mt-1 max-w-[220px] leading-normal mx-auto">Nyalakan status "Menerima Order" di banner atas untuk melihat permintaan belanjaan masuk.</p>
-            </div>
-
-            <!-- Case: Online -->
-            <div x-show="online" class="space-y-4">
+            @else
+                <!-- Case: Online -->
+                <div class="space-y-4">
                 @if ($jastiper->verification_status !== 'approved')
                     <!-- Locked if not verified -->
                     <div class="bg-rose-50/50 border border-rose-100 rounded-2xl p-5 text-center flex flex-col items-center justify-center">
@@ -356,6 +365,7 @@
                     @endforelse
                 @endif
             </div>
+            @endif
         </div>
 
     </div>

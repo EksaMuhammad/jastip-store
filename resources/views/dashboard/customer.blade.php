@@ -262,7 +262,7 @@
                 <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Jastiper Favorit Anda</h3>
                 <div class="space-y-2">
                     @foreach($customer->favorites as $fav)
-                        <div class="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs shadow-inner" x-data="{ available: @json($fav->is_available), checkin: @json($fav->checkin_location) }">
+                        <div class="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs shadow-inner" x-data='{ available: @json($fav->is_available), checkin: @json($fav->checkin_location) }'>
                             <div class="flex items-center gap-2.5">
                                 <div class="w-2.5 h-2.5 rounded-full" :class="available ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></div>
                                 <div>

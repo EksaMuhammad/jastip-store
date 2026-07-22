@@ -130,13 +130,13 @@
 </script>
 
 <div class="min-h-screen bg-[#F3F4F6] pb-16"
-    x-data="jastiperDashboard({
+    x-data='jastiperDashboard({
         online: @json($jastiper->work_status !== 'offline'),
         verified: @json($jastiper->verification_status === 'approved'),
         csrfToken: @json(csrf_token()),
         feedUrl: @json(route('jastiper.orders.feed')),
         multiAcceptUrl: @json(route('jastiper.orders.multi-accept')),
-    })"
+    })'
 >
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
     <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-20 z-40 px-4 py-3.5 shadow-sm">

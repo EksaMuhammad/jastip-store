@@ -151,6 +151,13 @@
         <script>
             if (typeof window.Alpine === 'undefined') {
                 document.write('<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer><\/script>');
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    const hasLivewireComponents = document.querySelectorAll('[wire\\:id]').length > 0;
+                    if (!hasLivewireComponents) {
+                        window.Alpine.start();
+                    }
+                });
             }
         </script>
         @yield('scripts')

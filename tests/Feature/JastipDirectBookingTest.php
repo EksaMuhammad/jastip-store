@@ -48,10 +48,9 @@ class JastipDirectBookingTest extends TestCase
     {
         $this->actingAs($this->jastiper, 'jastiper');
 
-        // Test Check-in
         $this->post(route('jastiper.checkin'), [
             'action' => 'checkin',
-            'location_name' => 'Mie Gacoan Lowokwaru',
+            'location_name_select' => 'Mie Gacoan Lowokwaru',
         ])->assertRedirect();
 
         $this->jastiper->refresh();

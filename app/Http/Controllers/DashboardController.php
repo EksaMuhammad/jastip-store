@@ -225,7 +225,8 @@ class DashboardController extends Controller
 
         $request->validate([
             'action' => 'required|in:checkin,checkout',
-            'location_name' => 'required_if:action,checkin|nullable|string|max:255',
+            'location_name_select' => 'required_if:action,checkin|nullable|string|max:255',
+            'location_name_custom' => 'required_if:location_name_select,custom|nullable|string|max:255',
         ]);
 
         if ($request->action === 'checkout') {
@@ -236,12 +237,16 @@ class DashboardController extends Controller
             ]);
             $msg = 'Anda berhasil check-out. Status ketersediaan Anda diatur ke Siap Menerima Order.';
         } else {
+            $locationName = $request->location_name_select === 'custom'
+                ? $request->location_name_custom
+                : $request->location_name_select;
+
             $jastiper->update([
-                'checkin_location' => $request->location_name,
+                'checkin_location' => $locationName,
                 'checked_in_at' => now(),
                 'is_available' => true,
             ]);
-            $msg = "Anda berhasil check-in di {$request->location_name}! Customer kini dapat membooking Anda secara langsung.";
+            $msg = "Anda berhasil check-in di {$locationName}! Customer kini dapat membooking Anda secara langsung.";
         }
 
         return redirect()->back()->with('success', $msg);

@@ -152,7 +152,7 @@
                         </form>
                     </div>
                 @else
-                    <form action="{{ route('jastiper.checkin') }}" method="POST" class="space-y-3" x-data="{ location: 'Mie Gacoan Lowokwaru' }">
+                    <form action="{{ route('jastiper.checkin') }}" method="POST" class="space-y-3" x-data="{ location: 'Mie Gacoan Lowokwaru', customLocation: '' }">
                         @csrf
                         <input type="hidden" name="action" value="checkin">
                         
@@ -171,12 +171,12 @@
 
                             <div x-show="location === 'custom'">
                                 <label for="location_custom" class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nama Tempat Kustom</label>
-                                <input type="text" id="location_custom" name="location_name" placeholder="Misal: Indomaret Veteran..." class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-[11px] font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150">
+                                <input type="text" id="location_custom" x-model="customLocation" placeholder="Misal: Indomaret Veteran..." class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-[11px] font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150">
                             </div>
                         </div>
 
                         <!-- Fallback input name if not custom -->
-                        <input type="hidden" name="location_name" :value="location !== 'custom' ? location : document.getElementById('location_custom')?.value">
+                        <input type="hidden" name="location_name" :value="location !== 'custom' ? location : customLocation">
 
                         <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-3.5 rounded-2xl transition uppercase tracking-wider shadow-sm flex items-center justify-center gap-1.5">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

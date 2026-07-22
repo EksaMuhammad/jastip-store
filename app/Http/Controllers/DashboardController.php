@@ -172,7 +172,19 @@ class DashboardController extends Controller
         $favoriteJastipers = $customer->favorites()->with('badge')->get();
         $favorites = $customer->favorites()->pluck('jastiper_id');
 
-        return view('dashboard.customer.booking', compact('customer', 'checkinJastipers', 'favoriteJastipers', 'favorites'));
+        // Ambil jastiper dari riwayat pesanan selesai
+        $historyJastiperIds = \App\Models\Order::where('customer_id', $customer->id)
+            ->where('status', 'selesai')
+            ->whereNotNull('jastiper_id')
+            ->distinct()
+            ->pluck('jastiper_id');
+
+        $historyJastipers = \App\Models\Jastiper::whereIn('id', $historyJastiperIds)
+            ->whereNotIn('id', $favorites) // Hindari duplikasi jika sudah di favorit
+            ->with('badge')
+            ->get();
+
+        return view('dashboard.customer.booking', compact('customer', 'checkinJastipers', 'favoriteJastipers', 'historyJastipers', 'favorites'));
     }
 
     /**

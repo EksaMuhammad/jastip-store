@@ -67,7 +67,8 @@
                 if (!silent) this.loading = true;
 
                 try {
-                    const url = new URL(this.feedUrl, window.location.origin);
+                    const path = new URL(this.feedUrl, window.location.origin).pathname;
+                    const url = new URL(path, window.location.origin);
                     if (this.category) {
                         url.searchParams.set('category', this.category);
                     }
@@ -102,7 +103,9 @@
                 this.loading = true;
 
                 try {
-                    const res = await fetch(this.multiAcceptUrl, {
+                    const path = new URL(this.multiAcceptUrl, window.location.origin).pathname;
+                    const url = new URL(path, window.location.origin);
+                    const res = await fetch(url.toString(), {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

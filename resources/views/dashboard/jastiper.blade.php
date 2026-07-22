@@ -9,7 +9,7 @@
 @endsection
 
 @section('content')
-<div class="min-h-screen bg-[#F3F4F6] pb-16" x-data="{ online: true }">
+<div class="min-h-screen bg-[#F3F4F6] pb-16" x-data="{ online: @json((bool)$jastiper->is_available) }">
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
     <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-20 z-40 px-4 py-3.5 shadow-sm">
         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
@@ -31,9 +31,13 @@
 
             <!-- Toggle Button (Gopartner Style Switcher) -->
             <div class="flex items-center gap-3">
+                <form id="toggle-status-form" action="{{ route('jastiper.toggle-status') }}" method="POST" class="hidden">
+                    @csrf
+                </form>
+
                 <button 
                     type="button" 
-                    @click="online = !online" 
+                    onclick="document.getElementById('toggle-status-form').submit()" 
                     class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
                     :class="online ? 'bg-emerald-600' : 'bg-slate-700'"
                 >
@@ -117,7 +121,6 @@
             </div>
         </div>
 
-        <!-- Check-in Lokasi Widget -->
         @if ($jastiper->verification_status === 'approved')
             <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3.5">
                 <div class="border-b border-slate-100 pb-2.5 flex justify-between items-center">
@@ -125,10 +128,17 @@
                         <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Check-in Lokasi Belanja</h3>
                         <p class="text-[9px] text-slate-400 mt-0.5">Kabarkan posisi Anda agar Customer dapat membooking Anda secara instan.</p>
                     </div>
-                    <span class="w-2.5 h-2.5 rounded-full {{ $jastiper->checkin_location ? 'bg-emerald-500 animate-pulse' : 'bg-slate-350' }}"></span>
+                    <span class="w-2.5 h-2.5 rounded-full {{ $jastiper->is_available && $jastiper->checkin_location ? 'bg-emerald-500 animate-pulse' : 'bg-slate-350' }}"></span>
                 </div>
 
-                @if ($jastiper->checkin_location)
+                @if (!$jastiper->is_available)
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
+                        <p class="text-[10px] text-slate-500 font-semibold leading-normal">
+                            Silakan nyalakan status <b>"Menerima Order"</b> di bilah hitam atas untuk mengumumkan check-in lokasi belanja.
+                        </p>
+                    </div>
+                @else
+                    @if ($jastiper->checkin_location)
                     <div class="bg-rose-50/50 border border-rose-100/60 p-3 rounded-2xl flex items-center justify-between gap-4">
                         <div class="flex items-start gap-2.5">
                             <div class="p-1.5 bg-rose-100 text-rose-600 rounded-xl shrink-0">
@@ -182,6 +192,7 @@
                             <span>Umumkan Check-in Saya</span>
                         </button>
                     </form>
+                @endif
                 @endif
             </div>
         @endif

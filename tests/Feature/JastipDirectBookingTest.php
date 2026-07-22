@@ -186,4 +186,33 @@ class JastipDirectBookingTest extends TestCase
         $this->assertEquals('menunggu_tawaran', $order->status);
         $this->assertNull($order->jastiper_id);
     }
+
+    public function test_jastiper_can_toggle_online_offline_status()
+    {
+        $this->actingAs($this->jastiper, 'jastiper');
+
+        // Setup checked in state
+        $this->jastiper->update([
+            'is_available' => true,
+            'checkin_location' => 'Matos',
+            'checked_in_at' => now(),
+        ]);
+
+        // Toggle to offline
+        $this->post(route('jastiper.toggle-status'))
+            ->assertRedirect();
+
+        $this->jastiper->refresh();
+        $this->assertFalse($this->jastiper->is_available);
+        // Offline should auto check-out
+        $this->assertNull($this->jastiper->checkin_location);
+        $this->assertNull($this->jastiper->checked_in_at);
+
+        // Toggle back to online
+        $this->post(route('jastiper.toggle-status'))
+            ->assertRedirect();
+
+        $this->jastiper->refresh();
+        $this->assertTrue($this->jastiper->is_available);
+    }
 }

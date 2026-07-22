@@ -161,8 +161,9 @@ class DashboardController extends Controller
     {
         $customer = Auth::guard('customer')->user();
 
-        // Ambil jastiper yang sedang check-in aktif
+        // Ambil jastiper yang sedang check-in aktif dan online (is_available = true)
         $checkinJastipers = \App\Models\Jastiper::whereNotNull('checkin_location')
+            ->where('is_available', true)
             ->where('verification_status', 'approved')
             ->with('badge')
             ->get();
@@ -309,5 +310,33 @@ class DashboardController extends Controller
         WhatsAppService::sendMessage($customer->phone_number, $msg);
 
         return redirect()->route('jastiper.dashboard')->with('success', 'Booking langsung ditolak, pesanan dialihkan ke tawaran terbuka.');
+    }
+
+    /**
+     * Mengubah status kerja Jastiper (Online / Offline).
+     */
+    public function jastiperToggleStatus()
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+
+        $newStatus = !$jastiper->is_available;
+
+        $updateData = [
+            'is_available' => $newStatus,
+        ];
+
+        // Jika mengubah status ke Offline, otomatis check-out dari lokasi check-in
+        if (!$newStatus) {
+            $updateData['checkin_location'] = null;
+            $updateData['checked_in_at'] = null;
+        }
+
+        $jastiper->update($updateData);
+
+        $msg = $newStatus 
+            ? 'Status Anda sekarang ONLINE. Siap menerima permintaan order belanjaan!' 
+            : 'Status Anda sekarang OFFLINE. Anda tidak akan menerima permintaan order belanjaan.';
+
+        return redirect()->back()->with('success', $msg);
     }
 }

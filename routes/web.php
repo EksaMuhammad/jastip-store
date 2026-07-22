@@ -42,6 +42,7 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::post('/jastiper/checkin', [DashboardController::class, 'jastiperCheckin'])->name('jastiper.checkin');
     Route::post('/jastiper/orders/{id}/direct-accept', [DashboardController::class, 'jastiperDirectAccept'])->name('jastiper.orders.direct-accept');
     Route::post('/jastiper/orders/{id}/direct-reject', [DashboardController::class, 'jastiperDirectReject'])->name('jastiper.orders.direct-reject');
+    Route::post('/jastiper/toggle-status', [DashboardController::class, 'jastiperToggleStatus'])->name('jastiper.toggle-status');
 });
 
 // Admin Dashboard Routes

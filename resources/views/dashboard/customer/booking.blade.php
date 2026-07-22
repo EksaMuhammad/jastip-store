@@ -146,15 +146,17 @@
 
                     </div>
                 @empty
-                    <div class="md:col-span-2 bg-white border border-slate-200/80 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-3">
-                        <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-2">
-                            <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="md:col-span-2 bg-white border border-slate-200/80 rounded-3xl py-12 px-6 text-center flex flex-col items-center justify-center space-y-4 shadow-sm min-h-[220px]">
+                        <div class="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-1 shadow-sm shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                             </svg>
                         </div>
-                        <h4 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Belum Ada Jastiper Check-in</h4>
-                        <p class="text-[10px] text-slate-400 max-w-[280px] leading-normal mx-auto">Saat ini belum ada Jastiper yang mengumumkan posisi belanjanya di Malang. Silakan pesan lewat orderan umum.</p>
-                        <a href="{{ route('customer.orders.create') }}" class="inline-block bg-slate-900 hover:bg-slate-800 text-white font-bold text-[9px] px-5 py-2.5 rounded-full uppercase tracking-wider">Buat Orderan Umum</a>
+                        <h4 class="font-display font-extrabold text-xs text-slate-800 uppercase tracking-wider">Belum Ada Jastiper Check-in</h4>
+                        <p class="text-[10px] text-slate-400 max-w-xs leading-relaxed mx-auto">Saat ini belum ada Jastiper yang mengumumkan posisi belanjanya di Malang. Silakan pesan lewat orderan umum.</p>
+                        <div class="pt-2">
+                            <a href="{{ route('customer.orders.create') }}" class="inline-block bg-slate-900 hover:bg-slate-800 text-white font-bold text-[9px] px-6 py-3 rounded-full uppercase tracking-wider transition shadow-sm">Buat Orderan Umum</a>
+                        </div>
                     </div>
                 @endforelse
             </div>
@@ -165,14 +167,14 @@
         <div x-show="tab === 'favorites'" class="space-y-4" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2">
                        @if($favoriteJastipers->isEmpty() && $historyJastipers->isEmpty())
                 <!-- Case: Both lists are empty -->
-                <div class="bg-white border border-slate-200/80 rounded-3xl p-12 text-center flex flex-col items-center justify-center space-y-3.5 shadow-sm">
-                    <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-1">
-                        <svg class="w-6 h-6 text-slate-350" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white border border-slate-200/80 rounded-3xl py-12 px-6 text-center flex flex-col items-center justify-center space-y-4 shadow-sm min-h-[220px]">
+                    <div class="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-1 shadow-sm shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                         </svg>
                     </div>
-                    <h4 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Belum Ada Jastiper Favorit atau Riwayat</h4>
-                    <p class="text-[10px] text-slate-400 max-w-[285px] leading-normal mx-auto">Anda belum menyukai Jastiper manapun atau memiliki riwayat booking langsung. Sukai Jastiper favorit Anda dari tab Check-in List!</p>
+                    <h4 class="font-display font-extrabold text-xs text-slate-800 uppercase tracking-wider">Belum Ada Jastiper Favorit atau Riwayat</h4>
+                    <p class="text-[10px] text-slate-400 max-w-xs leading-relaxed mx-auto">Anda belum menyukai Jastiper manapun atau memiliki riwayat booking langsung. Sukai Jastiper favorit Anda dari tab Check-in List!</p>
                 </div>
             @else
                 <!-- Section: Jastiper Favorit -->

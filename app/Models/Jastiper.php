@@ -23,6 +23,7 @@ class Jastiper extends Authenticatable
         'current_lat',
         'current_lng',
         'is_available',
+        'work_status',
         'checkin_location',
         'checked_in_at',
     ];
@@ -40,6 +41,81 @@ class Jastiper extends Authenticatable
         'current_lng' => 'decimal:8',
         'checked_in_at' => 'datetime',
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (!isset($model->work_status)) {
+                $model->work_status = ($model->is_available ?? false) ? 'tersedia' : 'offline';
+            }
+        });
+
+        static::updating(function ($model) {
+            if ($model->isDirty('is_available') && !$model->isDirty('work_status')) {
+                $model->work_status = $model->is_available ? 'tersedia' : 'offline';
+            }
+        });
+    }
+
+    /**
+     * Konstanta status kerja jastiper (3-state).
+     */
+    public const STATUS_TERSEDIA = 'tersedia';
+    public const STATUS_STANDBY = 'standby';
+    public const STATUS_OFFLINE = 'offline';
+
+    public static function workStatusOptions(): array
+    {
+        return [
+            self::STATUS_TERSEDIA => 'Tersedia',
+            self::STATUS_STANDBY => 'Standby',
+            self::STATUS_OFFLINE => 'Offline',
+        ];
+    }
+
+    /**
+     * Apakah jastiper sedang aktif menerima order baru di feed.
+     */
+    public function isReceivingNewOrders(): bool
+    {
+        return $this->work_status === self::STATUS_TERSEDIA;
+    }
+
+    /**
+     * Apakah jastiper sedang online (tersedia ATAU standby), lawan dari offline total.
+     */
+    public function isOnline(): bool
+    {
+        return $this->work_status !== self::STATUS_OFFLINE;
+    }
+
+    /**
+     * Set work_status sekaligus sinkronkan kolom is_available lama (backward compatibility
+     * untuk query lain yang masih pakai is_available, misal cek booking favorit customer).
+     */
+    public function setWorkStatus(string $status): void
+    {
+        $this->work_status = $status;
+        $this->is_available = $status !== self::STATUS_OFFLINE;
+
+        // Kalau diset ke offline, otomatis check-out dari lokasi check-in
+        if ($status === self::STATUS_OFFLINE) {
+            $this->checkin_location = null;
+            $this->checked_in_at = null;
+        }
+
+        $this->save();
+    }
+
+    /**
+     * Scope: filter jastiper yang sedang tersedia menerima order baru.
+     */
+    public function scopeReceivingOrders($query)
+    {
+        return $query->where('work_status', self::STATUS_TERSEDIA);
+    }
 
     public function wilayah()
     {
@@ -69,6 +145,16 @@ class Jastiper extends Authenticatable
     public function orders()
     {
         return $this->hasMany(Order::class, 'jastiper_id');
+    }
+
+    /**
+     * Order aktif (masih diproses, belum selesai/batal) yang sedang dipegang jastiper ini.
+     * Dipakai untuk cek berapa banyak order yang sedang berjalan bersamaan (multi-order).
+     */
+    public function activeOrders()
+    {
+        return $this->hasMany(Order::class, 'jastiper_id')
+            ->whereNotIn('status', ['selesai', 'dibatalkan']);
     }
 
     public function offers()

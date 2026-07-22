@@ -9,11 +9,136 @@
 @endsection
 
 @section('content')
-<div class="min-h-screen bg-[#F3F4F6] pb-16" x-data="{ online: @json((bool)$jastiper->is_available) }">
+
+<script>
+    // Helper toast ringan, pakai #toast-container yang sudah disediakan layouts.support
+    function jastiperNotify(message, success = true) {
+        const container = document.getElementById('toast-container');
+        if (!container) { alert(message); return; }
+
+        const toast = document.createElement('div');
+        toast.className = "pointer-events-auto bg-slate-900 text-white border-2 border-slate-900 p-4 rounded-sm flex items-center gap-3 animate-toast-slide-in text-xs font-bold tracking-wide transform transition-all duration-300"
+            + (success ? " shadow-[4px_4px_0px_0px_rgba(16,185,129,1)]" : " shadow-[4px_4px_0px_0px_rgba(244,63,94,1)]");
+        toast.innerHTML = `
+            <span class="text-base">${success ? '✅' : '⚠️'}</span>
+            <div><p class="font-sans font-semibold text-slate-100 normal-case">${message}</p></div>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('translate-y-2', 'opacity-0');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Alpine component untuk seluruh dashboard jastiper: filter kategori,
+    // feed order dengan polling real-time, dan multi-accept.
+    // Catatan: toggle online/offline SENGAJA tidak ditaruh di sini — itu pakai
+    // <form> HTML biasa (submit langsung ke server), supaya tombolnya selalu
+    // pasti berfungsi walau ada masalah pada JS/Alpine di bagian lain halaman.
+    function jastiperDashboard(config) {
+        return {
+            online: config.online,
+            verified: config.verified,
+            category: '',
+            orders: [],
+            selected: [],
+            loading: false,
+            initialFeedLoaded: false,
+            feedMessage: null,
+            pollHandle: null,
+            feedUrl: config.feedUrl,
+            multiAcceptUrl: config.multiAcceptUrl,
+            csrfToken: config.csrfToken,
+
+            init() {
+                if (this.verified && this.online) {
+                    this.fetchFeed();
+                }
+
+                // Polling tiap 8 detik selama online & akun terverifikasi
+                this.pollHandle = setInterval(() => {
+                    if (this.verified && this.online) {
+                        this.fetchFeed(true);
+                    }
+                }, 8000);
+            },
+
+            async fetchFeed(silent = false) {
+                if (!silent) this.loading = true;
+
+                try {
+                    const url = new URL(this.feedUrl, window.location.origin);
+                    if (this.category) {
+                        url.searchParams.set('category', this.category);
+                    }
+
+                    const res = await fetch(url.toString(), {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const data = await res.json();
+
+                    this.orders = data.orders || [];
+                    this.feedMessage = data.message;
+                    // Buang seleksi yang order-nya sudah tidak ada lagi di feed terbaru
+                    this.selected = this.selected.filter(id => this.orders.some(o => o.id === id));
+                } catch (e) {
+                    this.feedMessage = 'Gagal memuat daftar order. Periksa koneksi Anda.';
+                } finally {
+                    this.loading = false;
+                    this.initialFeedLoaded = true;
+                }
+            },
+
+            toggleSelect(id) {
+                if (this.selected.includes(id)) {
+                    this.selected = this.selected.filter(x => x !== id);
+                } else {
+                    this.selected.push(id);
+                }
+            },
+
+            async acceptOrders(ids) {
+                if (!ids.length || this.loading) return;
+                this.loading = true;
+
+                try {
+                    const res = await fetch(this.multiAcceptUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                        body: JSON.stringify({ order_ids: ids }),
+                    });
+                    const data = await res.json();
+
+                    jastiperNotify(data.message, data.success);
+                    this.selected = [];
+                    await this.fetchFeed(true);
+                } catch (e) {
+                    jastiperNotify('Gagal memproses order. Coba lagi.', false);
+                } finally {
+                    this.loading = false;
+                }
+            },
+        };
+    }
+</script>
+
+<div class="min-h-screen bg-[#F3F4F6] pb-16"
+    x-data="jastiperDashboard({
+        online: @json($jastiper->work_status !== 'offline'),
+        verified: @json($jastiper->verification_status === 'approved'),
+        csrfToken: @json(csrf_token()),
+        feedUrl: @json(route('jastiper.orders.feed')),
+        multiAcceptUrl: @json(route('jastiper.orders.multi-accept')),
+    })"
+>
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
     <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-20 z-40 px-4 py-3.5 shadow-sm">
-        <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
-            
+        <div class="max-w-4xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+
             <!-- Driver Info & Status -->
             <div class="flex items-center gap-3">
                 <div class="relative">
@@ -21,39 +146,32 @@
                         {{ strtoupper(substr($jastiper->name, 0, 2)) }}
                     </div>
                     <!-- Indicator dot -->
-                    <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full border border-slate-950 transition duration-150" :class="online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'"></span>
+                    <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full border border-slate-950 transition duration-150 {{ $jastiper->work_status !== 'offline' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500' }}"></span>
                 </div>
                 <div>
                     <h2 class="font-display font-extrabold text-sm text-white">{{ $jastiper->name }}</h2>
-                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block" x-text="online ? 'Menerima Order' : 'Istirahat (Offline)'"></span>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">{{ $jastiper->work_status !== 'offline' ? 'Menerima Order' : 'Istirahat (Offline)' }}</span>
                 </div>
             </div>
 
-            <!-- Toggle Button (Gopartner Style Switcher) -->
+            <!-- Toggle Online/Offline (form submit biasa, tidak bergantung JS) -->
             <div class="flex items-center gap-3">
-                <!-- Status Badge Label -->
-                <span class="text-[9px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider transition border shadow-sm flex items-center gap-1.5"
-                      :class="online ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-slate-800 text-slate-400 border-slate-700'">
-                    <span class="w-1.5 h-1.5 rounded-full" :class="online ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'"></span>
-                    <span x-text="online ? 'ONLINE' : 'OFFLINE'"></span>
+                <span class="text-[9px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider transition border shadow-sm flex items-center gap-1.5 {{ $jastiper->work_status !== 'offline' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-slate-800 text-slate-400 border-slate-700' }}">
+                    <span class="w-1.5 h-1.5 rounded-full {{ $jastiper->work_status !== 'offline' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500' }}"></span>
+                    <span>{{ $jastiper->work_status !== 'offline' ? 'ONLINE' : 'OFFLINE' }}</span>
                 </span>
 
-                <form id="toggle-status-form" action="{{ route('jastiper.toggle-status') }}" method="POST" class="hidden">
+                <form action="{{ route('jastiper.work-status.update') }}" method="POST">
                     @csrf
+                    <input type="hidden" name="status" value="{{ $jastiper->work_status !== 'offline' ? 'offline' : 'tersedia' }}">
+                    <button
+                        type="submit"
+                        class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $jastiper->work_status !== 'offline' ? 'bg-emerald-600' : 'bg-slate-700' }}"
+                        title="Ubah Status Kerja"
+                    >
+                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $jastiper->work_status !== 'offline' ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                    </button>
                 </form>
-
-                <button 
-                    type="button" 
-                    onclick="document.getElementById('toggle-status-form').submit()" 
-                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                    :class="online ? 'bg-emerald-600' : 'bg-slate-700'"
-                    title="Ubah Status Kerja"
-                >
-                    <span 
-                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                        :class="online ? 'translate-x-5' : 'translate-x-0'"
-                    ></span>
-                </button>
 
                 <!-- Logout -->
                 <form action="{{ route('logout') }}" method="POST" class="shrink-0">
@@ -69,7 +187,7 @@
 
     <!-- Main Container -->
     <div class="max-w-md mx-auto px-4 mt-6 space-y-6">
-        
+
         <!-- Verification Status Banner if pending/rejected -->
         @if ($jastiper->verification_status !== 'approved')
             <div class="p-4 rounded-3xl border-2 border-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] bg-amber-50">
@@ -99,14 +217,14 @@
         <!-- Driver Earnings Card (Gopartner Style Performance Metrics) -->
         <div class="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-3xl p-5 shadow-lg border border-emerald-500/20 relative overflow-hidden">
             <div class="absolute -right-8 -top-8 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-            
+
             <div class="flex justify-between items-start">
                 <div class="space-y-1">
                     <span class="text-[9px] uppercase font-bold text-emerald-100 tracking-wider block">Pendapatan Jastiper Hari Ini</span>
                     <div class="text-3xl font-black font-display tracking-tight">Rp0</div>
                     <span class="text-[8px] text-emerald-200/80 font-semibold block">ID: #JSTP-{{ str_pad($jastiper->id, 4, '0', STR_PAD_LEFT) }}</span>
                 </div>
-                
+
                 <button onclick="showMaintenanceToast(event)" class="bg-slate-950/40 hover:bg-slate-950/60 border border-white/20 text-white text-[9px] font-bold px-3.5 py-2 rounded-full transition uppercase tracking-wide">
                     Tarik Saldo
                 </button>
@@ -136,13 +254,13 @@
                         <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Check-in Lokasi Belanja</h3>
                         <p class="text-[9px] text-slate-400 mt-0.5">Kabarkan posisi Anda agar Customer dapat membooking Anda secara instan.</p>
                     </div>
-                    <span class="w-2.5 h-2.5 rounded-full {{ $jastiper->is_available && $jastiper->checkin_location ? 'bg-emerald-500 animate-pulse' : 'bg-slate-350' }}"></span>
+                    <span class="w-2.5 h-2.5 rounded-full {{ $jastiper->work_status !== 'offline' && $jastiper->checkin_location ? 'bg-emerald-500 animate-pulse' : 'bg-slate-350' }}"></span>
                 </div>
 
-                @if (!$jastiper->is_available)
+                @if ($jastiper->work_status === 'offline')
                     <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
                         <p class="text-[10px] text-slate-500 font-semibold leading-normal">
-                            Silakan nyalakan status <b>"Menerima Order"</b> di bilah hitam atas untuk mengumumkan check-in lokasi belanja.
+                            Silakan ubah status ke <b>"Tersedia"</b> atau <b>"Standby"</b> di bilah hitam atas untuk mengumumkan check-in lokasi belanja.
                         </p>
                     </div>
                 @else
@@ -173,7 +291,7 @@
                     <form action="{{ route('jastiper.checkin') }}" method="POST" class="space-y-3" x-data="{ location: 'Mie Gacoan Lowokwaru', customLocation: '' }">
                         @csrf
                         <input type="hidden" name="action" value="checkin">
-                        
+
                         <div class="grid grid-cols-1 gap-3">
                             <div>
                                 <label for="location_select" class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pilih Lokasi Populer</label>
@@ -220,7 +338,7 @@
                     </a>
                 @endif
             </div>
-            
+
             <!-- Map Container -->
             <div id="leaflet-jastiper-dash-map" class="h-44 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10"></div>
         </div>
@@ -229,20 +347,21 @@
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <div class="border-b border-slate-100 pb-3 flex justify-between items-center">
                 <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Permintaan Order Terdekat</h3>
-                <span class="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2.5 py-0.5 rounded-full" x-show="online">Mencari...</span>
+                <span class="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2.5 py-0.5 rounded-full" x-show="online && loading">Memuat...</span>
+                <span class="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2.5 py-0.5 rounded-full" x-show="online && !loading">Mencari...</span>
             </div>
 
-            @if (!$jastiper->is_available)
+            @if ($jastiper->work_status === 'offline')
                 <!-- Case: Offline -->
                 <div class="py-10 text-center flex flex-col items-center justify-center">
                     <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
                         <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                     </div>
                     <h4 class="font-bold text-xs text-slate-700">Status Anda: Offline</h4>
-                    <p class="text-[9px] text-slate-400 mt-1 max-w-[220px] leading-normal mx-auto">Nyalakan status "Menerima Order" di banner atas untuk melihat permintaan belanjaan masuk.</p>
+                    <p class="text-[9px] text-slate-400 mt-1 max-w-[220px] leading-normal mx-auto">Ubah status ke "Tersedia" di banner atas untuk melihat permintaan belanjaan masuk.</p>
                 </div>
             @else
-                <!-- Case: Online -->
+                <!-- Case: Online (tersedia / standby) -->
                 <div class="space-y-4">
                 @if ($jastiper->verification_status !== 'approved')
                     <!-- Locked if not verified -->
@@ -254,7 +373,7 @@
                         <p class="text-[9px] text-slate-400 mt-1 max-w-[200px] leading-normal mx-auto">Selesaikan verifikasi akun KTP Anda terlebih dahulu di bagian atas untuk membuka akses order.</p>
                     </div>
                 @else
-                    <!-- Direct Request Bookings List -->
+                    <!-- Direct Request Bookings List (server-rendered, khusus untuk jastiper ini) -->
                     @if($directOrders->isNotEmpty())
                         <div class="space-y-3">
                             <h4 class="font-display font-black text-[10px] text-rose-600 uppercase tracking-wider flex items-center gap-1.5">
@@ -306,68 +425,116 @@
                         </div>
                         <hr class="border-slate-100 my-4">
                     @endif
-                    @forelse($orders as $order)
-                        <!-- Real Driver Request Card (Gojek App Style) -->
-                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 hover:border-slate-300 transition animate-fade-in">
-                            
-                            <!-- Header info card -->
-                            <div class="flex justify-between items-start border-b border-slate-200/60 pb-2.5">
-                                <div>
-                                    @php
-                                        $categoryNames = [
-                                            'beli-antar' => 'Titip Kuliner',
-                                            'ambil-antar' => 'Titip Ambil',
-                                            'toko-kirim' => 'Titip Toko',
-                                            'dokumen' => 'Dokumen Kecil',
-                                            'multi-stop' => 'Multi-Stop',
-                                            'kirim-pihak-ketiga' => 'Titip Ekspedisi',
-                                        ];
-                                        $catLabel = $categoryNames[$order->category] ?? 'Jastip';
-                                    @endphp
-                                    <span class="text-[8px] font-black bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full uppercase tracking-wider">{{ $catLabel }}</span>
-                                    <h4 class="font-extrabold text-xs text-slate-800 mt-1.5 leading-tight">{{ $order->description }}</h4>
-                                    <span class="text-[9px] text-slate-400 block mt-0.5">Asal: {{ $order->origin_address ?: '-' }}</span>
-                                </div>
-                                <div class="text-right shrink-0">
-                                    <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Komisi Jastip</span>
-                                    <span class="text-xs font-black text-rose-600">+ Rp {{ number_format($order->estimated_fare, 0, ',', '.') }}</span>
-                                </div>
-                            </div>
 
-                            <!-- Details & Addresses -->
-                            <div class="space-y-2 text-[9px] text-slate-500">
-                                <div class="flex items-start gap-1">
-                                    <svg class="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                    <span class="leading-tight">Antar: {{ $order->destination_address }}</span>
-                                </div>
-                                <div>Penerima: <span class="font-extrabold text-slate-800">{{ $order->recipient_name }}</span> ({{ $order->recipient_phone }})</div>
-                                <div>Kategori Berat: <span class="font-bold text-slate-700 capitalize">{{ $order->weight_category }}</span></div>
-                            </div>
+                        {{-- Selama online: filter kategori + feed real-time (Alpine) --}}
+                        @php
+                            $feedCategories = [
+                                '' => 'Semua',
+                                'beli-antar' => 'Titip Kuliner',
+                                'ambil-antar' => 'Titip Ambil',
+                                'toko-kirim' => 'Titip Toko',
+                                'dokumen' => 'Dokumen Kecil',
+                                'multi-stop' => 'Multi-Stop',
+                                'kirim-pihak-ketiga' => 'Titip Ekspedisi',
+                            ];
+                        @endphp
 
-                            <!-- Action buttons -->
-                            <div class="pt-1">
-                                <form action="{{ route('jastiper.orders.accept', $order->id) }}" method="POST">
-                                    @csrf
-                                    <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
-                                        Terima Orderan Ini
-                                    </button>
-                                </form>
-                            </div>
+                        <!-- Filter Kategori -->
+                        <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                            @foreach ($feedCategories as $catValue => $catLabel)
+                                <button type="button"
+                                    @click="category = @json($catValue); fetchFeed()"
+                                    :disabled="loading"
+                                    class="shrink-0 px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-wide border transition disabled:opacity-50"
+                                    :class="category === @json($catValue) ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'">
+                                    {{ $catLabel }}
+                                </button>
+                            @endforeach
                         </div>
-                    @empty
-                        <div class="py-10 text-center flex flex-col items-center justify-center">
+
+                        <!-- Pesan info dari server (mis. lokasi belum diset, dsb) -->
+                        <div x-show="feedMessage && orders.length === 0" x-cloak class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
+                            <p class="text-[10px] text-slate-500 font-semibold leading-normal" x-text="feedMessage"></p>
+                        </div>
+
+                        <!-- Loading skeleton (hanya saat load pertama kali) -->
+                        <div x-show="loading && !initialFeedLoaded" class="space-y-3">
+                            <div class="h-24 bg-slate-100 rounded-2xl animate-pulse"></div>
+                            <div class="h-24 bg-slate-100 rounded-2xl animate-pulse"></div>
+                        </div>
+
+                        <!-- Empty state setelah feed pertama berhasil dimuat -->
+                        <div x-show="initialFeedLoaded && !feedMessage && orders.length === 0" x-cloak class="py-10 text-center flex flex-col items-center justify-center">
                             <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
                                 <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             </div>
                             <h4 class="font-bold text-xs text-slate-700">Tidak Ada Orderan Aktif</h4>
-                            <p class="text-[9px] text-slate-400 mt-1 max-w-[220px] leading-normal mx-auto">Saat ini belum ada permintaan jastip baru di wilayah operasional Anda.</p>
+                            <p class="text-[9px] text-slate-400 mt-1 max-w-[220px] leading-normal mx-auto">Saat ini belum ada permintaan jastip baru dalam radius & kategori yang Anda pilih.</p>
                         </div>
-                    @endforelse
+
+                        <!-- Daftar Order (real-time, bisa multi-select) -->
+                        <div class="space-y-3">
+                            <template x-for="order in orders" :key="order.id">
+                                <div class="bg-slate-50 border rounded-2xl p-4 space-y-3 transition animate-fade-in"
+                                    :class="selected.includes(order.id) ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200 hover:border-slate-300'">
+
+                                    <div class="flex justify-between items-start border-b border-slate-200/60 pb-2.5 gap-2">
+                                        <label class="flex items-start gap-2 cursor-pointer min-w-0">
+                                            <input type="checkbox" class="mt-1 w-3.5 h-3.5 accent-rose-600 shrink-0"
+                                                :checked="selected.includes(order.id)"
+                                                @change="toggleSelect(order.id)">
+                                            <div class="min-w-0">
+                                                <div class="flex items-center gap-1.5 flex-wrap">
+                                                    <span class="text-[8px] font-black bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full uppercase tracking-wider" x-text="order.category_label"></span>
+                                                    <span class="text-[8px] font-bold text-slate-400" x-text="order.distance_km + ' KM'"></span>
+                                                </div>
+                                                <h4 class="font-extrabold text-xs text-slate-800 mt-1.5 leading-tight" x-text="order.description"></h4>
+                                                <span class="text-[9px] text-slate-400 block mt-0.5" x-text="'Asal: ' + (order.origin_address || '-')"></span>
+                                            </div>
+                                        </label>
+                                        <div class="text-right shrink-0">
+                                            <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Komisi Jastip</span>
+                                            <span class="text-xs font-black text-rose-600" x-text="'+ ' + order.estimated_fare_formatted"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-2 text-[9px] text-slate-500">
+                                        <div class="flex items-start gap-1">
+                                            <svg class="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                            <span class="leading-tight" x-text="'Antar: ' + order.destination_address"></span>
+                                        </div>
+                                        <div>Penerima: <span class="font-extrabold text-slate-800" x-text="order.recipient_name"></span> (<span x-text="order.recipient_phone"></span>)</div>
+                                        <div>Kategori Berat: <span class="font-bold text-slate-700 capitalize" x-text="order.weight_category"></span></div>
+                                        <div class="text-slate-400" x-text="order.created_at"></div>
+                                    </div>
+
+                                    <div class="pt-1">
+                                        <button type="button" @click="acceptOrders([order.id])" :disabled="loading"
+                                            class="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm">
+                                            Terima Orderan Ini
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
                 @endif
             </div>
             @endif
         </div>
 
+    </div>
+
+    <!-- Sticky Multi-Accept Bar -->
+    <div x-show="selected.length > 0" x-transition x-cloak
+        class="fixed bottom-16 md:bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-950 text-white rounded-full shadow-lg px-4 py-2.5 flex items-center gap-3 border border-slate-700">
+        <span class="text-[10px] font-bold whitespace-nowrap" x-text="selected.length + ' Order Dipilih'"></span>
+        <button type="button" @click="acceptOrders(selected)" :disabled="loading"
+            class="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[9px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+            Terima Sekaligus
+        </button>
+        <button type="button" @click="selected = []" class="text-slate-400 hover:text-white text-[9px] whitespace-nowrap">
+            Batal
+        </button>
     </div>
 </div>
 

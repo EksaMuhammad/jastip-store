@@ -23,6 +23,12 @@ new class extends Component
     public string $recipient_name = '';
     public string $recipient_phone = '';
 
+    // Koordinat pin peta (diisi otomatis oleh JS Leaflet/Nominatim, jangan diisi manual lewat form)
+    public ?float $origin_lat = null;
+    public ?float $origin_lng = null;
+    public ?float $destination_lat = null;
+    public ?float $destination_lng = null;
+
     // Calculation states
     public float $distance = 1.0; // in KM
     public float $estimated_fare = 0.0;
@@ -98,6 +104,27 @@ new class extends Component
     }
 
     /**
+     * Dipanggil dari JavaScript (Leaflet drag-end / hasil pencarian Nominatim) setiap kali
+     * posisi pin Asal atau Tujuan berubah. Menyimpan koordinat ke state Livewire supaya
+     * ikut tersimpan ke database saat submitOrder(), dan bisa dipakai untuk filter radius
+     * di sisi jastiper nantinya.
+     *
+     * @param string $point 'origin' atau 'destination'
+     * @param float $lat
+     * @param float $lng
+     */
+    public function updateCoordinates(string $point, float $lat, float $lng)
+    {
+        if ($point === 'origin') {
+            $this->origin_lat = $lat;
+            $this->origin_lng = $lng;
+        } elseif ($point === 'destination') {
+            $this->destination_lat = $lat;
+            $this->destination_lng = $lng;
+        }
+    }
+
+    /**
      * Hitung tarif estimasi jastip secara real-time
      */
     public function calculateFare()
@@ -164,7 +191,11 @@ new class extends Component
                 'description' => $this->description,
                 'reference_photo' => $photoPath,
                 'origin_address' => $this->origin_address ?: 'Lokasi Pin Peta Asal',
+                'origin_lat' => $this->origin_lat ?? -7.9839,
+                'origin_lng' => $this->origin_lng ?? 112.6214,
                 'destination_address' => $this->destination_address,
+                'destination_lat' => $this->destination_lat ?? -7.9839,
+                'destination_lng' => $this->destination_lng ?? 112.6214,
                 'recipient_name' => $this->recipient_name,
                 'recipient_phone' => $this->recipient_phone,
                 'estimated_fare' => $this->estimated_fare,
@@ -189,7 +220,6 @@ new class extends Component
                 $msg = "Halo *{$customer->name}*!\n\nPermintaan Jastip baru Anda telah berhasil dikirim ke sistem:\n\n📦 *Layanan*: {$catLabel}\n📝 *Deskripsi*: {$this->description}\n🎯 *Radius/Jarak*: {$this->distance} KM\n💰 *Estimasi Ongkir*: Rp " . number_format($this->estimated_fare, 0, ',', '.') . "\n\nSistem sedang mencarikan Jastiper terdekat di area Malang. Mohon tunggu tawaran masuk! 🚀";
                 session()->flash('success', 'Request Jastip Baru Berhasil Dibuat! Mohon tunggu tawaran dari Jastiper.');
             }
-            
             WhatsAppService::sendMessage($customer->phone_number, $msg);
 
             return redirect()->route('customer.dashboard');
@@ -209,9 +239,17 @@ new class extends Component
         <p class="text-xs text-slate-400 mt-1">Silakan pilih kategori jastip, isi deskripsi kebutuhan titipan, serta tentukan rute pengantaran.</p>
     </div>
 
+    <!-- Error Alert -->
+    @if ($error_message)
+        <div class="bg-rose-50 border border-rose-100 p-4 text-rose-700 text-xs font-semibold rounded-2xl flex items-start gap-2.5 shadow-sm">
+            <svg class="w-4.5 h-4.5 mt-0.5 shrink-0 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span>{{ $error_message }}</span>
+        </div>
+    @endif
+
     <!-- Direct Request Info Banner -->
     @if ($jastiper_id)
-        <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center justify-between text-xs shadow-sm">
+        <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center justify-between text-xs shadow-sm mb-6">
             <div class="flex items-center gap-3">
                 <div class="p-1.5 bg-rose-100 text-rose-600 rounded-xl shrink-0">
                     <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,32 +268,21 @@ new class extends Component
         </div>
     @endif
 
-    <!-- Error Alert -->
-    @if ($error_message)
-        <div class="bg-rose-50 border border-rose-100 p-4 text-rose-700 text-xs font-semibold rounded-2xl flex items-start gap-2.5 shadow-sm">
-            <svg class="w-4.5 h-4.5 mt-0.5 shrink-0 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            <span>{{ $error_message }}</span>
-        </div>
-    @endif
-
     <form wire:submit.prevent="submitOrder" class="space-y-6">
         
         <!-- 1. PILIH KATEGORI (6 Kategori JastipKuy) -->
         <div class="space-y-3">
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Pilih Layanan Jastip</label>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">                <!-- Beli-Antar -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                
+                <!-- Beli-Antar -->
                 <button 
                     type="button" 
                     wire:click="$set('category', 'beli-antar')"
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'beli-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm bg-gradient-to-tr from-rose-500 to-pink-500 shadow-rose-500/20">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v3m-5 5h10a5 5 0 00-10 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 19h18a1 1 0 001-1v-1H2v1a1 1 0 001 1zm3-5h12v2H6v-2z" />
-                        </svg>
-                    </div>
+                    <span class="w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center text-white text-sm">🍔</span>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Beli-Antar</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Jastip Kuliner / Makanan</span>
@@ -269,14 +296,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'ambil-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm bg-gradient-to-tr from-blue-500 to-indigo-500 shadow-blue-500/20">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3L4 7.5L12 12L20 7.5L12 3Z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 7.5V16.5L12 21V12" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7.5V16.5L12 21" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 12l6-3.375" />
-                        </svg>
-                    </div>
+                    <span class="w-8 h-8 bg-sky-500 rounded-full flex items-center justify-center text-white text-sm">🛍️</span>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Ambil & Antar</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Ambil barang / COD</span>
@@ -290,11 +310,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'toko-kirim' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm bg-gradient-to-tr from-amber-500 to-orange-500 shadow-amber-500/20">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                    </div>
+                    <span class="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm">🛒</span>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Toko Kirim</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Belanja Minimarket/Pasar</span>
@@ -308,11 +324,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'dokumen' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-emerald-500/20">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
+                    <span class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-sm">📄</span>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Dokumen Kecil</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Kirim surat / dokumen</span>
@@ -326,14 +338,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'multi-stop' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm bg-gradient-to-tr from-violet-500 to-purple-500 shadow-violet-500/20">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <circle cx="6" cy="18" r="2.5" />
-                            <circle cx="18" cy="12" r="2.5" />
-                            <circle cx="10" cy="6" r="2.5" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 16L16.5 13.5M16.5 10.5L11.5 7.5" />
-                        </svg>
-                    </div>
+                    <span class="w-8 h-8 bg-violet-500 rounded-full flex items-center justify-center text-white text-sm">📍</span>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Multi-Stop</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Banyak titik belanja/antar</span>
@@ -347,11 +352,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'kirim-pihak-ketiga' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm bg-gradient-to-tr from-fuchsia-500 to-pink-500 shadow-fuchsia-500/20">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-2h1l3.87-1.935A1 1 0 0119 14.935V16a1 1 0 001 1h1M6 21a2 2 0 100-4 2 2 0 000 4zm10 0a2 2 0 100-4 2 2 0 000 4z" />
-                        </svg>
-                    </div>
+                    <span class="w-8 h-8 bg-fuchsia-500 rounded-full flex items-center justify-center text-white text-sm">🚀</span>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Pihak Ketiga</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Ekspedisi / Agen Kirim</span>
@@ -614,8 +615,13 @@ new class extends Component
                 // Update UI display
                 document.getElementById('disp-distance').innerText = distanceKM.toFixed(2);
 
-                // Kirim ke Livewire component
+                // Kirim jarak ke Livewire component
                 $wire.set('distance', distanceKM);
+
+                // Kirim koordinat pin Asal & Tujuan ke Livewire supaya tersimpan ke database
+                // (dipakai nanti untuk filter radius di sisi jastiper)
+                $wire.updateCoordinates('origin', originLatLng.lat, originLatLng.lng);
+                $wire.updateCoordinates('destination', destLatLng.lat, destLatLng.lng);
             };
 
             // Bind drag events

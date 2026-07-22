@@ -87,7 +87,13 @@ class JastipWorkflowTest extends TestCase
 
     public function test_jastiper_can_see_order_in_dashboard_feed()
     {
-        // Buat order aktif di wilayah Malang
+        // Set koordinat jastiper agar tidak null
+        $this->jastiper->update([
+            'current_lat' => -7.9839,
+            'current_lng' => 112.6214,
+        ]);
+
+        // Buat order aktif di wilayah Malang dengan koordinat dekat jastiper
         $order = Order::create([
             'customer_id' => $this->customer->id,
             'wilayah_id' => $this->wilayah->id,
@@ -95,6 +101,8 @@ class JastipWorkflowTest extends TestCase
             'weight_category' => 'ringan',
             'description' => 'Titip Martabak Keju',
             'origin_address' => 'Martabak 88',
+            'origin_lat' => -7.9839,
+            'origin_lng' => 112.6214,
             'destination_address' => 'Kos A',
             'recipient_name' => 'Budi',
             'recipient_phone' => '081234567890',
@@ -102,11 +110,14 @@ class JastipWorkflowTest extends TestCase
             'status' => 'menunggu_tawaran',
         ]);
 
+        // Karena feed di-load secara async via JSON, kita hit JSON feed endpoint
         $this->actingAs($this->jastiper, 'jastiper')
-            ->get(route('jastiper.dashboard'))
+            ->get(route('jastiper.orders.feed'))
             ->assertStatus(200)
-            ->assertSee('Titip Martabak Keju')
-            ->assertSee('Rp 15.000');
+            ->assertJsonFragment([
+                'description' => 'Titip Martabak Keju',
+                'estimated_fare_formatted' => 'Rp 15.000',
+            ]);
     }
 
     public function test_jastiper_can_accept_order()

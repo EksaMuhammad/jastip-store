@@ -43,6 +43,11 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::post('/jastiper/orders/{id}/direct-accept', [DashboardController::class, 'jastiperDirectAccept'])->name('jastiper.orders.direct-accept');
     Route::post('/jastiper/orders/{id}/direct-reject', [DashboardController::class, 'jastiperDirectReject'])->name('jastiper.orders.direct-reject');
     Route::post('/jastiper/toggle-status', [DashboardController::class, 'jastiperToggleStatus'])->name('jastiper.toggle-status');
+
+    // ===== Bagian 3: Halaman Feed Request (radius + kategori + multi-order) =====
+    Route::post('/jastiper/work-status', [DashboardController::class, 'jastiperUpdateWorkStatus'])->name('jastiper.work-status.update');
+    Route::get('/jastiper/orders/feed', [DashboardController::class, 'jastiperOrderFeed'])->name('jastiper.orders.feed');
+    Route::post('/jastiper/orders/multi-accept', [DashboardController::class, 'jastiperMultiAcceptOrders'])->name('jastiper.orders.multi-accept');
 });
 
 // Admin Dashboard Routes

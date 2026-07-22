@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Models\JastiperVerification;
+use App\Models\Order;
+use App\Models\Jastiper;
 use App\Services\WhatsAppService;
 
 class DashboardController extends Controller
@@ -41,14 +44,13 @@ class DashboardController extends Controller
             ->latest()
             ->get();
 
-        // Ambil order umum (jastiper_id = null) di wilayah kerja Jastiper
-        $orders = \App\Models\Order::where('status', 'menunggu_tawaran')
-            ->whereNull('jastiper_id')
-            ->where('wilayah_id', $jastiper->wilayah_id)
-            ->latest()
-            ->get();
-
-        return view('dashboard.jastiper', compact('jastiper', 'orders', 'directOrders'));
+        // Catatan: daftar order umum (feed radius+kategori) SENGAJA tidak lagi diambil
+        // di sini. Feed sepenuhnya diambil oleh JavaScript di view lewat endpoint
+        // jastiperOrderFeed() (GET /jastiper/orders/feed), baik untuk render pertama
+        // kali halaman dibuka maupun untuk polling real-time berikutnya. Ini supaya
+        // hanya ada SATU logika query (radius+kategori) yang dipakai, dan tidak ada
+        // lagi perbedaan data antara render awal vs hasil polling.
+        return view('dashboard.jastiper', compact('jastiper', 'directOrders'));
     }
 
     /**
@@ -350,5 +352,231 @@ class DashboardController extends Controller
             : 'Status Anda sekarang OFFLINE. Anda tidak akan menerima permintaan order belanjaan.';
 
         return redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * ================================================================
+     * ENDPOINT BARU — Bagian 3: Halaman Feed Request (sisi Jastiper)
+     * ================================================================
+     */
+
+    /**
+     * Mengubah status kerja Jastiper ke salah satu dari 3 state eksplisit:
+     * tersedia | standby | offline.
+     *
+     * Dipanggil lewat fetch() dari UI toggle 3-state (bukan cuma switch on/off biasa).
+     * Mendukung dua mode respons: JSON (kalau dipanggil via fetch/AJAX) atau redirect
+     * back (kalau suatu saat dipakai lewat form submit biasa/no-JS fallback).
+     */
+    public function jastiperUpdateWorkStatus(Request $request)
+    {
+        $request->validate([
+            'status' => 'required|in:tersedia,standby,offline',
+        ], [
+            'status.required' => 'Status kerja wajib dipilih.',
+            'status.in' => 'Status kerja tidak valid.',
+        ]);
+
+        $jastiper = Auth::guard('jastiper')->user();
+
+        if ($jastiper->verification_status !== 'approved' && $request->status !== 'offline') {
+            $errorMsg = 'Akun Anda belum terverifikasi oleh Admin, tidak bisa mengubah status ke online.';
+
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $errorMsg], 403);
+            }
+
+            return redirect()->back()->with('error', $errorMsg);
+        }
+
+        // Method setWorkStatus() di model otomatis sinkron kolom is_available lama
+        // dan otomatis check-out lokasi kalau statusnya diubah ke offline.
+        $jastiper->setWorkStatus($request->status);
+
+        $labels = [
+            'tersedia' => 'TERSEDIA — Anda siap menerima order belanjaan baru!',
+            'standby' => 'STANDBY — Anda online tapi sementara tidak menerima order baru.',
+            'offline' => 'OFFLINE — Anda tidak akan menerima order apapun.',
+        ];
+        $msg = $labels[$request->status];
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'work_status' => $jastiper->work_status,
+                'message' => $msg,
+            ]);
+        }
+
+        return redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Endpoint JSON: ambil daftar request/order aktif dalam radius jangkauan Jastiper,
+     * dengan filter kategori opsional. Dipakai untuk render awal feed & untuk polling
+     * real-time (dipanggil ulang tiap beberapa detik lewat JS di Bagian 4).
+     *
+     * Query params:
+     *  - category (opsional): salah satu dari enum kategori order, atau 'semua'/kosong = semua kategori
+     *
+     * GET /jastiper/orders/feed?category=beli-antar
+     */
+    public function jastiperOrderFeed(Request $request)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+
+        if ($jastiper->verification_status !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun Anda belum terverifikasi oleh Admin.',
+                'orders' => [],
+                'count' => 0,
+            ], 403);
+        }
+
+        // Kalau statusnya bukan "tersedia" (standby/offline), tidak menerima order baru sama sekali
+        if (!$jastiper->isReceivingNewOrders()) {
+            return response()->json([
+                'success' => true,
+                'message' => $jastiper->work_status === 'standby'
+                    ? 'Anda sedang standby. Ubah status ke Tersedia untuk melihat order baru.'
+                    : 'Anda sedang offline. Ubah status ke Tersedia untuk melihat order baru.',
+                'orders' => [],
+                'count' => 0,
+            ]);
+        }
+
+        if (is_null($jastiper->current_lat) || is_null($jastiper->current_lng)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lokasi Anda belum ditentukan. Silakan atur titik lokasi di halaman "Atur Area" terlebih dahulu.',
+                'orders' => [],
+                'count' => 0,
+            ], 422);
+        }
+
+        $category = $request->query('category');
+
+        $orders = Order::where('status', 'menunggu_tawaran')
+            ->whereNull('jastiper_id')
+            ->nearby((float) $jastiper->current_lat, (float) $jastiper->current_lng, (float) $jastiper->radius_km)
+            ->categoryIs($category)
+            ->with('customer:id,name,phone_number')
+            ->limit(50)
+            ->get();
+
+        $categoryNames = [
+            'beli-antar' => 'Titip Kuliner',
+            'ambil-antar' => 'Titip Ambil',
+            'toko-kirim' => 'Titip Toko',
+            'dokumen' => 'Dokumen Kecil',
+            'multi-stop' => 'Multi-Stop',
+            'kirim-pihak-ketiga' => 'Titip Ekspedisi',
+        ];
+
+        $formatted = $orders->map(function ($order) use ($categoryNames) {
+            return [
+                'id' => $order->id,
+                'category' => $order->category,
+                'category_label' => $categoryNames[$order->category] ?? 'Jastip',
+                'description' => $order->description,
+                'weight_category' => $order->weight_category,
+                'origin_address' => $order->origin_address,
+                'destination_address' => $order->destination_address,
+                'recipient_name' => $order->recipient_name,
+                'recipient_phone' => $order->recipient_phone,
+                'estimated_fare' => (float) $order->estimated_fare,
+                'estimated_fare_formatted' => 'Rp ' . number_format((float) $order->estimated_fare, 0, ',', '.'),
+                'distance_km' => round((float) $order->distance_km, 2),
+                'customer_name' => $order->customer->name ?? '-',
+                'created_at' => $order->created_at->diffForHumans(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => null,
+            'orders' => $formatted,
+            'count' => $formatted->count(),
+            'radius_km' => (float) $jastiper->radius_km,
+        ]);
+    }
+
+    /**
+     * Endpoint terima BANYAK order sekaligus (multi-order) dalam satu aksi.
+     * Tiap order tetap 1 pembayar sendiri-sendiri (tidak digabung/split bill) — ini murni
+     * efisiensi rute, jastiper cuma "checkout" beberapa order yang searah dalam satu klik.
+     *
+     * Body JSON: { "order_ids": [12, 15, 20] }
+     * POST /jastiper/orders/multi-accept
+     */
+    public function jastiperMultiAcceptOrders(Request $request)
+    {
+        $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'integer|distinct|exists:orders,id',
+        ], [
+            'order_ids.required' => 'Pilih minimal 1 order untuk diterima.',
+            'order_ids.*.exists' => 'Salah satu order yang dipilih tidak ditemukan.',
+        ]);
+
+        $jastiper = Auth::guard('jastiper')->user();
+
+        if ($jastiper->verification_status !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun Anda belum terverifikasi oleh Admin.',
+            ], 403);
+        }
+
+        $accepted = [];
+        $failed = [];
+
+        foreach ($request->order_ids as $orderId) {
+            // Kunci baris order ini supaya aman dari race condition (2 jastiper klik bersamaan)
+            $result = DB::transaction(function () use ($orderId, $jastiper) {
+                $order = Order::where('id', $orderId)->lockForUpdate()->first();
+
+                if (!$order) {
+                    return ['status' => 'failed', 'id' => $orderId, 'reason' => 'Order tidak ditemukan.'];
+                }
+
+                if ($order->status !== 'menunggu_tawaran' || !is_null($order->jastiper_id)) {
+                    return ['status' => 'failed', 'id' => $orderId, 'reason' => 'Sudah diambil Jastiper lain.'];
+                }
+
+                $order->update([
+                    'jastiper_id' => $jastiper->id,
+                    'status' => 'diproses',
+                    'agreed_fare' => $order->estimated_fare,
+                ]);
+
+                return ['status' => 'accepted', 'id' => $orderId, 'order' => $order];
+            });
+
+            if ($result['status'] === 'accepted') {
+                $accepted[] = $result['id'];
+
+                // Notifikasi WhatsApp ke customer per order yang berhasil diambil
+                $order = $result['order'];
+                $customer = $order->customer;
+                if ($customer) {
+                    $msg = "Halo *{$customer->name}*!\n\nPesanan jastip Anda (*{$order->description}*) telah *DITERIMA* oleh Jastiper *{$jastiper->name}* (sekaligus bersama beberapa order lain dalam satu rute). Hubungi jastiper di nomor: {$jastiper->phone_number} untuk koordinasi belanjaan. Terima kasih. 🙏";
+                    WhatsAppService::sendMessage($customer->phone_number, $msg);
+                }
+            } else {
+                $failed[] = ['id' => $result['id'], 'reason' => $result['reason']];
+            }
+        }
+
+        return response()->json([
+            'success' => count($accepted) > 0,
+            'accepted_count' => count($accepted),
+            'accepted_ids' => $accepted,
+            'failed' => $failed,
+            'message' => count($failed) > 0
+                ? count($accepted) . ' order berhasil diambil, ' . count($failed) . ' order gagal (sudah diambil orang lain).'
+                : count($accepted) . ' order berhasil diambil sekaligus!',
+        ]);
     }
 }

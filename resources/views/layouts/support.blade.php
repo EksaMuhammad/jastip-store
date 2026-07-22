@@ -148,6 +148,16 @@
         </script>
 
         @livewireScripts
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                if (typeof window.Alpine === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = "https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js";
+                    script.defer = true;
+                    document.head.appendChild(script);
+                }
+            });
+        </script>
         @yield('scripts')
     </body>
 </html>

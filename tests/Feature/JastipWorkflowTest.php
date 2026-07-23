@@ -120,7 +120,15 @@ class JastipWorkflowTest extends TestCase
             ]);
     }
 
-    public function test_jastiper_can_accept_order()
+    /**
+     * CATATAN MIGRASI KE BIDDING: dua test lama di bagian ini
+     * (test_jastiper_can_accept_order & test_unverified_jastiper_cannot_accept_order)
+     * menguji route `jastiper.orders.accept` yang SUDAH DIHAPUS karena alur feed umum
+     * kini pakai sistem tawaran (bidding), bukan instant-accept lagi. Digantikan
+     * dengan 2 test setara di bawah ini yang memakai route `jastiper.orders.offer`.
+     * Cakupan test bidding yang lebih lengkap ada di tests/Feature/JastipBiddingTest.php.
+     */
+    public function test_jastiper_can_submit_offer_for_order()
     {
         // Buat order aktif di wilayah Malang
         $order = Order::create([
@@ -138,16 +146,23 @@ class JastipWorkflowTest extends TestCase
         ]);
 
         $this->actingAs($this->jastiper, 'jastiper')
-            ->post(route('jastiper.orders.accept', $order->id))
-            ->assertRedirect(route('jastiper.dashboard'));
+            ->postJson(route('jastiper.orders.offer', $order->id), ['offered_price' => 15000])
+            ->assertStatus(200)
+            ->assertJson(['success' => true]);
 
-        // Pastikan status order berubah di DB
+        // Pastikan status order berubah jadi ada_tawaran (bukan langsung diproses)
         $order->refresh();
-        $this->assertEquals('diproses', $order->status);
-        $this->assertEquals($this->jastiper->id, $order->jastiper_id);
+        $this->assertEquals('ada_tawaran', $order->status);
+        $this->assertNull($order->jastiper_id);
+
+        $this->assertDatabaseHas('offers', [
+            'order_id' => $order->id,
+            'jastiper_id' => $this->jastiper->id,
+            'status' => 'pending',
+        ]);
     }
 
-    public function test_unverified_jastiper_cannot_accept_order()
+    public function test_unverified_jastiper_cannot_submit_offer()
     {
         // Ubah status verifikasi jastiper ke 'belum'
         $this->jastiper->update(['verification_status' => 'belum']);
@@ -168,8 +183,8 @@ class JastipWorkflowTest extends TestCase
         ]);
 
         $this->actingAs($this->jastiper, 'jastiper')
-            ->post(route('jastiper.orders.accept', $order->id))
-            ->assertSessionHas('error');
+            ->postJson(route('jastiper.orders.offer', $order->id), ['offered_price' => 15000])
+            ->assertStatus(403);
 
         // Pastikan status order tidak berubah
         $order->refresh();

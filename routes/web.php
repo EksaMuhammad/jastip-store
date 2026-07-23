@@ -32,13 +32,18 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/booking', [DashboardController::class, 'customerBookingView'])->name('customer.booking');
     Route::post('/customer/jastiper/{id}/favorite', [DashboardController::class, 'customerToggleFavorite'])->name('customer.jastiper.favorite');
     Route::get('/customer/jastiper/{id}/availability', [DashboardController::class, 'customerJastiperAvailability'])->name('customer.jastiper.availability');
+
+    // ===== Bidding & Deal (Halaman Tawaran & Deal) =====
+    Route::get('/customer/orders/active-feed', [DashboardController::class, 'customerActiveOrdersFeed'])->name('customer.orders.active-feed');
+    Route::post('/customer/offers/{id}/accept', [DashboardController::class, 'customerAcceptOffer'])->name('customer.offers.accept');
+    Route::post('/customer/orders/{id}/expand-radius', [DashboardController::class, 'customerExpandOrderRadius'])->name('customer.orders.expand-radius');
+    Route::post('/customer/orders/{id}/cancel', [DashboardController::class, 'customerCancelOrder'])->name('customer.orders.cancel');
 });
 
 Route::middleware('auth:jastiper')->group(function () {
     Route::get('/jastiper/dashboard', [DashboardController::class, 'jastiperDashboard'])->name('jastiper.dashboard');
     Route::get('/jastiper/verification', [DashboardController::class, 'jastiperVerification'])->name('jastiper.verification');
     Route::get('/jastiper/area', [DashboardController::class, 'jastiperArea'])->name('jastiper.area');
-    Route::post('/jastiper/orders/{id}/accept', [DashboardController::class, 'jastiperAcceptOrder'])->name('jastiper.orders.accept');
     Route::post('/jastiper/checkin', [DashboardController::class, 'jastiperCheckin'])->name('jastiper.checkin');
     Route::post('/jastiper/orders/{id}/direct-accept', [DashboardController::class, 'jastiperDirectAccept'])->name('jastiper.orders.direct-accept');
     Route::post('/jastiper/orders/{id}/direct-reject', [DashboardController::class, 'jastiperDirectReject'])->name('jastiper.orders.direct-reject');
@@ -47,7 +52,12 @@ Route::middleware('auth:jastiper')->group(function () {
     // ===== Bagian 3: Halaman Feed Request (radius + kategori + multi-order) =====
     Route::post('/jastiper/work-status', [DashboardController::class, 'jastiperUpdateWorkStatus'])->name('jastiper.work-status.update');
     Route::get('/jastiper/orders/feed', [DashboardController::class, 'jastiperOrderFeed'])->name('jastiper.orders.feed');
-    Route::post('/jastiper/orders/multi-accept', [DashboardController::class, 'jastiperMultiAcceptOrders'])->name('jastiper.orders.multi-accept');
+
+    // ===== Bidding & Deal (Halaman Tawaran & Deal) =====
+    Route::post('/jastiper/orders/{id}/offer', [DashboardController::class, 'jastiperSubmitOffer'])->name('jastiper.orders.offer');
+    Route::post('/jastiper/orders/multi-offer', [DashboardController::class, 'jastiperMultiSubmitOffer'])->name('jastiper.orders.multi-offer');
+    Route::post('/jastiper/orders/{id}/start-process', [DashboardController::class, 'jastiperStartProcessOrder'])->name('jastiper.orders.start-process');
+    Route::post('/jastiper/orders/{id}/complete', [DashboardController::class, 'jastiperCompleteOrder'])->name('jastiper.orders.complete');
 });
 
 // Admin Dashboard Routes

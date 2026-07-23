@@ -31,7 +31,7 @@
     }
 
     // Alpine component untuk seluruh dashboard jastiper: filter kategori,
-    // feed order dengan polling real-time, dan multi-accept.
+    // feed order dengan polling real-time, dan bidding (individual + bulk).
     // Catatan: toggle online/offline SENGAJA tidak ditaruh di sini — itu pakai
     // <form> HTML biasa (submit langsung ke server), supaya tombolnya selalu
     // pasti berfungsi walau ada masalah pada JS/Alpine di bagian lain halaman.
@@ -42,12 +42,14 @@
             category: '',
             orders: [],
             selected: [],
+            orderPrices: {},
             loading: false,
             initialFeedLoaded: false,
             feedMessage: null,
             pollHandle: null,
             feedUrl: config.feedUrl,
-            multiAcceptUrl: config.multiAcceptUrl,
+            offerUrlTemplate: config.offerUrlTemplate,
+            multiOfferUrl: config.multiOfferUrl,
             csrfToken: config.csrfToken,
 
             init() {
@@ -82,6 +84,14 @@
                     this.feedMessage = data.message;
                     // Buang seleksi yang order-nya sudah tidak ada lagi di feed terbaru
                     this.selected = this.selected.filter(id => this.orders.some(o => o.id === id));
+                    // Isi harga tawaran default (harga tawaran aktif jastiper ini kalau sudah
+                    // pernah bid, atau harga estimasi kalau belum) — hanya sekali per order,
+                    // supaya tidak menimpa harga yang sedang diketik ulang oleh jastiper.
+                    this.orders.forEach(o => {
+                        if (this.orderPrices[o.id] === undefined) {
+                            this.orderPrices[o.id] = o.my_offer_price ?? o.estimated_fare;
+                        }
+                    });
                 } catch (e) {
                     this.feedMessage = 'Gagal memuat daftar order. Periksa koneksi Anda.';
                 } finally {
@@ -98,12 +108,48 @@
                 }
             },
 
-            async acceptOrders(ids) {
+            // Kirim/ubah SATU tawaran dengan harga custom yang diketik jastiper.
+            async submitOffer(orderId) {
+                if (this.loading) return;
+
+                const price = Number(this.orderPrices[orderId]);
+                if (!price || price < 5000) {
+                    jastiperNotify('Harga tawaran minimal Rp 5.000.', false);
+                    return;
+                }
+
+                this.loading = true;
+                try {
+                    const path = new URL(this.offerUrlTemplate.replace('__ID__', orderId), window.location.origin).pathname;
+                    const url = new URL(path, window.location.origin);
+                    const res = await fetch(url.toString(), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                        body: JSON.stringify({ offered_price: price }),
+                    });
+                    const data = await res.json();
+
+                    jastiperNotify(data.message, data.success);
+                    if (data.success) await this.fetchFeed(true);
+                } catch (e) {
+                    jastiperNotify('Gagal mengirim tawaran. Coba lagi.', false);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            // Kirim tawaran BANYAK order sekaligus, masing-masing di harga estimasi otomatis
+            // (kalau mau harga custom, pakai form 1-per-1 di card masing-masing sebelum ini).
+            async submitOffers(ids) {
                 if (!ids.length || this.loading) return;
                 this.loading = true;
 
                 try {
-                    const path = new URL(this.multiAcceptUrl, window.location.origin).pathname;
+                    const path = new URL(this.multiOfferUrl, window.location.origin).pathname;
                     const url = new URL(path, window.location.origin);
                     const res = await fetch(url.toString(), {
                         method: 'POST',
@@ -120,7 +166,7 @@
                     this.selected = [];
                     await this.fetchFeed(true);
                 } catch (e) {
-                    jastiperNotify('Gagal memproses order. Coba lagi.', false);
+                    jastiperNotify('Gagal mengirim tawaran sekaligus. Coba lagi.', false);
                 } finally {
                     this.loading = false;
                 }
@@ -131,11 +177,12 @@
 
 <div class="min-h-screen bg-[#F3F4F6] pb-16"
     x-data='jastiperDashboard({
-        online: @json($jastiper->work_status !== 'offline'),
-        verified: @json($jastiper->verification_status === 'approved'),
+        online: @json($jastiper->work_status !== "offline"),
+        verified: @json($jastiper->verification_status === "approved"),
         csrfToken: @json(csrf_token()),
-        feedUrl: @json(route('jastiper.orders.feed')),
-        multiAcceptUrl: @json(route('jastiper.orders.multi-accept')),
+        feedUrl: @json(route("jastiper.orders.feed")),
+        offerUrlTemplate: @json(route("jastiper.orders.offer", ["id" => "__ID__"])),
+        multiOfferUrl: @json(route("jastiper.orders.multi-offer")),
     })'
 >
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
@@ -346,6 +393,60 @@
             <div id="leaflet-jastiper-dash-map" class="h-44 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10"></div>
         </div>
 
+        <!-- Order Aktif Anda (Active Orders) -->
+        @if($activeOrders->isNotEmpty())
+            <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
+                <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Order Aktif Anda ({{ $activeOrders->count() }})</span>
+                </h3>
+                <div class="space-y-3">
+                    @foreach($activeOrders as $active)
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-left">
+                            <div class="flex justify-between items-start border-b border-slate-200/60 pb-2.5 gap-2">
+                                <div>
+                                    <span class="text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider {{ $active->status === 'deal' ? 'bg-sky-55 text-sky-600 border border-sky-200' : 'bg-emerald-55 text-emerald-600 border border-emerald-200' }}">
+                                        {{ $active->status === 'deal' ? 'Deal Terbentuk' : 'Sedang Diproses' }}
+                                    </span>
+                                    <h4 class="font-extrabold text-xs text-slate-800 mt-2 leading-tight">{{ $active->description }}</h4>
+                                    <span class="text-[9px] text-slate-400 block mt-0.5">Asal: {{ $active->origin_address ?: '-' }}</span>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Tarif Deal</span>
+                                    <span class="text-xs font-black text-rose-600">Rp {{ number_format($active->agreed_fare ?? $active->estimated_fare, 0, ',', '.') }}</span>
+                                </div>
+                            </div>
+                            <div class="space-y-1.5 text-[9px] text-slate-500">
+                                <div><span class="font-bold">Antar:</span> {{ $active->destination_address }}</div>
+                                <div><span class="font-bold">Customer:</span> {{ $active->customer->name }} (<a href="tel:{{ $active->customer->phone_number }}" class="text-rose-600 hover:underline font-bold">{{ $active->customer->phone_number }}</a>)</div>
+                                <div><span class="font-bold">Penerima:</span> {{ $active->recipient_name }} ({{ $active->recipient_phone }})</div>
+                            </div>
+                            
+                            <!-- Action button to update status -->
+                            <div class="pt-1 flex gap-2">
+                                @if($active->status === 'deal')
+                                    <form action="{{ route('jastiper.orders.start-process', $active->id) }}" method="POST" class="w-full">
+                                        @csrf
+                                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                            Mulai Belanja (Proses)
+                                        </button>
+                                    </form>
+                                @else
+                                    <form action="{{ route('jastiper.orders.complete', $active->id) }}" method="POST" class="w-full">
+                                        @csrf
+                                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                            Selesaikan Orderan
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            <hr class="border-slate-200 my-4">
+        @endif
+
         <!-- Driver Request Feed (Gojek Driver Request Card Redesign) -->
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <div class="border-b border-slate-100 pb-3 flex justify-between items-center">
@@ -496,8 +597,8 @@
                                             </div>
                                         </label>
                                         <div class="text-right shrink-0">
-                                            <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Komisi Jastip</span>
-                                            <span class="text-xs font-black text-rose-600" x-text="'+ ' + order.estimated_fare_formatted"></span>
+                                            <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Estimasi Ongkir</span>
+                                            <span class="text-xs font-black text-slate-500" x-text="order.estimated_fare_formatted"></span>
                                         </div>
                                     </div>
 
@@ -511,10 +612,25 @@
                                         <div class="text-slate-400" x-text="order.created_at"></div>
                                     </div>
 
-                                    <div class="pt-1">
-                                        <button type="button" @click="acceptOrders([order.id])" :disabled="loading"
-                                            class="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm">
-                                            Terima Orderan Ini
+                                    <!-- Status tawaran yang sudah dikirim (kalau ada) -->
+                                    <div x-show="order.my_offer_price" x-cloak
+                                        class="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                                        <span class="text-[9px] font-bold text-emerald-700">
+                                            Tawaran Anda: <span x-text="order.my_offer_price_formatted"></span> (Menunggu Keputusan Customer)
+                                        </span>
+                                    </div>
+
+                                    <!-- Form kirim / ubah tawaran harga -->
+                                    <div class="flex items-center gap-2 pt-1">
+                                        <div class="relative flex-grow">
+                                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none">Rp</span>
+                                            <input type="number" min="5000" step="500"
+                                                x-model.number="orderPrices[order.id]"
+                                                class="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2.5 text-[10px] font-bold text-slate-800 focus:outline-none focus:border-rose-400 transition">
+                                        </div>
+                                        <button type="button" @click="submitOffer(order.id)" :disabled="loading"
+                                            class="shrink-0 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[9px] px-4 py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm">
+                                            <span x-text="order.my_offer_price ? 'Ubah Tawaran' : 'Kirim Tawaran'"></span>
                                         </button>
                                     </div>
                                 </div>
@@ -527,13 +643,13 @@
 
     </div>
 
-    <!-- Sticky Multi-Accept Bar -->
+    <!-- Sticky Multi-Offer Bar -->
     <div x-show="selected.length > 0" x-transition x-cloak
         class="fixed bottom-16 md:bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-950 text-white rounded-full shadow-lg px-4 py-2.5 flex items-center gap-3 border border-slate-700">
         <span class="text-[10px] font-bold whitespace-nowrap" x-text="selected.length + ' Order Dipilih'"></span>
-        <button type="button" @click="acceptOrders(selected)" :disabled="loading"
+        <button type="button" @click="submitOffers(selected)" :disabled="loading"
             class="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[9px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider whitespace-nowrap">
-            Terima Sekaligus
+            Kirim Tawaran Sekaligus (Estimasi)
         </button>
         <button type="button" @click="selected = []" class="text-slate-400 hover:text-white text-[9px] whitespace-nowrap">
             Batal

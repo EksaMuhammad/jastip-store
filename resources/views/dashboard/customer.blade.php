@@ -3,7 +3,156 @@
 @section('title', 'Dashboard Customer')
 
 @section('content')
-<div class="min-h-screen bg-[#F3F4F6] pb-16">
+
+<script>
+    // Helper toast ringan, konsisten dengan pola yang dipakai di dashboard jastiper.
+    function customerNotify(message, success = true) {
+        const container = document.getElementById('toast-container');
+        if (!container) { alert(message); return; }
+
+        const toast = document.createElement('div');
+        toast.className = "pointer-events-auto bg-slate-900 text-white border-2 border-slate-900 p-4 rounded-sm flex items-center gap-3 animate-toast-slide-in text-xs font-bold tracking-wide transform transition-all duration-300"
+            + (success ? " shadow-[4px_4px_0px_0px_rgba(16,185,129,1)]" : " shadow-[4px_4px_0px_0px_rgba(244,63,94,1)]");
+        toast.innerHTML = `
+            <span class="text-base">${success ? '✅' : '⚠️'}</span>
+            <div><p class="font-sans font-semibold text-slate-100 normal-case">${message}</p></div>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('translate-y-2', 'opacity-0');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Alpine component untuk dashboard customer: polling order aktif + tawaran masuk,
+    // pilih tawaran (deal), perluas radius, dan batalkan pesanan.
+    function customerDashboard(config) {
+        return {
+            csrfToken: config.csrfToken,
+            activeFeedUrl: config.activeFeedUrl,
+            acceptOfferUrlTemplate: config.acceptOfferUrlTemplate,
+            expandRadiusUrlTemplate: config.expandRadiusUrlTemplate,
+            cancelOrderUrlTemplate: config.cancelOrderUrlTemplate,
+            orders: [],
+            actionLoading: false,
+            initialLoaded: false,
+            pollHandle: null,
+
+            init() {
+                this.fetchOrders();
+                this.pollHandle = setInterval(() => this.fetchOrders(true), 6000);
+            },
+
+            async fetchOrders(silent = false) {
+                try {
+                    const path = new URL(this.activeFeedUrl, window.location.origin).pathname;
+                    const res = await fetch(path, { headers: { 'Accept': 'application/json' } });
+                    const data = await res.json();
+                    this.orders = data.orders || [];
+                } catch (e) {
+                    // Polling diam-diam gagal (mis. koneksi putus sesaat) — jangan ganggu UI,
+                    // biarkan coba lagi di siklus polling berikutnya.
+                } finally {
+                    this.initialLoaded = true;
+                }
+            },
+
+            isSearching(order) {
+                return order.status === 'menunggu_tawaran' || order.status === 'ada_tawaran';
+            },
+
+            isTimeout(order) {
+                return this.isSearching(order) && order.seconds_since_created > 120;
+            },
+
+            elapsedLabel(order) {
+                const mins = Math.floor(order.seconds_since_created / 60);
+                return mins < 1 ? 'Baru saja' : `${mins} menit lalu`;
+            },
+
+            async acceptOffer(offerId) {
+                if (this.actionLoading) return;
+                this.actionLoading = true;
+                try {
+                    const path = new URL(this.acceptOfferUrlTemplate.replace('__ID__', offerId), window.location.origin).pathname;
+                    const res = await fetch(path, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                    });
+                    const data = await res.json();
+                    customerNotify(data.message, data.success);
+                    if (data.success) await this.fetchOrders(true);
+                } catch (e) {
+                    customerNotify('Gagal memilih tawaran. Coba lagi.', false);
+                } finally {
+                    this.actionLoading = false;
+                }
+            },
+
+            async expandRadius(orderId) {
+                if (this.actionLoading) return;
+                this.actionLoading = true;
+                try {
+                    const path = new URL(this.expandRadiusUrlTemplate.replace('__ID__', orderId), window.location.origin).pathname;
+                    const res = await fetch(path, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                    });
+                    const data = await res.json();
+                    customerNotify(data.message, data.success);
+                    if (data.success) await this.fetchOrders(true);
+                } catch (e) {
+                    customerNotify('Gagal memperluas radius. Coba lagi.', false);
+                } finally {
+                    this.actionLoading = false;
+                }
+            },
+
+            async cancelOrder(orderId) {
+                if (this.actionLoading) return;
+                if (!confirm('Yakin ingin membatalkan pesanan ini?')) return;
+
+                this.actionLoading = true;
+                try {
+                    const path = new URL(this.cancelOrderUrlTemplate.replace('__ID__', orderId), window.location.origin).pathname;
+                    const res = await fetch(path, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                    });
+                    const data = await res.json();
+                    customerNotify(data.message, data.success);
+                    if (data.success) await this.fetchOrders(true);
+                } catch (e) {
+                    customerNotify('Gagal membatalkan pesanan. Coba lagi.', false);
+                } finally {
+                    this.actionLoading = false;
+                }
+            },
+        };
+    }
+</script>
+
+<div class="min-h-screen bg-[#F3F4F6] pb-16"
+    x-data='customerDashboard({
+        csrfToken: @json(csrf_token()),
+        activeFeedUrl: @json(route("customer.orders.active-feed")),
+        acceptOfferUrlTemplate: @json(route("customer.offers.accept", ["id" => "__ID__"])),
+        expandRadiusUrlTemplate: @json(route("customer.orders.expand-radius", ["id" => "__ID__"])),
+        cancelOrderUrlTemplate: @json(route("customer.orders.cancel", ["id" => "__ID__"])),
+    })'
+>
     <!-- Desktop Search Header & Profile (Gojek App Bar Style) -->
     <div class="bg-white border-b border-slate-200/80 sticky top-20 z-40 px-4 py-3.5 shadow-sm">
         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
@@ -197,47 +346,17 @@
             </div>
         </div>
 
-        <!-- Pelacakan Pesanan Aktif (Active Order Tracker Card) -->
+        <!-- Pelacakan Pesanan Aktif (Active Order Tracker + Bidding List) -->
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Pesanan Aktif Anda</h3>
-            
-            @forelse($orders as $order)
-                <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-3 text-left">
-                        <div class="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center shrink-0 text-lg">
-                            @php
-                                $categoryIcons = [
-                                    'beli-antar' => '🍔',
-                                    'ambil-antar' => '🛍️',
-                                    'toko-kirim' => '🛒',
-                                    'dokumen' => '📄',
-                                    'multi-stop' => '📍',
-                                    'kirim-pihak-ketiga' => '🚀',
-                                ];
-                                $catIcon = $categoryIcons[$order->category] ?? '📦';
-                            @endphp
-                            {{ $catIcon }}
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-[11px] text-slate-750 line-clamp-1">{{ $order->description }}</h4>
-                            <p class="text-[9px] text-slate-400 leading-normal mt-0.5">
-                                Status: 
-                                <span class="font-extrabold uppercase {{ $order->status === 'menunggu_tawaran' ? 'text-amber-500' : 'text-emerald-500' }}">
-                                    {{ $order->status === 'menunggu_tawaran' ? 'Menunggu Jastiper' : 'Sedang Diproses' }}
-                                </span>
-                            </p>
-                            @if($order->jastiper)
-                                <p class="text-[8px] text-slate-500 mt-0.5">Mitra Jastiper: <b>{{ $order->jastiper->name }}</b> ({{ $order->jastiper->phone_number }})</p>
-                            @endif
-                        </div>
-                    </div>
 
-                    <div class="text-right shrink-0">
-                        <span class="text-[8px] uppercase font-bold text-slate-400 block tracking-wide">Ongkos Kirim</span>
-                        <span class="text-xs font-black text-rose-600">Rp {{ number_format($order->estimated_fare, 0, ',', '.') }}</span>
-                    </div>
-                </div>
-            @empty
+            <!-- Loading skeleton saat pertama kali load -->
+            <div x-show="!initialLoaded" class="space-y-3">
+                <div class="h-20 bg-slate-100 rounded-2xl animate-pulse"></div>
+            </div>
+
+            <!-- Empty state -->
+            <div x-show="initialLoaded && orders.length === 0" x-cloak>
                 <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between gap-4">
                     <div class="flex items-center gap-3 text-left">
                         <div class="w-10 h-10 bg-slate-200/50 rounded-full flex items-center justify-center shrink-0">
@@ -253,8 +372,102 @@
                         Pesan Jastip
                     </a>
                 </div>
-            @endforelse
+            </div>
+
+            <!-- Daftar order aktif (real-time via polling) -->
+            <div class="space-y-3">
+                <template x-for="order in orders" :key="order.id">
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+
+                        <!-- Header: deskripsi + estimasi/agreed fare -->
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 text-left min-w-0">
+                                <div class="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center shrink-0 text-lg">📦</div>
+                                <div class="min-w-0">
+                                    <h4 class="font-bold text-[11px] text-slate-750 line-clamp-1" x-text="order.description"></h4>
+                                    <p class="text-[9px] text-slate-400 leading-normal mt-0.5">
+                                        Status:
+                                        <span class="font-extrabold uppercase"
+                                            :class="['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'].includes(order.status) ? 'text-emerald-500' : 'text-amber-500'"
+                                            x-text="order.status === 'deal' ? 'Deal Terbentuk' : (order.status === 'diproses' ? 'Sedang Diproses' : (order.status === 'ada_tawaran' ? 'Ada Tawaran Masuk' : 'Menunggu Jastiper'))"></span>
+                                    </p>
+                                    <p x-show="order.jastiper" x-cloak class="text-[8px] text-slate-500 mt-0.5">
+                                        Mitra Jastiper: <b x-text="order.jastiper?.name"></b> (<span x-text="order.jastiper?.phone_number"></span>)
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <span class="text-[8px] uppercase font-bold text-slate-400 block tracking-wide" x-text="order.status === 'deal' ? 'Ongkos Disepakati' : 'Estimasi Ongkir'"></span>
+                                <span class="text-xs font-black text-rose-600" x-text="order.status === 'deal' ? order.agreed_fare_formatted : order.estimated_fare_formatted"></span>
+                            </div>
+                        </div>
+
+                        <!-- Widget Timeout: muncul kalau masih mencari & sudah lewat 2 menit -->
+                        <template x-if="isSearching(order)">
+                            <div>
+                                <div class="flex items-center gap-1.5 px-1">
+                                    <span class="flex gap-0.5">
+                                        <span class="w-1 h-1 bg-amber-500 rounded-full animate-bounce" style="animation-delay:0ms"></span>
+                                        <span class="w-1 h-1 bg-amber-500 rounded-full animate-bounce" style="animation-delay:150ms"></span>
+                                        <span class="w-1 h-1 bg-amber-500 rounded-full animate-bounce" style="animation-delay:300ms"></span>
+                                    </span>
+                                    <span class="text-[9px] font-bold text-amber-600">Mencari Jastiper... (<span x-text="elapsedLabel(order)"></span>)</span>
+                                </div>
+
+                                <div x-show="isTimeout(order)" x-cloak class="mt-2 bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-2">
+                                    <p class="text-[9px] font-semibold text-amber-700">Belum ada tawaran cocok?</p>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button type="button" @click="expandRadius(order.id)" :disabled="actionLoading"
+                                            class="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-[9px] py-2 rounded-xl transition uppercase tracking-wide">
+                                            Perluas Radius
+                                        </button>
+                                        <button type="button" @click="cancelOrder(order.id)" :disabled="actionLoading"
+                                            class="bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 font-bold text-[9px] py-2 rounded-xl transition uppercase tracking-wide">
+                                            Batalkan Pesanan
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- List Tawaran Masuk (Bidding List) -->
+                        <div x-show="order.offers && order.offers.length > 0" x-cloak class="space-y-2 pt-1">
+                            <p class="text-[9px] font-black text-slate-500 uppercase tracking-wider px-1">Tawaran Masuk (<span x-text="order.offers?.length"></span>)</p>
+                            <template x-for="offer in order.offers" :key="offer.offer_id">
+                                <div class="bg-white border border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <div class="w-8 h-8 bg-slate-900 text-rose-400 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0"
+                                            x-text="offer.jastiper_name.substring(0,2).toUpperCase()"></div>
+                                        <div class="min-w-0">
+                                            <p class="text-[10px] font-bold text-slate-800 truncate" x-text="offer.jastiper_name"></p>
+                                            <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                                <span class="text-[8px] font-bold text-amber-500" x-show="offer.rating_avg">⭐ <span x-text="offer.rating_avg"></span> (<span x-text="offer.completed_orders_count"></span> Selesai)</span>
+                                                <span class="text-[8px] font-bold text-slate-400" x-show="!offer.rating_avg">Jastiper Baru</span>
+                                                <span class="text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+                                                    :class="{
+                                                        'bg-emerald-50 text-emerald-600': offer.response_speed_tier === 'fast',
+                                                        'bg-sky-50 text-sky-600': offer.response_speed_tier === 'medium',
+                                                        'bg-slate-100 text-slate-500': offer.response_speed_tier === 'normal',
+                                                    }"
+                                                    x-text="offer.response_speed_label"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-right shrink-0 flex flex-col items-end gap-1">
+                                        <span class="text-sm font-black text-rose-600" x-text="offer.offered_price_formatted"></span>
+                                        <button type="button" @click="acceptOffer(offer.offer_id)" :disabled="actionLoading"
+                                            class="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+                                            Pilih Jastiper
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
         </div>
+
 
         <!-- Jastiper Favorit Real-time Status -->
         @if($customer->favorites->isNotEmpty())

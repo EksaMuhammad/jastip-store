@@ -18,15 +18,12 @@ class DashboardController extends Controller
     public function customerDashboard()
     {
         $customer = Auth::guard('customer')->user();
-        
-        // Ambil order nyata milik customer yang masih aktif (belum selesai/batal)
-        $orders = \App\Models\Order::with('jastiper')
-            ->where('customer_id', $customer->id)
-            ->whereIn('status', ['menunggu_tawaran', 'diproses'])
-            ->latest()
-            ->get();
 
-        return view('dashboard.customer', compact('customer', 'orders'));
+        // Catatan: daftar "Pesanan Aktif" TIDAK lagi di-query di sini. Data diambil
+        // sepenuhnya oleh JavaScript lewat endpoint customerActiveOrdersFeed()
+        // (GET /customer/orders/active-feed), baik untuk render pertama kali
+        // maupun untuk polling real-time berikutnya (tawaran masuk, status deal, dst).
+        return view('dashboard.customer', compact('customer'));
     }
 
     /**
@@ -44,13 +41,20 @@ class DashboardController extends Controller
             ->latest()
             ->get();
 
+        // Ambil order aktif yang dipegang Jastiper ini (deal, diproses, dst)
+        $activeOrders = \App\Models\Order::where('jastiper_id', $jastiper->id)
+            ->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
+            ->with('customer')
+            ->latest()
+            ->get();
+
         // Catatan: daftar order umum (feed radius+kategori) SENGAJA tidak lagi diambil
         // di sini. Feed sepenuhnya diambil oleh JavaScript di view lewat endpoint
         // jastiperOrderFeed() (GET /jastiper/orders/feed), baik untuk render pertama
         // kali halaman dibuka maupun untuk polling real-time berikutnya. Ini supaya
         // hanya ada SATU logika query (radius+kategori) yang dipakai, dan tidak ada
         // lagi perbedaan data antara render awal vs hasil polling.
-        return view('dashboard.jastiper', compact('jastiper', 'directOrders'));
+        return view('dashboard.jastiper', compact('jastiper', 'directOrders', 'activeOrders'));
     }
 
     /**
@@ -60,38 +64,6 @@ class DashboardController extends Controller
     {
         $customer = Auth::guard('customer')->user();
         return view('dashboard.customer.create_order', compact('customer'));
-    }
-
-    /**
-     * Aksi terima order oleh Jastiper.
-     */
-    public function jastiperAcceptOrder($id)
-    {
-        $jastiper = Auth::guard('jastiper')->user();
-
-        if ($jastiper->verification_status !== 'approved') {
-            return redirect()->back()->with('error', 'Akun Anda belum terverifikasi oleh Admin.');
-        }
-
-        $order = \App\Models\Order::findOrFail($id);
-
-        if ($order->status !== 'menunggu_tawaran') {
-            return redirect()->back()->with('error', 'Orderan ini sudah diambil oleh Jastiper lain.');
-        }
-
-        // Update order status dan relasi jastiper
-        $order->update([
-            'jastiper_id' => $jastiper->id,
-            'status' => 'diproses',
-            'agreed_fare' => $order->estimated_fare,
-        ]);
-
-        // Simulasikan pesan WhatsApp ke Customer
-        $customer = $order->customer;
-        $msg = "Halo *{$customer->name}*!\n\nPesanan jastip Anda (*{$order->description}*) telah *DITERIMA* oleh Jastiper *{$jastiper->name}*! Hubungi jastiper di nomor: {$jastiper->phone_number} untuk koordinasi belanjaan. Terima kasih. 🙏";
-        WhatsAppService::sendMessage($customer->phone_number, $msg);
-
-        return redirect()->route('jastiper.dashboard')->with('success', 'Orderan berhasil diambil! Silakan hubungi customer.');
     }
 
     /**
@@ -464,11 +436,14 @@ class DashboardController extends Controller
 
         $category = $request->query('category');
 
-        $orders = Order::where('status', 'menunggu_tawaran')
+        $orders = Order::whereIn('status', ['menunggu_tawaran', 'ada_tawaran'])
             ->whereNull('jastiper_id')
             ->nearby((float) $jastiper->current_lat, (float) $jastiper->current_lng, (float) $jastiper->radius_km)
             ->categoryIs($category)
             ->with('customer:id,name,phone_number')
+            ->with(['offers' => function ($q) use ($jastiper) {
+                $q->where('jastiper_id', $jastiper->id)->where('status', 'pending');
+            }])
             ->limit(50)
             ->get();
 
@@ -482,6 +457,8 @@ class DashboardController extends Controller
         ];
 
         $formatted = $orders->map(function ($order) use ($categoryNames) {
+            $myOffer = $order->offers->first();
+
             return [
                 'id' => $order->id,
                 'category' => $order->category,
@@ -497,6 +474,8 @@ class DashboardController extends Controller
                 'distance_km' => round((float) $order->distance_km, 2),
                 'customer_name' => $order->customer->name ?? '-',
                 'created_at' => $order->created_at->diffForHumans(),
+                'my_offer_price' => $myOffer ? (float) $myOffer->offered_price : null,
+                'my_offer_price_formatted' => $myOffer ? 'Rp ' . number_format((float) $myOffer->offered_price, 0, ',', '.') : null,
             ];
         });
 
@@ -510,20 +489,106 @@ class DashboardController extends Controller
     }
 
     /**
-     * Endpoint terima BANYAK order sekaligus (multi-order) dalam satu aksi.
+     * ================================================================
+     * ENDPOINT BARU — Halaman Tawaran & Deal (Bidding)
+     * ================================================================
+     */
+
+    /**
+     * Ongkir minimum tawaran yang diperbolehkan (Rp).
+     */
+    private const MIN_OFFER_PRICE = 5000;
+
+    /**
+     * Aksi Jastiper mengajukan/mengubah SATU tawaran harga untuk satu order
+     * di feed umum (order tanpa jastiper_id, alias bukan direct booking).
+     *
+     * Body: { "offered_price": 12000 }
+     * POST /jastiper/orders/{id}/offer
+     */
+    public function jastiperSubmitOffer(Request $request, $id)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+
+        if ($jastiper->verification_status !== 'approved') {
+            $msg = 'Akun Anda belum terverifikasi oleh Admin.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 403)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        $request->validate([
+            'offered_price' => 'required|numeric|min:' . self::MIN_OFFER_PRICE,
+        ], [
+            'offered_price.required' => 'Harga tawaran wajib diisi.',
+            'offered_price.numeric' => 'Harga tawaran harus berupa angka.',
+            'offered_price.min' => 'Harga tawaran minimal Rp ' . number_format(self::MIN_OFFER_PRICE, 0, ',', '.') . '.',
+        ]);
+
+        $result = DB::transaction(function () use ($request, $id, $jastiper) {
+            $order = Order::where('id', $id)->lockForUpdate()->first();
+
+            if (!$order) {
+                return ['success' => false, 'message' => 'Order tidak ditemukan.'];
+            }
+
+            // Order ini harus order feed umum (belum dipasangkan jastiper) dan masih
+            // membuka kesempatan tawaran (menunggu_tawaran = belum ada tawaran sama sekali,
+            // ada_tawaran = sudah ada tawaran dari jastiper lain tapi belum dipilih customer).
+            if (!in_array($order->status, ['menunggu_tawaran', 'ada_tawaran']) || !is_null($order->jastiper_id)) {
+                return ['success' => false, 'message' => 'Orderan ini sudah tidak menerima tawaran baru (sudah deal/dibatalkan atau merupakan booking langsung).'];
+            }
+
+            $offer = \App\Models\Offer::updateOrCreate(
+                ['order_id' => $order->id, 'jastiper_id' => $jastiper->id],
+                ['offered_price' => $request->offered_price, 'status' => 'pending']
+            );
+
+            if ($order->status !== 'ada_tawaran') {
+                $order->update(['status' => 'ada_tawaran']);
+            }
+
+            return ['success' => true, 'order' => $order, 'offer' => $offer];
+        });
+
+        if (!$result['success']) {
+            return $request->wantsJson()
+                ? response()->json($result, 409)
+                : redirect()->back()->with('error', $result['message']);
+        }
+
+        // Notifikasi WhatsApp ke Customer (di luar transaction, tidak perlu ikut rollback)
+        $order = $result['order'];
+        $customer = $order->customer;
+        if ($customer) {
+            $hargaFormatted = 'Rp ' . number_format((float) $request->offered_price, 0, ',', '.');
+            $msg = "Halo *{$customer->name}*, ada tawaran baru dari Jastiper *{$jastiper->name}* sebesar *{$hargaFormatted}* untuk belanjaan \"{$order->description}\". Cek dashboard Anda! 📲";
+            WhatsAppService::sendMessage($customer->phone_number, $msg);
+        }
+
+        $msg = 'Tawaran berhasil dikirim! Menunggu keputusan customer.';
+
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg, 'offer_id' => $result['offer']->id])
+            : redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Aksi Jastiper mengajukan tawaran BANYAK order sekaligus dalam satu klik,
+     * masing-masing di harga default (estimated_fare milik order tersebut).
      * Tiap order tetap 1 pembayar sendiri-sendiri (tidak digabung/split bill) — ini murni
-     * efisiensi rute, jastiper cuma "checkout" beberapa order yang searah dalam satu klik.
+     * efisiensi supaya jastiper tidak perlu isi harga satu-satu untuk order yang searah.
      *
      * Body JSON: { "order_ids": [12, 15, 20] }
-     * POST /jastiper/orders/multi-accept
+     * POST /jastiper/orders/multi-offer
      */
-    public function jastiperMultiAcceptOrders(Request $request)
+    public function jastiperMultiSubmitOffer(Request $request)
     {
         $request->validate([
             'order_ids' => 'required|array|min:1',
             'order_ids.*' => 'integer|distinct|exists:orders,id',
         ], [
-            'order_ids.required' => 'Pilih minimal 1 order untuk diterima.',
+            'order_ids.required' => 'Pilih minimal 1 order untuk ditawar.',
             'order_ids.*.exists' => 'Salah satu order yang dipilih tidak ditemukan.',
         ]);
 
@@ -536,7 +601,7 @@ class DashboardController extends Controller
             ], 403);
         }
 
-        $accepted = [];
+        $submitted = [];
         $failed = [];
 
         foreach ($request->order_ids as $orderId) {
@@ -548,27 +613,31 @@ class DashboardController extends Controller
                     return ['status' => 'failed', 'id' => $orderId, 'reason' => 'Order tidak ditemukan.'];
                 }
 
-                if ($order->status !== 'menunggu_tawaran' || !is_null($order->jastiper_id)) {
-                    return ['status' => 'failed', 'id' => $orderId, 'reason' => 'Sudah diambil Jastiper lain.'];
+                if (!in_array($order->status, ['menunggu_tawaran', 'ada_tawaran']) || !is_null($order->jastiper_id)) {
+                    return ['status' => 'failed', 'id' => $orderId, 'reason' => 'Sudah tidak menerima tawaran (deal/dibatalkan/booking langsung).'];
                 }
 
-                $order->update([
-                    'jastiper_id' => $jastiper->id,
-                    'status' => 'diproses',
-                    'agreed_fare' => $order->estimated_fare,
-                ]);
+                $offer = \App\Models\Offer::updateOrCreate(
+                    ['order_id' => $order->id, 'jastiper_id' => $jastiper->id],
+                    ['offered_price' => $order->estimated_fare, 'status' => 'pending']
+                );
 
-                return ['status' => 'accepted', 'id' => $orderId, 'order' => $order];
+                if ($order->status !== 'ada_tawaran') {
+                    $order->update(['status' => 'ada_tawaran']);
+                }
+
+                return ['status' => 'submitted', 'id' => $orderId, 'order' => $order, 'offer' => $offer];
             });
 
-            if ($result['status'] === 'accepted') {
-                $accepted[] = $result['id'];
+            if ($result['status'] === 'submitted') {
+                $submitted[] = $result['id'];
 
-                // Notifikasi WhatsApp ke customer per order yang berhasil diambil
+                // Notifikasi WhatsApp ke customer per order yang berhasil ditawar
                 $order = $result['order'];
                 $customer = $order->customer;
                 if ($customer) {
-                    $msg = "Halo *{$customer->name}*!\n\nPesanan jastip Anda (*{$order->description}*) telah *DITERIMA* oleh Jastiper *{$jastiper->name}* (sekaligus bersama beberapa order lain dalam satu rute). Hubungi jastiper di nomor: {$jastiper->phone_number} untuk koordinasi belanjaan. Terima kasih. 🙏";
+                    $hargaFormatted = 'Rp ' . number_format((float) $result['offer']->offered_price, 0, ',', '.');
+                    $msg = "Halo *{$customer->name}*, ada tawaran baru dari Jastiper *{$jastiper->name}* sebesar *{$hargaFormatted}* untuk belanjaan \"{$order->description}\" (dikirim sekaligus bersama beberapa order lain dalam satu rute). Cek dashboard Anda! 📲";
                     WhatsAppService::sendMessage($customer->phone_number, $msg);
                 }
             } else {
@@ -577,13 +646,350 @@ class DashboardController extends Controller
         }
 
         return response()->json([
-            'success' => count($accepted) > 0,
-            'accepted_count' => count($accepted),
-            'accepted_ids' => $accepted,
+            'success' => count($submitted) > 0,
+            'submitted_count' => count($submitted),
+            'submitted_ids' => $submitted,
             'failed' => $failed,
             'message' => count($failed) > 0
-                ? count($accepted) . ' order berhasil diambil, ' . count($failed) . ' order gagal (sudah diambil orang lain).'
-                : count($accepted) . ' order berhasil diambil sekaligus!',
+                ? count($submitted) . ' tawaran berhasil dikirim, ' . count($failed) . ' order gagal ditawar (sudah tidak tersedia).'
+                : count($submitted) . ' tawaran berhasil dikirim sekaligus!',
+        ]);
+    }
+
+    /**
+     * Aksi Customer memilih SATU tawaran untuk dijadikan deal.
+     * $id di sini adalah ID Offer (bukan ID Order).
+     *
+     * POST /customer/offers/{id}/accept
+     */
+    public function customerAcceptOffer(Request $request, $id)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        $result = DB::transaction(function () use ($id, $customer) {
+            $offer = \App\Models\Offer::with('jastiper')->where('id', $id)->lockForUpdate()->first();
+
+            if (!$offer) {
+                return ['success' => false, 'message' => 'Tawaran tidak ditemukan.'];
+            }
+
+            $order = Order::where('id', $offer->order_id)->lockForUpdate()->first();
+
+            if (!$order || $order->customer_id !== $customer->id) {
+                return ['success' => false, 'message' => 'Order tidak ditemukan atau bukan milik Anda.'];
+            }
+
+            if (!in_array($order->status, ['menunggu_tawaran', 'ada_tawaran'])) {
+                return ['success' => false, 'message' => 'Order ini sudah tidak bisa memilih tawaran (sudah deal/dibatalkan).'];
+            }
+
+            if ($offer->status !== 'pending') {
+                return ['success' => false, 'message' => 'Tawaran ini sudah tidak berlaku.'];
+            }
+
+            // Ambil seluruh tawaran lain (pending) untuk order ini SEBELUM diubah,
+            // supaya bisa dipakai kirim notifikasi penolakan setelah transaction commit.
+            $otherOffers = \App\Models\Offer::with('jastiper')
+                ->where('order_id', $order->id)
+                ->where('id', '!=', $offer->id)
+                ->where('status', 'pending')
+                ->get();
+
+            $offer->update(['status' => 'accepted']);
+
+            \App\Models\Offer::where('order_id', $order->id)
+                ->where('id', '!=', $offer->id)
+                ->update(['status' => 'rejected']);
+
+            $order->update([
+                'jastiper_id' => $offer->jastiper_id,
+                'status' => 'deal',
+                'agreed_fare' => $offer->offered_price,
+            ]);
+
+            return [
+                'success' => true,
+                'order' => $order,
+                'offer' => $offer,
+                'other_offers' => $otherOffers,
+            ];
+        });
+
+        if (!$result['success']) {
+            return $request->wantsJson()
+                ? response()->json($result, 409)
+                : redirect()->back()->with('error', $result['message']);
+        }
+
+        $order = $result['order'];
+        $offer = $result['offer'];
+        $jastiperTerpilih = $offer->jastiper;
+        $customer = $order->customer;
+
+        // Notifikasi ke jastiper yang terpilih
+        if ($jastiperTerpilih) {
+            $msg = "Selamat! Tawaran Anda untuk belanjaan \"{$order->description}\" *DISETUJUI* oleh customer. Silakan koordinasi lebih lanjut di nomor {$customer->phone_number} ({$customer->name}). 🎉";
+            WhatsAppService::sendMessage($jastiperTerpilih->phone_number, $msg);
+        }
+
+        // Notifikasi ke jastiper lain yang tawarannya ditolak
+        foreach ($result['other_offers'] as $rejected) {
+            if ($rejected->jastiper) {
+                $msg = "Terima kasih telah berpartisipasi. Sayangnya tawaran Anda untuk belanjaan \"{$order->description}\" belum terpilih kali ini. Tetap semangat pantau orderan lainnya! 💪";
+                WhatsAppService::sendMessage($rejected->jastiper->phone_number, $msg);
+            }
+        }
+
+        $msg = "Deal! Jastiper {$jastiperTerpilih?->name} akan segera memproses belanjaan Anda.";
+
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg])
+            : redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Aksi Customer memperluas radius pencarian jastiper (saat timeout tidak ada tawaran cocok).
+     * Implementasi ringan: cukup update timestamp order supaya "naik" kembali ke atas feed
+     * jastiper (karena feed di-order oleh jarak, bukan waktu — tapi update ini menjaga
+     * order tetap dianggap "baru" dan memicu jastiper untuk memeriksa ulang feed via polling).
+     *
+     * POST /customer/orders/{id}/expand-radius
+     */
+    public function customerExpandOrderRadius(Request $request, $id)
+    {
+        $customer = Auth::guard('customer')->user();
+        $order = Order::where('id', $id)->where('customer_id', $customer->id)->first();
+
+        if (!$order) {
+            $msg = 'Order tidak ditemukan atau bukan milik Anda.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 404)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        if (!in_array($order->status, ['menunggu_tawaran', 'ada_tawaran'])) {
+            $msg = 'Order ini sudah tidak bisa diperluas jangkauannya.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 409)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        $order->touch();
+
+        WhatsAppService::sendMessage(
+            $customer->phone_number,
+            "Pencarian jastiper telah *diperluas* ke radius yang lebih jauh. Mohon tunggu sejenak, tawaran baru akan segera masuk! 🔎"
+        );
+
+        $msg = 'Pencarian jastiper berhasil diperluas.';
+
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg])
+            : redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Aksi Customer membatalkan order (biasanya dipakai saat timeout, belum ada tawaran cocok).
+     *
+     * POST /customer/orders/{id}/cancel
+     */
+    public function customerCancelOrder(Request $request, $id)
+    {
+        $customer = Auth::guard('customer')->user();
+        $order = Order::where('id', $id)->where('customer_id', $customer->id)->first();
+
+        if (!$order) {
+            $msg = 'Order tidak ditemukan atau bukan milik Anda.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 404)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        if (!in_array($order->status, ['menunggu_tawaran', 'ada_tawaran'])) {
+            $msg = 'Order ini sudah tidak bisa dibatalkan (sudah deal/selesai/dibatalkan).';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 409)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        $order->update([
+            'status' => 'dibatalkan',
+            'cancelled_by_role' => 'customer',
+            'cancelled_by_id' => $customer->id,
+        ]);
+
+        // Bersihkan antrean tawaran pending milik jastiper untuk order ini
+        \App\Models\Offer::where('order_id', $order->id)
+            ->where('status', 'pending')
+            ->update(['status' => 'rejected']);
+
+        $msg = 'Pesanan berhasil dibatalkan.';
+
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg])
+            : redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Aksi Jastiper menandai order terpilih mulai dibelanjakan (status -> diproses).
+     *
+     * POST /jastiper/orders/{id}/start-process
+     */
+    public function jastiperStartProcessOrder(Request $request, $id)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $order = Order::where('id', $id)->where('jastiper_id', $jastiper->id)->first();
+
+        if (!$order) {
+            $msg = 'Order tidak ditemukan atau bukan milik Anda.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 404)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        if ($order->status !== 'deal') {
+            $msg = 'Order ini tidak dalam status deal.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 409)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        $order->update(['status' => 'diproses']);
+
+        $customer = $order->customer;
+        if ($customer) {
+            $msg = "Halo *{$customer->name}*, belanjaan Anda \"{$order->description}\" *MULAI DIPROSES* oleh Jastiper *{$jastiper->name}*! Kurir sedang membelanjakan barang Anda. 🚀";
+            WhatsAppService::sendMessage($customer->phone_number, $msg);
+        }
+
+        $msg = 'Status pesanan berhasil diubah menjadi Sedang Diproses.';
+
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg])
+            : redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Aksi Jastiper menyelesaikan belanjaan (status -> selesai).
+     *
+     * POST /jastiper/orders/{id}/complete
+     */
+    public function jastiperCompleteOrder(Request $request, $id)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $order = Order::where('id', $id)->where('jastiper_id', $jastiper->id)->first();
+
+        if (!$order) {
+            $msg = 'Order tidak ditemukan atau bukan milik Anda.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 404)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        if (!in_array($order->status, ['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan', 'diterima'])) {
+            $msg = 'Order ini tidak bisa diselesaikan.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 409)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        $order->update(['status' => 'selesai']);
+
+        $customer = $order->customer;
+        if ($customer) {
+            $msg = "Halo *{$customer->name}*, belanjaan Anda \"{$order->description}\" telah *SELESAI* dibelanjakan dan diantarkan oleh Jastiper *{$jastiper->name}*! Terima kasih telah menggunakan layanan JastipKuy. 🙏";
+            WhatsAppService::sendMessage($customer->phone_number, $msg);
+        }
+
+        $msg = 'Pesanan berhasil diselesaikan!';
+
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg])
+            : redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Endpoint JSON: ambil daftar order aktif milik Customer beserta seluruh tawaran
+     * masuk (lengkap dengan reputasi jastiper: rating & jumlah order selesai, serta
+     * badge kecepatan respons). Dipakai untuk render awal & polling real-time di
+     * dashboard customer (setiap ~6 detik).
+     *
+     * GET /customer/orders/active-feed
+     */
+    public function customerActiveOrdersFeed(Request $request)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        $orders = Order::with([
+                'jastiper',
+                'offers' => function ($q) {
+                    $q->where('status', 'pending')->orderBy('offered_price', 'asc');
+                },
+                'offers.jastiper' => function ($q) {
+                    $q->withAvg('ratings', 'rating')
+                      ->withCount(['orders as completed_orders_count' => function ($q) {
+                          $q->where('status', 'selesai');
+                      }]);
+                },
+            ])
+            ->where('customer_id', $customer->id)
+            ->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
+            ->latest()
+            ->limit(20)
+            ->get();
+
+        $formatted = $orders->map(function ($order) {
+            $secondsSinceCreated = $order->created_at->diffInSeconds(now());
+
+            return [
+                'id' => $order->id,
+                'description' => $order->description,
+                'category' => $order->category,
+                'status' => $order->status,
+                'estimated_fare' => (float) $order->estimated_fare,
+                'estimated_fare_formatted' => 'Rp ' . number_format((float) $order->estimated_fare, 0, ',', '.'),
+                'agreed_fare_formatted' => $order->agreed_fare ? 'Rp ' . number_format((float) $order->agreed_fare, 0, ',', '.') : null,
+                'created_at' => $order->created_at->toIso8601String(),
+                'seconds_since_created' => $secondsSinceCreated,
+                'jastiper' => $order->jastiper ? [
+                    'id' => $order->jastiper->id,
+                    'name' => $order->jastiper->name,
+                    'phone_number' => $order->jastiper->phone_number,
+                ] : null,
+                'offers' => $order->offers->map(function ($offer) use ($order) {
+                    $responseSeconds = $order->created_at->diffInSeconds($offer->created_at);
+                    if ($responseSeconds < 120) {
+                        $speedLabel = 'Sangat Cepat';
+                        $speedTier = 'fast';
+                    } elseif ($responseSeconds <= 300) {
+                        $speedLabel = 'Cepat';
+                        $speedTier = 'medium';
+                    } else {
+                        $speedLabel = 'Standar';
+                        $speedTier = 'normal';
+                    }
+
+                    $ratingAvg = $offer->jastiper?->ratings_avg_rating;
+
+                    return [
+                        'offer_id' => $offer->id,
+                        'jastiper_id' => $offer->jastiper_id,
+                        'jastiper_name' => $offer->jastiper->name ?? '-',
+                        'offered_price' => (float) $offer->offered_price,
+                        'offered_price_formatted' => 'Rp ' . number_format((float) $offer->offered_price, 0, ',', '.'),
+                        'rating_avg' => $ratingAvg ? round((float) $ratingAvg, 1) : null,
+                        'completed_orders_count' => $offer->jastiper->completed_orders_count ?? 0,
+                        'response_speed_label' => $speedLabel,
+                        'response_speed_tier' => $speedTier,
+                    ];
+                })->values(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'orders' => $formatted,
+            'count' => $formatted->count(),
         ]);
     }
 }

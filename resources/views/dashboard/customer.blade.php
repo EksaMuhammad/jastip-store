@@ -402,6 +402,16 @@
                             </div>
                         </div>
 
+                        <!-- Tombol Chat: hanya muncul begitu order sudah deal (jastiper terkunci) -->
+                        <template x-if="!isSearching(order)">
+                            <button type="button"
+                                @click="window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id, orderLabel: order.description } }))"
+                                class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5">
+                                <span>💬</span>
+                                <span>Chat dengan <span x-text="order.jastiper?.name || 'Jastiper'"></span></span>
+                            </button>
+                        </template>
+
                         <!-- Widget Timeout: muncul kalau masih mencari & sudah lewat 2 menit -->
                         <template x-if="isSearching(order)">
                             <div>
@@ -509,4 +519,10 @@
 
     </div>
 </div>
+
+@include('components.chat.order-chat-modal', [
+    'viewerRole' => 'customer',
+    'chatSendUrlTemplate' => route('customer.orders.chat.send', ['id' => '__ID__']),
+    'chatHistoryUrlTemplate' => route('customer.orders.chat.history', ['id' => '__ID__']),
+])
 @endsection

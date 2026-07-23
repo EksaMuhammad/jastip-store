@@ -440,6 +440,14 @@
                                     </form>
                                 @endif
                             </div>
+
+                            <!-- Tombol Chat: room chat sudah otomatis terbentuk sejak status 'deal' -->
+                            <button type="button"
+                                onclick="window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: {{ $active->id }}, orderLabel: @js($active->description) } }))"
+                                class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5">
+                                <span>💬</span>
+                                <span>Chat dengan {{ $active->customer->name }}</span>
+                            </button>
                         </div>
                     @endforeach
                 </div>
@@ -656,6 +664,12 @@
         </button>
     </div>
 </div>
+
+@include('components.chat.order-chat-modal', [
+    'viewerRole' => 'jastiper',
+    'chatSendUrlTemplate' => route('jastiper.orders.chat.send', ['id' => '__ID__']),
+    'chatHistoryUrlTemplate' => route('jastiper.orders.chat.history', ['id' => '__ID__']),
+])
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {

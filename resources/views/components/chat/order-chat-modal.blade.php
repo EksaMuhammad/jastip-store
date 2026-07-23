@@ -191,21 +191,22 @@
     x-on:open-chat.window="openChat($event.detail)"
     x-show="open"
     x-cloak
-    style="display: none;"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-0 sm:p-4"
+    style="display: none; position: fixed; inset: 0; z-index: 9999; background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); align-items: center; justify-content: center;"
+    class="flex p-4 animate-fade-in"
 >
-    <!-- Modal Card Container (Full-screen on mobile, centered card on desktop) -->
+    <!-- Modal Card Container -->
     <div @click.outside="closeChat()" 
-         class="bg-white w-full h-full sm:h-[600px] sm:max-w-md sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 transform"
+         class="shadow-2xl flex flex-col overflow-hidden transition-all duration-300 transform"
+         style="background-color: #ffffff; width: 100%; max-width: 440px; height: 580px; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);"
          x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
-         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
          x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-         x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95">
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95">
 
         <!-- Header -->
-        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 shrink-0 bg-white">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 shrink-0 bg-white" style="border-bottom: 1px solid #f1f5f9;">
             <div class="flex items-center gap-3 min-w-0">
                 <!-- Chat Icon Avatar -->
                 <div class="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center font-display font-black text-sm text-rose-500 shrink-0 shadow-sm">
@@ -226,12 +227,12 @@
         </div>
 
         <!-- Messages Area -->
-        <div x-ref="scrollBox" class="flex-grow overflow-y-auto px-4 py-4 space-y-4 bg-slate-50/50">
+        <div x-ref="scrollBox" class="flex-grow overflow-y-auto px-4 py-4 space-y-4" style="background-color: #f8fafc;">
             <div x-show="loadingHistory && messages.length === 0" class="text-center text-xs text-slate-400 font-semibold py-8">
                 Memuat percakapan...
             </div>
 
-            <div x-show="!loadingHistory && messages.length === 0 && !errorMessage" x-cloak class="text-center text-xs text-slate-450 font-semibold py-8 px-4 leading-normal">
+            <div x-show="!loadingHistory && messages.length === 0 && !errorMessage" x-cloak class="text-center text-xs text-slate-400 font-semibold py-8 px-4 leading-normal">
                 Belum ada pesan. Mulai percakapan dengan mengetik di bawah.
             </div>
 
@@ -283,21 +284,21 @@
         </div>
 
         <!-- Attachment Preview before Sending -->
-        <div x-show="attachmentPreviewUrl" x-cloak class="px-4 py-2 bg-white border-t border-slate-100 shrink-0">
+        <div x-show="attachmentPreviewUrl" x-cloak class="px-4 py-2 bg-white border-t border-slate-100 shrink-0" style="border-top: 1px solid #f1f5f9;">
             <div class="relative inline-block">
-                <img :src="attachmentPreviewUrl" class="h-16 w-16 object-cover rounded-xl border border-slate-250 shadow-inner">
+                <img :src="attachmentPreviewUrl" class="h-16 w-16 object-cover rounded-xl border border-slate-200 shadow-inner">
                 <button type="button" @click="clearAttachment()"
                     class="absolute -top-2 -right-2 bg-slate-900 hover:bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-black shadow-md">✕</button>
             </div>
         </div>
 
         <!-- Input Box Area -->
-        <form @submit.prevent="sendMessage()" class="border-t border-slate-150 p-3 bg-white flex items-center gap-2.5 shrink-0">
+        <form @submit.prevent="sendMessage()" class="border-t border-slate-150 p-3 bg-white flex items-center gap-2.5 shrink-0" style="border-top: 1px solid #f1f5f9;">
             <input type="file" accept="image/*" x-ref="fileInput" class="hidden" @change="handleFileChange($event)">
 
             <!-- Plus Icon (Attachment upload trigger) -->
             <button type="button" @click="$refs.fileInput.click()"
-                class="shrink-0 w-10 h-10 rounded-full bg-slate-50 border border-slate-200/80 hover:bg-slate-100 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+                class="shrink-0 w-10 h-10 rounded-full bg-slate-50 border border-slate-200/80 hover:bg-slate-100 text-slate-550 flex items-center justify-center transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>

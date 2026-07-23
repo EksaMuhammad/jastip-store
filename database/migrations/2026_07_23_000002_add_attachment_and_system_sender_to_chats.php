@@ -9,51 +9,67 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // ================= CHATS: lampiran foto + kolom pendukung =================
-        Schema::table('chats', function (Blueprint $table) {
-            $table->string('attachment_path')->nullable()->after('message');
-        });
+        if (DB::getDriverName() === 'sqlite') {
+            // Drop and recreate chats table with the updated columns for SQLite compatibility
+            Schema::dropIfExists('chats');
+            Schema::create('chats', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('order_id')->constrained('orders');
+                $table->enum('sender_role', ['customer', 'jastiper', 'system']);
+                $table->unsignedBigInteger('sender_id');
+                $table->enum('message_type', ['text', 'action_button']);
+                $table->text('message');
+                $table->string('attachment_path')->nullable();
+                $table->string('action_type')->nullable();
+                $table->boolean('is_read')->default(false);
+                $table->timestamps();
+                $table->softDeletes();
 
-        // ================= CHATS: index performa untuk riwayat + polling =================
-        // Chat di-fetch berkala (polling tiap ~4-5 detik di Tahap 5), jadi query
-        // "ambil semua chat untuk order X urut waktu" harus cepat.
-        Schema::table('chats', function (Blueprint $table) {
-            $table->index(['order_id', 'created_at'], 'chats_order_id_created_at_index');
-        });
+                $table->index(['order_id', 'created_at'], 'chats_order_id_created_at_index');
+            });
+        } else {
+            // ================= CHATS: lampiran foto + kolom pendukung =================
+            Schema::table('chats', function (Blueprint $table) {
+                $table->string('attachment_path')->nullable()->after('message');
+            });
 
-        // ================= CHATS: tambah opsi 'system' ke enum sender_role =================
-        // Laravel Blueprint tidak native support modify enum tanpa doctrine/dbal,
-        // jadi pakai raw ALTER. Nilai lama (customer/jastiper) tetap valid, ini
-        // cuma nambah 1 opsi baru ke enum, bukan mengganti definisi.
-        DB::statement("ALTER TABLE chats MODIFY COLUMN sender_role ENUM('customer', 'jastiper', 'system') NOT NULL");
+            // ================= CHATS: index performa untuk riwayat + polling =================
+            Schema::table('chats', function (Blueprint $table) {
+                $table->index(['order_id', 'created_at'], 'chats_order_id_created_at_index');
+            });
 
-        // Keputusan desain (didokumentasikan supaya sesi lanjutan tidak tanya ulang):
-        // sender_id TETAP unsignedBigInteger NOT NULL (tidak dibuat nullable).
-        // Untuk pesan sistem, ChatService::sendSystemMessage() akan mengisi
-        // sender_id = 0 sebagai konvensi "system" — bukan NULL. Alasan: kolom
-        // sender_id dipakai bareng sender_role sebagai morphTo pair, membuatnya
-        // nullable membuka celah pesan customer/jastiper tanpa sender_id yang
-        // valid (bug tersembunyi) padahal itu tidak boleh terjadi. Nilai 0 aman
-        // karena auto_increment id sungguhan mulai dari 1, jadi 0 tidak akan
-        // pernah bentrok dengan customer_id/jastiper_id asli manapun.
+            // ================= CHATS: tambah opsi 'system' ke enum sender_role =================
+            DB::statement("ALTER TABLE chats MODIFY COLUMN sender_role ENUM('customer', 'jastiper', 'system') NOT NULL");
+        }
     }
 
     public function down(): void
     {
-        Schema::table('chats', function (Blueprint $table) {
-            $table->dropIndex('chats_order_id_created_at_index');
-        });
+        if (DB::getDriverName() === 'sqlite') {
+            // Revert chats table to original schema in SQLite
+            Schema::dropIfExists('chats');
+            Schema::create('chats', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('order_id')->constrained('orders');
+                $table->enum('sender_role', ['customer', 'jastiper']);
+                $table->unsignedBigInteger('sender_id');
+                $table->enum('message_type', ['text', 'action_button']);
+                $table->text('message');
+                $table->string('action_type')->nullable();
+                $table->boolean('is_read')->default(false);
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        } else {
+            Schema::table('chats', function (Blueprint $table) {
+                $table->dropIndex('chats_order_id_created_at_index');
+            });
 
-        Schema::table('chats', function (Blueprint $table) {
-            $table->dropColumn('attachment_path');
-        });
+            Schema::table('chats', function (Blueprint $table) {
+                $table->dropColumn('attachment_path');
+            });
 
-        // Revert enum sender_role ke 2 opsi semula.
-        // PERHATIAN: rollback ini akan GAGAL kalau sudah ada baris dengan
-        // sender_role = 'system' di tabel (MySQL menolak MODIFY enum yang
-        // menghapus opsi yang masih dipakai data). Kalau perlu rollback
-        // setelah fitur chat sistem sudah jalan di production, hapus/migrasi
-        // dulu baris sender_role='system' secara manual sebelum rollback.
-        DB::statement("ALTER TABLE chats MODIFY COLUMN sender_role ENUM('customer', 'jastiper') NOT NULL");
+            DB::statement("ALTER TABLE chats MODIFY COLUMN sender_role ENUM('customer', 'jastiper') NOT NULL");
+        }
     }
 };

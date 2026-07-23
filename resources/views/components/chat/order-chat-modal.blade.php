@@ -192,63 +192,89 @@
     x-show="open"
     x-cloak
     style="display: none;"
-    class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-0 sm:p-4"
 >
-    <div @click.outside="closeChat()" class="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-lg flex flex-col h-[88vh] sm:h-[620px] overflow-hidden">
+    <!-- Modal Card Container (Full-screen on mobile, centered card on desktop) -->
+    <div @click.outside="closeChat()" 
+         class="bg-white w-full h-full sm:h-[600px] sm:max-w-md sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 transform"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+         x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95">
 
         <!-- Header -->
-        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 shrink-0">
-            <div class="min-w-0">
-                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Chat Pesanan</p>
-                <h4 class="font-display font-black text-xs text-slate-800 truncate" x-text="orderLabel || 'Chat'"></h4>
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 shrink-0 bg-white">
+            <div class="flex items-center gap-3 min-w-0">
+                <!-- Chat Icon Avatar -->
+                <div class="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center font-display font-black text-sm text-rose-500 shrink-0 shadow-sm">
+                    💬
+                </div>
+                <div class="min-w-0">
+                    <span class="text-[9px] font-black text-rose-500 uppercase tracking-widest block">Chat Pesanan</span>
+                    <h4 class="font-display font-extrabold text-sm text-slate-800 truncate" x-text="orderLabel || 'Detail Pesanan'"></h4>
+                </div>
             </div>
-            <button type="button" @click="closeChat()" class="text-slate-400 hover:text-slate-700 font-extrabold text-sm shrink-0 px-2">✕</button>
+            <!-- Circular Close Button -->
+            <button type="button" @click="closeChat()" 
+                class="w-8 h-8 rounded-full bg-slate-50 border border-slate-200/60 hover:bg-slate-100 hover:text-slate-800 text-slate-400 flex items-center justify-center transition-colors shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
         </div>
 
-        <!-- Messages -->
-        <div x-ref="scrollBox" class="flex-grow overflow-y-auto px-4 py-4 space-y-3 bg-[#F8F9FB]">
-            <div x-show="loadingHistory && messages.length === 0" class="text-center text-[9px] text-slate-400 font-semibold py-6">
+        <!-- Messages Area -->
+        <div x-ref="scrollBox" class="flex-grow overflow-y-auto px-4 py-4 space-y-4 bg-slate-50/50">
+            <div x-show="loadingHistory && messages.length === 0" class="text-center text-xs text-slate-400 font-semibold py-8">
                 Memuat percakapan...
             </div>
 
-            <div x-show="!loadingHistory && messages.length === 0 && !errorMessage" x-cloak class="text-center text-[9px] text-slate-400 font-semibold py-6">
+            <div x-show="!loadingHistory && messages.length === 0 && !errorMessage" x-cloak class="text-center text-xs text-slate-450 font-semibold py-8 px-4 leading-normal">
                 Belum ada pesan. Mulai percakapan dengan mengetik di bawah.
             </div>
 
-            <div x-show="errorMessage" x-cloak class="text-center text-[9px] text-rose-500 font-semibold py-6" x-text="errorMessage"></div>
+            <div x-show="errorMessage" x-cloak class="text-center text-xs text-rose-500 font-semibold py-8" x-text="errorMessage"></div>
 
             <template x-for="msg in messages" :key="msg.id">
                 <div class="flex" :class="bubbleAlign(msg)">
 
-                    <!-- Pesan sistem: center, italic, tanpa bubble arah -->
+                    <!-- Pesan sistem (center, italic) -->
                     <template x-if="msg.sender_role === 'system'">
-                        <div class="max-w-[85%] text-center">
-                            <span class="inline-block bg-slate-200/70 text-slate-500 text-[9px] italic font-semibold px-3 py-1.5 rounded-full" x-text="msg.message"></span>
+                        <div class="max-w-[85%] text-center my-1.5 mx-auto">
+                            <span class="inline-block bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-bold px-4 py-1.5 rounded-full shadow-sm" x-text="msg.message"></span>
                         </div>
                     </template>
 
-                    <!-- Pesan customer/jastiper -->
+                    <!-- Pesan customer / jastiper -->
                     <template x-if="msg.sender_role !== 'system'">
-                        <div class="max-w-[78%] space-y-1 flex flex-col" :class="msg.is_mine ? 'items-end' : 'items-start'">
-                            <p class="text-[8px] font-bold px-1 text-slate-400" x-show="!msg.is_mine" x-text="msg.sender_name"></p>
+                        <div class="max-w-[80%] space-y-1 flex flex-col" :class="msg.is_mine ? 'items-end' : 'items-start'">
+                            
+                            <!-- Sender name (only for opponent) -->
+                            <p class="text-[9px] font-bold px-1.5 text-slate-400" x-show="!msg.is_mine" x-text="msg.sender_name"></p>
 
-                            <div class="rounded-2xl px-3.5 py-2.5 shadow-sm"
-                                :class="msg.is_mine ? 'bg-rose-600 text-white rounded-br-sm' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-sm'">
+                            <!-- Message Bubble -->
+                            <div class="shadow-sm"
+                                :class="msg.is_mine 
+                                    ? 'bg-rose-600 text-white rounded-2xl rounded-tr-none px-4 py-2.5' 
+                                    : 'bg-white border border-slate-200/80 text-slate-800 rounded-2xl rounded-tl-none px-4 py-2.5'">
 
                                 <img x-show="msg.attachment_url" :src="msg.attachment_url" @click="window.open(msg.attachment_url, '_blank')"
-                                    class="rounded-xl max-h-48 object-cover mb-1.5 cursor-pointer" alt="Lampiran foto">
+                                    class="rounded-xl max-h-48 w-full object-cover mb-2 border border-slate-100 shadow-sm cursor-pointer hover:opacity-95 transition-opacity" alt="Lampiran foto">
 
-                                <p x-show="msg.message" class="text-[10px] leading-relaxed whitespace-pre-wrap" x-text="msg.message"></p>
+                                <p x-show="msg.message" class="text-[13px] leading-relaxed whitespace-pre-wrap font-medium" x-text="msg.message"></p>
 
-                                <!-- Placeholder tombol aksi — dipakai Sprint 7 (belum ada trigger aktif sampai saat ini) -->
+                                <!-- Placeholder tombol aksi — dipakai Sprint 7 -->
                                 <button type="button" x-show="msg.message_type === 'action_button'"
                                     @click="alert('Fitur ini aktif di Sprint 7')"
-                                    class="mt-1.5 w-full bg-slate-900 hover:bg-slate-800 text-white text-[9px] font-black uppercase tracking-wide py-2 rounded-xl transition">
+                                    class="mt-2 w-full bg-slate-950 hover:bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider py-2.5 rounded-xl transition shadow-sm">
                                     <span x-text="msg.message || 'Aksi'"></span>
                                 </button>
                             </div>
 
-                            <p class="text-[7px] text-slate-400 px-1" x-text="formatTime(msg.created_at)"></p>
+                            <!-- Timestamp -->
+                            <p class="text-[8px] text-slate-400 px-1.5 mt-0.5" x-text="formatTime(msg.created_at)"></p>
                         </div>
                     </template>
 
@@ -256,35 +282,43 @@
             </template>
         </div>
 
-        <!-- Preview lampiran sebelum dikirim -->
-        <div x-show="attachmentPreviewUrl" x-cloak class="px-4 pt-2 shrink-0">
+        <!-- Attachment Preview before Sending -->
+        <div x-show="attachmentPreviewUrl" x-cloak class="px-4 py-2 bg-white border-t border-slate-100 shrink-0">
             <div class="relative inline-block">
-                <img :src="attachmentPreviewUrl" class="h-16 w-16 object-cover rounded-xl border border-slate-200">
+                <img :src="attachmentPreviewUrl" class="h-16 w-16 object-cover rounded-xl border border-slate-250 shadow-inner">
                 <button type="button" @click="clearAttachment()"
-                    class="absolute -top-2 -right-2 bg-slate-900 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black">✕</button>
+                    class="absolute -top-2 -right-2 bg-slate-900 hover:bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-black shadow-md">✕</button>
             </div>
         </div>
 
-        <!-- Input -->
-        <form @submit.prevent="sendMessage()" class="border-t border-slate-100 p-3 flex items-end gap-2 shrink-0">
+        <!-- Input Box Area -->
+        <form @submit.prevent="sendMessage()" class="border-t border-slate-150 p-3 bg-white flex items-center gap-2.5 shrink-0">
             <input type="file" accept="image/*" x-ref="fileInput" class="hidden" @change="handleFileChange($event)">
 
+            <!-- Plus Icon (Attachment upload trigger) -->
             <button type="button" @click="$refs.fileInput.click()"
-                class="shrink-0 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                class="shrink-0 w-10 h-10 rounded-full bg-slate-50 border border-slate-200/80 hover:bg-slate-100 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
             </button>
 
+            <!-- Textarea (min-height 40px, font-size 14px to prevent iOS auto-zoom) -->
             <textarea
                 x-model="newMessage"
                 @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); sendMessage(); }"
                 rows="1"
                 placeholder="Ketik pesan..."
-                class="flex-grow resize-none bg-slate-100 border border-transparent focus:border-rose-500 focus:bg-white rounded-2xl px-3.5 py-2.5 text-[10px] font-semibold text-slate-700 focus:outline-none transition max-h-24"
+                class="flex-grow resize-none bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-2xl px-4 py-2 text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none transition max-h-24"
+                style="line-height: 1.25rem; min-height: 40px; padding-top: 9px; padding-bottom: 9px;"
             ></textarea>
 
+            <!-- Send Button -->
             <button type="submit" :disabled="sending || (!newMessage.trim() && !attachmentFile)"
-                class="shrink-0 w-9 h-9 rounded-full bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-white transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                class="shrink-0 w-10 h-10 rounded-full bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-white transition shadow-md shadow-rose-600/10">
+                <svg class="w-4.5 h-4.5 transform rotate-45 -translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
             </button>
         </form>
 

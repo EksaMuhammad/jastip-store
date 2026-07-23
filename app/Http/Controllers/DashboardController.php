@@ -9,6 +9,7 @@ use App\Models\JastiperVerification;
 use App\Models\Order;
 use App\Models\Jastiper;
 use App\Services\WhatsAppService;
+use App\Services\OrderDealService;
 
 class DashboardController extends Controller
 {
@@ -255,10 +256,14 @@ class DashboardController extends Controller
             return redirect()->back()->with('error', 'Status pesanan ini sudah berubah.');
         }
 
-        $order->update([
-            'status' => 'diproses',
-            'agreed_fare' => $order->estimated_fare,
-        ]);
+        // Jalur Booking Langsung: deal terbentuk (jastiper_id + agreed_fare terkunci),
+        // lalu langsung lanjut ke status "diproses" tanpa perlu tap tombol terpisah —
+        // mempertahankan perilaku lama (jastiper yang terima booking langsung dianggap
+        // otomatis langsung mulai memproses). Lihat app/Services/OrderDealService.php
+        // untuk penjelasan kenapa dipecah jadi 2 pemanggilan method.
+        $dealService = app(OrderDealService::class);
+        $order = $dealService->formDeal($order, $jastiper, (float) $order->estimated_fare, 'direct');
+        $order = $dealService->startProcessing($order);
 
         // Simulasikan pesan WhatsApp ke Customer
         $customer = $order->customer;
@@ -701,11 +706,11 @@ class DashboardController extends Controller
                 ->where('id', '!=', $offer->id)
                 ->update(['status' => 'rejected']);
 
-            $order->update([
-                'jastiper_id' => $offer->jastiper_id,
-                'status' => 'deal',
-                'agreed_fare' => $offer->offered_price,
-            ]);
+            // Jalur Bidding: deal terbentuk (jastiper_id + agreed_fare terkunci), berhenti
+            // di status 'deal' — jastiper masih perlu tap "Mulai Proses" secara eksplisit
+            // (lihat jastiperStartProcessOrder). Ini beda dengan jalur Booking Langsung yang
+            // otomatis lanjut ke 'diproses'. Lihat app/Services/OrderDealService.php.
+            $order = app(OrderDealService::class)->formDeal($order, $offer->jastiper, (float) $offer->offered_price, 'bidding');
 
             return [
                 'success' => true,
@@ -854,7 +859,7 @@ class DashboardController extends Controller
                 : redirect()->back()->with('error', $msg);
         }
 
-        $order->update(['status' => 'diproses']);
+        $order = app(OrderDealService::class)->startProcessing($order);
 
         $customer = $order->customer;
         if ($customer) {

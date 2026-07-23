@@ -54,16 +54,15 @@ class OrderDealService
             'status' => 'deal',
         ]);
 
-        // TODO (Tahap 3-4 — Fitur Chat Personal): setelah ChatService dibuat,
-        // panggil di sini untuk otomatis membuat pesan pembuka chat room, contoh:
-        //
-        //   app(\App\Services\ChatService::class)->createDealRoomOpeningMessage($order);
-        //
-        // Sengaja belum dipanggil sekarang karena ChatService belum ada (baru
-        // dibangun di Tahap 3). Menaruh TODO di sini supaya titik hook-nya jelas
-        // dan tidak perlu cari-cari lagi lintas file nanti.
+        $order = $order->fresh();
 
-        return $order->fresh();
+        // (Tahap 3 — Fitur Chat Personal) ChatService sudah ada, jadi hook
+        // pesan pembuka chat room dipasang di sini. $order->jastiper_id sudah
+        // ter-set di atas, jadi createDealRoomOpeningMessage() bisa resolve
+        // relasi customer()/jastiper() dari $order langsung.
+        app(\App\Services\ChatService::class)->createDealRoomOpeningMessage($order);
+
+        return $order;
     }
 
     /**

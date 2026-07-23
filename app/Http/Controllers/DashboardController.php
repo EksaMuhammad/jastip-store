@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Jastiper;
 use App\Services\WhatsAppService;
 use App\Services\OrderDealService;
+use App\Services\ChatService;
 
 class DashboardController extends Controller
 {
@@ -265,10 +266,10 @@ class DashboardController extends Controller
         $order = $dealService->formDeal($order, $jastiper, (float) $order->estimated_fare, 'direct');
         $order = $dealService->startProcessing($order);
 
-        // Simulasikan pesan WhatsApp ke Customer
-        $customer = $order->customer;
-        $msg = "Halo *{$customer->name}*!\n\nBooking langsung Anda untuk Jastiper *{$jastiper->name}* (*{$order->description}*) telah *DITERIMA*! Hubungi jastiper di nomor: {$jastiper->phone_number} untuk koordinasi belanjaan. Terima kasih. 🙏";
-        WhatsAppService::sendMessage($customer->phone_number, $msg);
+        // Notifikasi WA lama dihapus di sini — sejak Tahap 3, formDeal() di atas
+        // sudah otomatis mengirim pesan pembuka chat via
+        // ChatService::createDealRoomOpeningMessage(). Customer & jastiper akan
+        // lihat pesan itu di chat room order ini begitu deal terbentuk.
 
         return redirect()->route('jastiper.dashboard')->with('success', 'Booking langsung berhasil diterima! Silakan proses belanjaan.');
     }
@@ -731,13 +732,13 @@ class DashboardController extends Controller
         $jastiperTerpilih = $offer->jastiper;
         $customer = $order->customer;
 
-        // Notifikasi ke jastiper yang terpilih
-        if ($jastiperTerpilih) {
-            $msg = "Selamat! Tawaran Anda untuk belanjaan \"{$order->description}\" *DISETUJUI* oleh customer. Silakan koordinasi lebih lanjut di nomor {$customer->phone_number} ({$customer->name}). 🎉";
-            WhatsAppService::sendMessage($jastiperTerpilih->phone_number, $msg);
-        }
+        // Notifikasi ke jastiper yang terpilih: WA lama dihapus — sejak Tahap 3,
+        // formDeal() di dalam DB::transaction() di atas sudah otomatis mengirim
+        // pesan pembuka chat via ChatService::createDealRoomOpeningMessage().
 
-        // Notifikasi ke jastiper lain yang tawarannya ditolak
+        // Notifikasi ke jastiper lain yang tawarannya ditolak (TETAP WhatsApp —
+        // jastiper ini tidak jadi bagian dari deal, tidak valid punya chat room
+        // untuk order ini)
         foreach ($result['other_offers'] as $rejected) {
             if ($rejected->jastiper) {
                 $msg = "Terima kasih telah berpartisipasi. Sayangnya tawaran Anda untuk belanjaan \"{$order->description}\" belum terpilih kali ini. Tetap semangat pantau orderan lainnya! 💪";
@@ -861,11 +862,10 @@ class DashboardController extends Controller
 
         $order = app(OrderDealService::class)->startProcessing($order);
 
-        $customer = $order->customer;
-        if ($customer) {
-            $msg = "Halo *{$customer->name}*, belanjaan Anda \"{$order->description}\" *MULAI DIPROSES* oleh Jastiper *{$jastiper->name}*! Kurir sedang membelanjakan barang Anda. 🚀";
-            WhatsAppService::sendMessage($customer->phone_number, $msg);
-        }
+        app(ChatService::class)->sendSystemMessage(
+            $order,
+            "Belanjaan Anda \"{$order->description}\" mulai diproses oleh Jastiper {$jastiper->name}! 🚀"
+        );
 
         $msg = 'Status pesanan berhasil diubah menjadi Sedang Diproses.';
 
@@ -900,11 +900,10 @@ class DashboardController extends Controller
 
         $order->update(['status' => 'selesai']);
 
-        $customer = $order->customer;
-        if ($customer) {
-            $msg = "Halo *{$customer->name}*, belanjaan Anda \"{$order->description}\" telah *SELESAI* dibelanjakan dan diantarkan oleh Jastiper *{$jastiper->name}*! Terima kasih telah menggunakan layanan JastipKuy. 🙏";
-            WhatsAppService::sendMessage($customer->phone_number, $msg);
-        }
+        app(ChatService::class)->sendSystemMessage(
+            $order,
+            "Belanjaan Anda \"{$order->description}\" telah selesai dibelanjakan dan diantarkan oleh Jastiper {$jastiper->name}! Terima kasih telah menggunakan layanan JastipKuy. 🙏"
+        );
 
         $msg = 'Pesanan berhasil diselesaikan!';
 

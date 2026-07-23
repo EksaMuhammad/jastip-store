@@ -92,6 +92,32 @@
                             this.orderPrices[o.id] = o.my_offer_price ?? o.estimated_fare;
                         }
                     });
+
+                    // Proses notifikasi tawaran yang disetujui / ditolak secara real-time
+                    const recentOffers = data.recent_offers || [];
+                    let notifiedIds = JSON.parse(localStorage.getItem('jastiper_notified_offers') || '[]');
+                    let shouldReload = false;
+                    
+                    recentOffers.forEach(off => {
+                        if (!notifiedIds.includes(off.id)) {
+                            if (off.status === 'accepted') {
+                                jastiperNotify(`Selamat! Tawaran Anda untuk "${off.order_description}" telah DISETUJUI oleh Customer! 🎉`, true);
+                                shouldReload = true;
+                            } else if (off.status === 'rejected') {
+                                jastiperNotify(`Tawaran Anda untuk "${off.order_description}" belum terpilih / ditolak.`, false);
+                            }
+                            notifiedIds.push(off.id);
+                        }
+                    });
+                    
+                    if (notifiedIds.length > 50) {
+                        notifiedIds = notifiedIds.slice(notifiedIds.length - 50);
+                    }
+                    localStorage.setItem('jastiper_notified_offers', JSON.stringify(notifiedIds));
+
+                    if (shouldReload) {
+                        setTimeout(() => window.location.reload(), 2500);
+                    }
                 } catch (e) {
                     this.feedMessage = 'Gagal memuat daftar order. Periksa koneksi Anda.';
                 } finally {

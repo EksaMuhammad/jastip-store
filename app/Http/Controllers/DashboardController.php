@@ -485,12 +485,28 @@ class DashboardController extends Controller
             ];
         });
 
+        $recentOffers = \App\Models\Offer::where('jastiper_id', $jastiper->id)
+            ->whereIn('status', ['accepted', 'rejected'])
+            ->where('updated_at', '>=', now()->subMinutes(10))
+            ->with('order')
+            ->get()
+            ->map(function ($offer) {
+                return [
+                    'id' => $offer->id,
+                    'order_id' => $offer->order_id,
+                    'order_description' => $offer->order->description ?? 'Jastip',
+                    'status' => $offer->status,
+                    'updated_at' => $offer->updated_at->toIso8601String(),
+                ];
+            });
+
         return response()->json([
             'success' => true,
             'message' => null,
             'orders' => $formatted,
             'count' => $formatted->count(),
             'radius_km' => (float) $jastiper->radius_km,
+            'recent_offers' => $recentOffers,
         ]);
     }
 

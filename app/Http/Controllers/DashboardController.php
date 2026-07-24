@@ -257,21 +257,22 @@ class DashboardController extends Controller
             return redirect()->back()->with('error', 'Status pesanan ini sudah berubah.');
         }
 
-        // Jalur Booking Langsung: deal terbentuk (jastiper_id + agreed_fare terkunci),
-        // lalu langsung lanjut ke status "diproses" tanpa perlu tap tombol terpisah —
-        // mempertahankan perilaku lama (jastiper yang terima booking langsung dianggap
-        // otomatis langsung mulai memproses). Lihat app/Services/OrderDealService.php
-        // untuk penjelasan kenapa dipecah jadi 2 pemanggilan method.
+        // Jalur Booking Langsung: deal terbentuk (jastiper_id + agreed_fare terkunci).
+        // SEJAK FITUR PEMBAYARAN WAJIB (lihat BRIEF-fitur-pembayaran.md §1.1), order
+        // TIDAK LAGI langsung lanjut ke "diproses" di sini — order berhenti dulu di
+        // "menunggu_pembayaran" sampai customer menyelesaikan pembayaran (transfer VA/QRIS
+        // atau saldo wallet). Transisi ke "diproses" baru terjadi lewat
+        // PaymentService::payWithWallet() / handleWebhook() / adminVerifyManualProof().
         $dealService = app(OrderDealService::class);
         $order = $dealService->formDeal($order, $jastiper, (float) $order->estimated_fare, 'direct');
-        $order = $dealService->startProcessing($order);
+        app(\App\Services\PaymentService::class)->initiate($order);
 
         // Notifikasi WA lama dihapus di sini — sejak Tahap 3, formDeal() di atas
         // sudah otomatis mengirim pesan pembuka chat via
         // ChatService::createDealRoomOpeningMessage(). Customer & jastiper akan
         // lihat pesan itu di chat room order ini begitu deal terbentuk.
 
-        return redirect()->route('jastiper.dashboard')->with('success', 'Booking langsung berhasil diterima! Silakan proses belanjaan.');
+        return redirect()->route('jastiper.dashboard')->with('success', 'Booking diterima! Menunggu customer menyelesaikan pembayaran sebelum Anda bisa mulai memproses.');
     }
 
     /**
@@ -723,11 +724,14 @@ class DashboardController extends Controller
                 ->where('id', '!=', $offer->id)
                 ->update(['status' => 'rejected']);
 
-            // Jalur Bidding: deal terbentuk (jastiper_id + agreed_fare terkunci), berhenti
-            // di status 'deal' — jastiper masih perlu tap "Mulai Proses" secara eksplisit
-            // (lihat jastiperStartProcessOrder). Ini beda dengan jalur Booking Langsung yang
-            // otomatis lanjut ke 'diproses'. Lihat app/Services/OrderDealService.php.
+            // Jalur Bidding: deal terbentuk (jastiper_id + agreed_fare terkunci).
+            // SEJAK FITUR PEMBAYARAN WAJIB (lihat BRIEF-fitur-pembayaran.md §1.1), order
+            // tidak lagi berhenti di status 'deal' menunggu jastiper tap "Mulai Proses" —
+            // order langsung lanjut ke 'menunggu_pembayaran' di sini lewat
+            // PaymentService::initiate(), sama seperti jalur Booking Langsung. Jastiper baru
+            // bisa mulai memproses setelah pembayaran customer terkonfirmasi lunas.
             $order = app(OrderDealService::class)->formDeal($order, $offer->jastiper, (float) $offer->offered_price, 'bidding');
+            app(\App\Services\PaymentService::class)->initiate($order);
 
             return [
                 'success' => true,
@@ -869,25 +873,20 @@ class DashboardController extends Controller
                 : redirect()->back()->with('error', $msg);
         }
 
-        if ($order->status !== 'deal') {
-            $msg = 'Order ini tidak dalam status deal.';
-            return $request->wantsJson()
-                ? response()->json(['success' => false, 'message' => $msg], 409)
-                : redirect()->back()->with('error', $msg);
-        }
-
-        $order = app(OrderDealService::class)->startProcessing($order);
-
-        app(ChatService::class)->sendSystemMessage(
-            $order,
-            "Belanjaan Anda \"{$order->description}\" mulai diproses oleh Jastiper {$jastiper->name}! 🚀"
-        );
-
-        $msg = 'Status pesanan berhasil diubah menjadi Sedang Diproses.';
+        // SEJAK FITUR PEMBAYARAN WAJIB (lihat BRIEF-fitur-pembayaran.md §1.1), endpoint
+        // ini TIDAK LAGI boleh memicu transisi 'deal' -> 'diproses' secara manual.
+        // Sejak refactor Tahap 2, formDeal() di customerAcceptOffer() langsung disusul
+        // PaymentService::initiate(), jadi order sudah lompat ke 'menunggu_pembayaran'
+        // sebelum sempat mampir ke tombol ini — guard di bawah pada dasarnya defensif
+        // untuk kasus tak terduga. Transisi ke 'diproses' sekarang HANYA boleh terjadi
+        // lewat pembayaran terkonfirmasi: PaymentService::payWithWallet(),
+        // PaymentService::handleWebhook() (settlement Midtrans), atau
+        // PaymentService::adminVerifyManualProof() (approve bukti transfer manual).
+        $msg = 'Pesanan baru bisa mulai diproses setelah pembayaran customer dikonfirmasi lunas. Endpoint ini tidak lagi memicu perubahan status secara manual.';
 
         return $request->wantsJson()
-            ? response()->json(['success' => true, 'message' => $msg])
-            : redirect()->back()->with('success', $msg);
+            ? response()->json(['success' => false, 'message' => $msg], 409)
+            : redirect()->back()->with('error', $msg);
     }
 
     /**

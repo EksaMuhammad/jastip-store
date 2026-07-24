@@ -156,8 +156,20 @@ class JastipDirectBookingTest extends TestCase
             ->assertRedirect(route('jastiper.dashboard'));
 
         $order->refresh();
-        $this->assertEquals('diproses', $order->status);
+        $this->assertEquals('menunggu_pembayaran', $order->status);
         $this->assertEquals($this->jastiper->id, $order->jastiper_id);
+
+        // Simulasi pembayaran agar masuk ke tahap diproses
+        \App\Models\Wallet::create([
+            'owner_role' => 'customer',
+            'owner_id' => $this->customer->id,
+            'balance' => 100000,
+        ]);
+        $payment = \App\Models\Payment::where('order_id', $order->id)->first();
+        app(\App\Services\PaymentService::class)->payWithWallet($payment, $this->customer);
+
+        $order->refresh();
+        $this->assertEquals('diproses', $order->status);
     }
 
     public function test_jastiper_can_reject_direct_booking_and_release_to_general_pool()

@@ -151,10 +151,22 @@ class JastipBiddingTest extends TestCase
         $order->refresh();
         $offer->refresh();
 
-        $this->assertEquals('deal', $order->status);
+        $this->assertEquals('menunggu_pembayaran', $order->status);
         $this->assertEquals($this->jastiperA->id, $order->jastiper_id);
         $this->assertEquals(12000.00, (float) $order->agreed_fare);
         $this->assertEquals('accepted', $offer->status);
+
+        // Simulasi pembayaran agar masuk ke tahap diproses
+        \App\Models\Wallet::create([
+            'owner_role' => 'customer',
+            'owner_id' => $this->customer->id,
+            'balance' => 100000,
+        ]);
+        $payment = \App\Models\Payment::where('order_id', $order->id)->first();
+        app(\App\Services\PaymentService::class)->payWithWallet($payment, $this->customer);
+
+        $order->refresh();
+        $this->assertEquals('diproses', $order->status);
     }
 
     /** 4. Tawaran jastiper lain otomatis berstatus rejected saat salah satu dipilih. */
@@ -257,22 +269,19 @@ class JastipBiddingTest extends TestCase
         ]);
     }
 
-    /** Jastiper can start processing their assigned order (status -> diproses) */
-    public function test_jastiper_can_start_processing_order()
+    /** Jastiper cannot start processing manually anymore, returns 409 */
+    public function test_jastiper_cannot_start_processing_order_manually()
     {
         $order = $this->createOpenOrder([
             'jastiper_id' => $this->jastiperA->id,
-            'status' => 'deal',
+            'status' => 'menunggu_pembayaran',
             'agreed_fare' => 12000.00,
         ]);
 
         $this->actingAs($this->jastiperA, 'jastiper')
             ->postJson(route('jastiper.orders.start-process', $order->id))
-            ->assertStatus(200)
-            ->assertJson(['success' => true]);
-
-        $order->refresh();
-        $this->assertEquals('diproses', $order->status);
+            ->assertStatus(409)
+            ->assertJson(['success' => false]);
     }
 
     /** Jastiper can complete their assigned order (status -> selesai) */

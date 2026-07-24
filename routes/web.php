@@ -85,6 +85,7 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/verification/{id}/update', [DashboardController::class, 'adminVerificationUpdate'])->name('admin.verification.update');
 
     // ===== Pembayaran Wajib (Virtual Escrow) — verifikasi manual bukti transfer =====
+    Route::get('/admin/payments', [PaymentController::class, 'adminPage'])->name('admin.payments');
     Route::post('/admin/payments/{id}/verify', [PaymentController::class, 'adminVerify'])->name('admin.payments.verify');
 });
 

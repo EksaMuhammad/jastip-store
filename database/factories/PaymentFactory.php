@@ -1,298 +1,139 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace Database\Factories;
 
-use App\Exceptions\InsufficientBalanceException;
-use App\Models\Admin;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Services\PaymentService;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use App\Models\Wilayah;
+use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * Endpoint controller untuk fitur pembayaran wajib (virtual escrow) — Tahap 3.
- * Dipisah dari DashboardController (pola sama seperti ChatController), khusus
- * menangani aksi pembayaran + webhook Midtrans + verifikasi manual admin.
- * Controller ini TIDAK menyentuh state machine Payment/Order secara langsung —
- * semua orkestrasi didelegasikan ke PaymentService (lihat BRIEF §2.4).
+ * Factory untuk model Payment — Tahap 1 (brief §Tahap 1).
  *
- * Halaman utama pembayaran (GET /customer/orders/{id}/payment, method page()
- * di bawah) ditambahkan di Tahap 5 — cuma wrapper blade tipis yang merender
- * komponen Livewire App\Livewire\Customer\PaymentPage. Komponen Livewire itu
- * TIDAK memanggil endpoint-endpoint aksi di controller ini lewat HTTP — ia
- * memanggil App\Services\PaymentService secara langsung (lihat catatan desain
- * di PaymentPage). Endpoint aksi di bawah (selectMethod/payWithWallet/
- * uploadProof/cancel/webhook/adminVerify) tetap dipertahankan untuk klien lain
- * (non-JS/mobile app masa depan) dan tetap tercakup test Tahap 3.
+ * ⚠️ Riwayat bug (lihat BRIEF Progress Log Tahap 5 & Tahap 6): file ini pernah
+ * ke-timpa jadi salinan persis file lain sebanyak DUA KALI di sesi-sesi
+ * sebelumnya — pertama jadi salinan config/services.php (ditemukan & diperbaiki
+ * di Tahap 5), lalu (ditemukan di sesi Tahap 6 ini) balik lagi jadi salinan
+ * persis app/Http/Controllers/PaymentController.php (namespace & isinya class
+ * PaymentController, bukan factory sama sekali). Ini BUKAN cuma "kurang bagus"
+ * — kalau dibiarkan, `class PaymentController` di sini bentrok deklarasi dengan
+ * `App\Http\Controllers\PaymentController` yang asli begitu Composer classmap
+ * mengindeksnya (mis. lewat `composer dump-autoload -o` atau optimasi produksi),
+ * dan menyebabkan fatal error "Cannot redeclare class" di SELURUH aplikasi,
+ * bukan cuma di fitur pembayaran. Ditulis ulang di sini sesuai deskripsi yang
+ * SUDAH BENAR di Progress Log Tahap 1 sejak awal (isinya belum pernah berubah,
+ * cuma implementasi filenya yang berulang kali salah tertimpa).
+ *
+ * Project ini sebelumnya tidak punya pola factory sama sekali (Order/Customer/
+ * Wilayah tidak ada factory-nya), jadi dependency minimal dibuat manual lewat
+ * firstOrCreate()/create() di bawah, bukan lewat Model::factory() berantai.
  */
-class PaymentController extends Controller
+class PaymentFactory extends Factory
 {
-    public function __construct(private PaymentService $paymentService)
-    {
-    }
+    protected $model = Payment::class;
 
-    /**
-     * GET /customer/orders/{id}/payment
-     * Halaman utama pembayaran (Tahap 5) — cuma wrapper blade tipis yang
-     * merender komponen Livewire full-page App\Livewire\Customer\PaymentPage
-     * (pola sama seperti DashboardController::customerCreateOrder() yang
-     * merender resources/views/dashboard/customer/create_order.blade.php
-     * berisi @livewire('customer.create-order-form')). Semua logic sub-state
-     * pembayaran ada di komponen Livewire itu sendiri, bukan di sini.
-     */
-    public function page($id)
-    {
-        $order = $this->resolveOwnedOrder($id);
-        abort_if(!$order, 404, 'Order tidak ditemukan atau bukan milik Anda.');
-
-        return view('customer.payment', compact('order'));
-    }
-
-    /**
-     * POST /customer/orders/{id}/payment/method
-     * Customer memilih channel transfer: Virtual Account bank tertentu atau QRIS.
-     * (Pilihan "Saldo Wallet" punya endpoint terpisah, lihat payWithWallet().)
-     */
-    public function selectMethod(Request $request, $id)
-    {
-        $order = $this->resolveOwnedOrder($id);
-        if (!$order) {
-            return $this->fail($request, 'Order tidak ditemukan atau bukan milik Anda.', 404);
-        }
-
-        $request->validate([
-            'channel' => 'required|in:bank_transfer_va,qris',
-            'bank' => 'required_if:channel,bank_transfer_va|nullable|in:bca,bni,bri,permata,mandiri',
-        ]);
-
-        $payment = $this->resolvePendingPayment($order);
-        if (!$payment) {
-            return $this->fail($request, 'Tidak ada pembayaran yang menunggu untuk order ini.', 409);
-        }
-
-        try {
-            $payment = $this->paymentService->payWithGatewayChannel($payment, $request->input('channel'), $request->input('bank'));
-        } catch (\Throwable $e) {
-            Log::error('[PAYMENT] Gagal membuat channel pembayaran: ' . $e->getMessage());
-            return $this->fail($request, 'Gagal membuat metode pembayaran, silakan coba lagi.', 502);
-        }
-
-        return $this->ok($request, ['payment' => $this->paymentPayload($payment)]);
-    }
-
-    /**
-     * POST /customer/orders/{id}/payment/wallet-pay
-     * Debit langsung dari saldo wallet customer, instan (tidak lewat gateway).
-     */
-    public function payWithWallet(Request $request, $id)
-    {
-        $order = $this->resolveOwnedOrder($id);
-        if (!$order) {
-            return $this->fail($request, 'Order tidak ditemukan atau bukan milik Anda.', 404);
-        }
-
-        $payment = $this->resolvePendingPayment($order);
-        if (!$payment) {
-            return $this->fail($request, 'Tidak ada pembayaran yang menunggu untuk order ini.', 409);
-        }
-
-        $customer = Auth::guard('customer')->user();
-
-        try {
-            $payment = $this->paymentService->payWithWallet($payment, $customer);
-        } catch (InsufficientBalanceException $e) {
-            return $this->fail($request, $e->getMessage(), 422);
-        }
-
-        return $this->ok(
-            $request,
-            ['payment' => $this->paymentPayload($payment), 'order_status' => $payment->order->status],
-            'Pembayaran berhasil, pesanan Anda akan segera diproses.'
-        );
-    }
-
-    /**
-     * POST /customer/orders/{id}/payment/upload-proof
-     * Fallback manual: customer upload bukti transfer, menunggu approve admin.
-     */
-    public function uploadProof(Request $request, $id)
-    {
-        $order = $this->resolveOwnedOrder($id);
-        if (!$order) {
-            return $this->fail($request, 'Order tidak ditemukan atau bukan milik Anda.', 404);
-        }
-
-        $request->validate([
-            'proof' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
-        ]);
-
-        $payment = $this->resolvePendingPayment($order);
-        if (!$payment) {
-            return $this->fail($request, 'Tidak ada pembayaran yang menunggu untuk order ini.', 409);
-        }
-
-        $payment = $this->paymentService->submitManualProof($payment, $request->file('proof'));
-
-        return $this->ok(
-            $request,
-            ['payment' => $this->paymentPayload($payment)],
-            'Bukti transfer berhasil diunggah, menunggu verifikasi admin.'
-        );
-    }
-
-    /**
-     * POST /customer/orders/{id}/payment/cancel
-     * Customer batalkan order-nya sendiri selagi masih 'menunggu_pembayaran'
-     * (Tahap 5, beda dari auto-cancel scheduler Tahap 4). Endpoint ini murni
-     * untuk klien non-Livewire (mis. mobile app di masa depan) — komponen
-     * Livewire PaymentPage sendiri memanggil PaymentService::cancelByCustomer()
-     * langsung (lihat catatan desain di App\Livewire\Customer\PaymentPage).
-     */
-    public function cancel(Request $request, $id)
-    {
-        $order = $this->resolveOwnedOrder($id);
-        if (!$order) {
-            return $this->fail($request, 'Order tidak ditemukan atau bukan milik Anda.', 404);
-        }
-
-        $customer = Auth::guard('customer')->user();
-
-        try {
-            $this->paymentService->cancelByCustomer($order, $customer);
-        } catch (\RuntimeException $e) {
-            return $this->fail($request, $e->getMessage(), 409);
-        }
-
-        return $this->ok($request, [], 'Pesanan berhasil dibatalkan.');
-    }
-
-    /**
-     * GET /customer/orders/{id}/payment/status
-     * Endpoint polling JSON (dipakai wire:poll di Tahap 5). Selalu JSON,
-     * termasuk untuk kasus gagal, karena ini murni dipanggil lewat fetch/polling.
-     */
-    public function status($id): JsonResponse
-    {
-        $order = $this->resolveOwnedOrder($id);
-        if (!$order) {
-            return response()->json(['success' => false, 'message' => 'Order tidak ditemukan atau bukan milik Anda.'], 404);
-        }
-
-        $payment = Payment::where('order_id', $order->id)->latest('id')->first();
-
-        return response()->json([
-            'success' => true,
-            'order_status' => $order->status,
-            'payment' => $payment ? $this->paymentPayload($payment) : null,
-        ]);
-    }
-
-    /**
-     * POST /webhooks/midtrans
-     * Webhook publik (TIDAK di bawah middleware auth:*, dikecualikan dari
-     * validasi CSRF di bootstrap/app.php). Validitas payload divalidasi lewat
-     * signature Midtrans di dalam PaymentService::handleWebhook(), bukan lewat
-     * middleware auth Laravel.
-     */
-    public function webhook(Request $request): JsonResponse
-    {
-        try {
-            $this->paymentService->handleWebhook($request->all());
-        } catch (\RuntimeException $e) {
-            // Signature tidak valid — sudah di-log di dalam service. Balas 403
-            // supaya kalau ada retry dari sisi Midtrans, jelas ini ditolak.
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 403);
-        }
-
-        return response()->json(['success' => true]);
-    }
-
-    /**
-     * POST /admin/payments/{id}/verify
-     * Admin approve/reject bukti transfer manual. Cross-check ke status
-     * Midtrans (kalau payment punya gateway_transaction_id) sudah ditangani
-     * di dalam PaymentService::adminVerifyManualProof() — lihat brief §0 no. 3.
-     */
-    public function adminVerify(Request $request, $id)
-    {
-        $request->validate([
-            'action' => 'required|in:approve,reject',
-        ]);
-
-        $payment = Payment::findOrFail($id);
-
-        /** @var Admin $admin */
-        $admin = Auth::guard('admin')->user();
-
-        $approve = $request->input('action') === 'approve';
-
-        $payment = $this->paymentService->adminVerifyManualProof($payment, $admin, $approve);
-
-        $message = $approve
-            ? 'Pembayaran disetujui, pesanan akan mulai diproses.'
-            : 'Bukti transfer ditolak.';
-
-        return $this->ok($request, ['payment' => $this->paymentPayload($payment)], $message);
-    }
-
-    /**
-     * Ambil order milik customer yang sedang login. Null kalau tidak ditemukan
-     * atau bukan miliknya — sengaja tidak dibedakan (404) supaya customer lain
-     * tidak bisa menebak-nebak keberadaan order id orang lain.
-     */
-    private function resolveOwnedOrder($id): ?Order
-    {
-        $customer = Auth::guard('customer')->user();
-
-        return Order::where('id', $id)->where('customer_id', $customer->id)->first();
-    }
-
-    /**
-     * Payment paling baru untuk order ini yang masih berstatus 'menunggu'.
-     * Dipakai untuk menjaga supaya aksi (pilih channel/wallet-pay/upload bukti)
-     * tidak bisa dipanggil lagi begitu payment sudah lunas/gagal/kedaluwarsa.
-     */
-    private function resolvePendingPayment(Order $order): ?Payment
-    {
-        return Payment::where('order_id', $order->id)
-            ->where('status', 'menunggu')
-            ->latest('id')
-            ->first();
-    }
-
-    private function paymentPayload(Payment $payment): array
+    public function definition(): array
     {
         return [
-            'id' => $payment->id,
-            'status' => $payment->status,
-            'method' => $payment->method,
-            'channel' => $payment->channel,
-            'va_number' => $payment->va_number,
-            'qr_string' => $payment->qr_string,
-            'amount' => $payment->amount,
-            'payment_deadline' => optional($payment->payment_deadline)->toIso8601String(),
+            // Diisi di configure()->afterMaking(): Order (juga Customer/Wilayah)
+            // di project ini TIDAK pakai trait HasFactory, jadi Order::factory()
+            // tidak bisa dipanggil di sini — dependency dibuat manual di bawah.
+            'order_id' => null,
+            'method' => 'transfer',
+            'channel' => 'bank_transfer_va',
+            'amount' => $this->faker->randomFloat(2, 20000, 500000),
+            'status' => 'menunggu',
+            'payment_deadline' => now()->addMinutes(15),
+            'gateway_reference' => 'ORDER-' . $this->faker->unique()->numerify('######') . '-' . now()->format('YmdHis'),
+            'va_number' => null,
+            'qr_string' => null,
+            'gateway_transaction_id' => null,
+            'raw_response' => null,
+            'raw_webhook_payload' => null,
+            'proof_image' => null,
+            'verified_at' => null,
+            'verified_by_admin_id' => null,
         ];
     }
 
-    private function fail(Request $request, string $message, int $status): JsonResponse|RedirectResponse
+    /**
+     * Order/Customer/Wilayah project ini tidak punya factory sendiri, jadi
+     * dependency minimal dibuat manual di sini (bukan lewat Order::factory()
+     * yang tidak ada) — konsisten dengan cara test lain (mis.
+     * PaymentServiceTest, PaymentManualVerificationTest) bikin data manual.
+     */
+    public function configure(): static
     {
-        if ($request->wantsJson()) {
-            return response()->json(['success' => false, 'message' => $message], $status);
-        }
+        return $this->afterMaking(function (Payment $payment) {
+            if ($payment->order_id) {
+                return;
+            }
 
-        return redirect()->back()->with('error', $message);
+            $wilayah = Wilayah::firstOrCreate(
+                ['name' => 'Wilayah Uji Coba'],
+                ['default_radius_km' => 5, 'is_active' => true]
+            );
+
+            $customer = Customer::firstOrCreate(
+                ['phone_number' => '089999999999'],
+                ['name' => 'Customer Uji Coba']
+            );
+
+            $order = Order::create([
+                'customer_id' => $customer->id,
+                'wilayah_id' => $wilayah->id,
+                'category' => 'beli-antar',
+                'weight_category' => 'ringan',
+                'description' => 'Order uji coba (factory)',
+                'destination_address' => 'Jl. Uji Coba No. 1',
+                'recipient_name' => $customer->name,
+                'recipient_phone' => $customer->phone_number,
+                'estimated_fare' => 50000,
+                'agreed_fare' => 50000,
+                'status' => 'menunggu_pembayaran',
+            ]);
+
+            $payment->order_id = $order->id;
+        });
     }
 
-    private function ok(Request $request, array $data = [], ?string $message = null): JsonResponse|RedirectResponse
+    /**
+     * State: payment sudah lunas (via gateway VA), sudah ada gateway_transaction_id.
+     */
+    public function lunas(): static
     {
-        if ($request->wantsJson()) {
-            return response()->json(array_merge(['success' => true], $message ? ['message' => $message] : [], $data));
-        }
+        return $this->state(fn (array $attributes) => [
+            'status' => 'lunas',
+            'gateway_transaction_id' => 'trx-' . $this->faker->unique()->numerify('###########'),
+            'va_number' => '8808' . $this->faker->numerify('#######'),
+            'verified_at' => now(),
+        ]);
+    }
 
-        return redirect()->back()->with('success', $message ?? 'Berhasil.');
+    /**
+     * State: dibayar via saldo wallet (tidak lewat gateway sama sekali).
+     */
+    public function wallet(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'method' => 'wallet',
+            'channel' => null,
+            'status' => 'lunas',
+            'va_number' => null,
+            'qr_string' => null,
+            'verified_at' => now(),
+        ]);
+    }
+
+    /**
+     * State: sudah lewat payment_deadline, otomatis dibatalkan scheduler.
+     */
+    public function kedaluwarsa(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'kedaluwarsa',
+            'payment_deadline' => now()->subMinutes(30),
+        ]);
     }
 }

@@ -212,6 +212,23 @@ class PaymentController extends Controller
     }
 
     /**
+     * GET /admin/payments
+     * Halaman antrian verifikasi pembayaran manual untuk admin (Tahap 6) —
+     * cuma wrapper blade tipis yang merender komponen Livewire single-file
+     * App\Livewire (SFC) 'admin.payment-verification' (pola sama seperti
+     * page() customer di atas, dan sama seperti
+     * DashboardController::adminVerification() yang merender
+     * admin/verification.blade.php berisi @livewire('admin.admin-verification')
+     * untuk verifikasi jastiper). Diletakkan di sini (bukan DashboardController)
+     * karena ini murni tentang pembayaran — konsisten dengan pemisahan yang
+     * sudah dilakukan sejak Tahap 3 (lihat docblock class ini).
+     */
+    public function adminPage()
+    {
+        return view('admin.payments');
+    }
+
+    /**
      * POST /admin/payments/{id}/verify
      * Admin approve/reject bukti transfer manual. Cross-check ke status
      * Midtrans (kalau payment punya gateway_transaction_id) sudah ditangani

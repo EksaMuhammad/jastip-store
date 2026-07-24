@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\PaymentController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -43,6 +44,14 @@ Route::middleware('auth:customer')->group(function () {
     // ===== Chat Personal per Order =====
     Route::post('/customer/orders/{id}/chat', [ChatController::class, 'send'])->name('customer.orders.chat.send');
     Route::get('/customer/orders/{id}/chat', [ChatController::class, 'history'])->name('customer.orders.chat.history');
+
+    // ===== Pembayaran Wajib (Virtual Escrow) — Tahap 3 =====
+    // Catatan: GET /customer/orders/{id}/payment (halaman utama, Livewire full-page)
+    // sengaja belum didaftarkan di sini — itu scope Tahap 5.
+    Route::post('/customer/orders/{id}/payment/method', [PaymentController::class, 'selectMethod'])->name('customer.orders.payment.method');
+    Route::post('/customer/orders/{id}/payment/wallet-pay', [PaymentController::class, 'payWithWallet'])->name('customer.orders.payment.wallet-pay');
+    Route::post('/customer/orders/{id}/payment/upload-proof', [PaymentController::class, 'uploadProof'])->name('customer.orders.payment.upload-proof');
+    Route::get('/customer/orders/{id}/payment/status', [PaymentController::class, 'status'])->name('customer.orders.payment.status');
 });
 
 Route::middleware('auth:jastiper')->group(function () {
@@ -74,4 +83,12 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/verification', [DashboardController::class, 'adminVerification'])->name('admin.verification');
     // Admin endpoint for updating verification status (simulation/actual)
     Route::post('/admin/verification/{id}/update', [DashboardController::class, 'adminVerificationUpdate'])->name('admin.verification.update');
+
+    // ===== Pembayaran Wajib (Virtual Escrow) — verifikasi manual bukti transfer =====
+    Route::post('/admin/payments/{id}/verify', [PaymentController::class, 'adminVerify'])->name('admin.payments.verify');
 });
+
+// Webhook Midtrans — publik, TANPA middleware auth:*. Validitas payload
+// divalidasi via signature di dalam PaymentService::handleWebhook(), dan
+// route ini dikecualikan dari validasi CSRF di bootstrap/app.php.
+Route::post('/webhooks/midtrans', [PaymentController::class, 'webhook'])->name('webhooks.midtrans');

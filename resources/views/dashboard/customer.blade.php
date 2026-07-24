@@ -33,6 +33,7 @@
             acceptOfferUrlTemplate: config.acceptOfferUrlTemplate,
             expandRadiusUrlTemplate: config.expandRadiusUrlTemplate,
             cancelOrderUrlTemplate: config.cancelOrderUrlTemplate,
+            paymentPageUrlTemplate: config.paymentPageUrlTemplate,
             orders: [],
             actionLoading: false,
             initialLoaded: false,
@@ -59,6 +60,14 @@
 
             isSearching(order) {
                 return order.status === 'menunggu_tawaran' || order.status === 'ada_tawaran';
+            },
+
+            needsPayment(order) {
+                return order.status === 'menunggu_pembayaran';
+            },
+
+            paymentUrl(order) {
+                return new URL(this.paymentPageUrlTemplate.replace('__ID__', order.id), window.location.origin).pathname;
             },
 
             isTimeout(order) {
@@ -151,6 +160,7 @@
         acceptOfferUrlTemplate: @json(route("customer.offers.accept", ["id" => "__ID__"])),
         expandRadiusUrlTemplate: @json(route("customer.orders.expand-radius", ["id" => "__ID__"])),
         cancelOrderUrlTemplate: @json(route("customer.orders.cancel", ["id" => "__ID__"])),
+        paymentPageUrlTemplate: @json(route("customer.orders.payment.page", ["id" => "__ID__"])),
     })'
 >
     <!-- Desktop Search Header & Profile (Gojek App Bar Style) -->
@@ -388,8 +398,8 @@
                                     <p class="text-[9px] text-slate-400 leading-normal mt-0.5">
                                         Status:
                                         <span class="font-extrabold uppercase"
-                                            :class="['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'].includes(order.status) ? 'text-emerald-500' : 'text-amber-500'"
-                                            x-text="order.status === 'deal' ? 'Deal Terbentuk' : (order.status === 'diproses' ? 'Sedang Diproses' : (order.status === 'ada_tawaran' ? 'Ada Tawaran Masuk' : 'Menunggu Jastiper'))"></span>
+                                            :class="order.status === 'menunggu_pembayaran' ? 'text-rose-500' : (['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'].includes(order.status) ? 'text-emerald-500' : 'text-amber-500')"
+                                            x-text="order.status === 'menunggu_pembayaran' ? 'Menunggu Pembayaran' : (order.status === 'deal' ? 'Deal Terbentuk' : (order.status === 'diproses' ? 'Sedang Diproses' : (order.status === 'ada_tawaran' ? 'Ada Tawaran Masuk' : 'Menunggu Jastiper')))"></span>
                                     </p>
                                     <p x-show="order.jastiper" x-cloak class="text-[8px] text-slate-500 mt-0.5">
                                         Mitra Jastiper: <b x-text="order.jastiper?.name"></b> (<span x-text="order.jastiper?.phone_number"></span>)
@@ -401,6 +411,15 @@
                                 <span class="text-xs font-black text-rose-600" x-text="order.status === 'deal' ? order.agreed_fare_formatted : order.estimated_fare_formatted"></span>
                             </div>
                         </div>
+
+                        <!-- Banner Bayar Sekarang: muncul begitu order 'menunggu_pembayaran' -->
+                        <template x-if="needsPayment(order)">
+                            <a :href="paymentUrl(order)"
+                                class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5">
+                                <span>💳</span>
+                                <span>Bayar Sekarang</span>
+                            </a>
+                        </template>
 
                         <!-- Tombol Chat: hanya muncul begitu order sudah deal (jastiper terkunci) -->
                         <template x-if="!isSearching(order)">

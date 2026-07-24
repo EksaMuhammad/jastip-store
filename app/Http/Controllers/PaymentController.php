@@ -20,15 +20,36 @@ use Illuminate\Support\Facades\Log;
  * Controller ini TIDAK menyentuh state machine Payment/Order secara langsung —
  * semua orkestrasi didelegasikan ke PaymentService (lihat BRIEF §2.4).
  *
- * Halaman utama pembayaran (Livewire full-page, GET /customer/orders/{id}/payment)
- * SENGAJA belum dibuat di sini — itu scope Tahap 5 (FE Livewire). Route-route di
- * bawah adalah endpoint aksi yang nantinya dipanggil dari komponen Livewire itu,
- * ditambah webhook publik dan endpoint verifikasi admin yang berdiri sendiri.
+ * Halaman utama pembayaran (GET /customer/orders/{id}/payment, method page()
+ * di bawah) ditambahkan di Tahap 5 — cuma wrapper blade tipis yang merender
+ * komponen Livewire App\Livewire\Customer\PaymentPage. Komponen Livewire itu
+ * TIDAK memanggil endpoint-endpoint aksi di controller ini lewat HTTP — ia
+ * memanggil App\Services\PaymentService secara langsung (lihat catatan desain
+ * di PaymentPage). Endpoint aksi di bawah (selectMethod/payWithWallet/
+ * uploadProof/cancel/webhook/adminVerify) tetap dipertahankan untuk klien lain
+ * (non-JS/mobile app masa depan) dan tetap tercakup test Tahap 3.
  */
 class PaymentController extends Controller
 {
     public function __construct(private PaymentService $paymentService)
     {
+    }
+
+    /**
+     * GET /customer/orders/{id}/payment
+     * Halaman utama pembayaran (Tahap 5) — cuma wrapper blade tipis yang
+     * merender komponen Livewire full-page App\Livewire\Customer\PaymentPage
+     * (pola sama seperti DashboardController::customerCreateOrder() yang
+     * merender resources/views/dashboard/customer/create_order.blade.php
+     * berisi @livewire('customer.create-order-form')). Semua logic sub-state
+     * pembayaran ada di komponen Livewire itu sendiri, bukan di sini.
+     */
+    public function page($id)
+    {
+        $order = $this->resolveOwnedOrder($id);
+        abort_if(!$order, 404, 'Order tidak ditemukan atau bukan milik Anda.');
+
+        return view('customer.payment', compact('order'));
     }
 
     /**
@@ -121,6 +142,32 @@ class PaymentController extends Controller
             ['payment' => $this->paymentPayload($payment)],
             'Bukti transfer berhasil diunggah, menunggu verifikasi admin.'
         );
+    }
+
+    /**
+     * POST /customer/orders/{id}/payment/cancel
+     * Customer batalkan order-nya sendiri selagi masih 'menunggu_pembayaran'
+     * (Tahap 5, beda dari auto-cancel scheduler Tahap 4). Endpoint ini murni
+     * untuk klien non-Livewire (mis. mobile app di masa depan) — komponen
+     * Livewire PaymentPage sendiri memanggil PaymentService::cancelByCustomer()
+     * langsung (lihat catatan desain di App\Livewire\Customer\PaymentPage).
+     */
+    public function cancel(Request $request, $id)
+    {
+        $order = $this->resolveOwnedOrder($id);
+        if (!$order) {
+            return $this->fail($request, 'Order tidak ditemukan atau bukan milik Anda.', 404);
+        }
+
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $this->paymentService->cancelByCustomer($order, $customer);
+        } catch (\RuntimeException $e) {
+            return $this->fail($request, $e->getMessage(), 409);
+        }
+
+        return $this->ok($request, [], 'Pesanan berhasil dibatalkan.');
     }
 
     /**

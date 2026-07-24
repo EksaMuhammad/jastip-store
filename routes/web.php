@@ -45,12 +45,12 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/customer/orders/{id}/chat', [ChatController::class, 'send'])->name('customer.orders.chat.send');
     Route::get('/customer/orders/{id}/chat', [ChatController::class, 'history'])->name('customer.orders.chat.history');
 
-    // ===== Pembayaran Wajib (Virtual Escrow) — Tahap 3 =====
-    // Catatan: GET /customer/orders/{id}/payment (halaman utama, Livewire full-page)
-    // sengaja belum didaftarkan di sini — itu scope Tahap 5.
+    // ===== Pembayaran Wajib (Virtual Escrow) — Tahap 3 & 5 =====
+    Route::get('/customer/orders/{id}/payment', [PaymentController::class, 'page'])->name('customer.orders.payment.page');
     Route::post('/customer/orders/{id}/payment/method', [PaymentController::class, 'selectMethod'])->name('customer.orders.payment.method');
     Route::post('/customer/orders/{id}/payment/wallet-pay', [PaymentController::class, 'payWithWallet'])->name('customer.orders.payment.wallet-pay');
     Route::post('/customer/orders/{id}/payment/upload-proof', [PaymentController::class, 'uploadProof'])->name('customer.orders.payment.upload-proof');
+    Route::post('/customer/orders/{id}/payment/cancel', [PaymentController::class, 'cancel'])->name('customer.orders.payment.cancel');
     Route::get('/customer/orders/{id}/payment/status', [PaymentController::class, 'status'])->name('customer.orders.payment.status');
 });
 

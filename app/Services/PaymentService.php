@@ -322,6 +322,45 @@ class PaymentService
         return $count;
     }
 
+    /**
+     * Customer membatalkan order-nya sendiri selagi masih 'menunggu_pembayaran'
+     * (beda dari auto-cancel scheduler di expireOverdue()). Dipakai tombol
+     * "Batalkan Pesanan" di halaman pembayaran (Tahap 5). Payment 'menunggu'
+     * yang masih berjalan ditandai 'gagal' (bukan 'kedaluwarsa' — itu semantik
+     * khusus timeout), order dibatalkan dengan cancelled_by_role='customer',
+     * dan jastiper_id dilepas balik null supaya jastiper itu available lagi
+     * (pola sama seperti expireOverdue()).
+     *
+     * Hanya boleh dipanggil selagi order masih 'menunggu_pembayaran' — kalau
+     * order sudah 'diproses' (pembayaran sudah keburu masuk) atau status lain,
+     * lempar exception supaya controller/Livewire component bisa balas pesan
+     * yang sesuai ("sudah dibayar, tidak bisa dibatalkan lewat sini").
+     *
+     * @throws \RuntimeException kalau order tidak lagi berstatus 'menunggu_pembayaran'.
+     */
+    public function cancelByCustomer(Order $order, Customer $customer): void
+    {
+        DB::transaction(function () use ($order, $customer) {
+            $locked = Order::where('id', $order->id)->lockForUpdate()->first();
+
+            if (!$locked || $locked->status !== 'menunggu_pembayaran') {
+                throw new \RuntimeException('Order ini tidak lagi bisa dibatalkan lewat halaman pembayaran.');
+            }
+
+            Payment::where('order_id', $locked->id)
+                ->where('status', 'menunggu')
+                ->update(['status' => 'gagal']);
+
+            $locked->update([
+                'status' => 'dibatalkan',
+                'jastiper_id' => null,
+                'cancelled_by_role' => 'customer',
+                'cancelled_by_id' => $customer->id,
+                'cancellation_reason' => 'Dibatalkan oleh customer sebelum pembayaran selesai.',
+            ]);
+        });
+    }
+
     private function generateGatewayReference(Order $order): string
     {
         return 'ORDER-' . $order->id . '-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(4));

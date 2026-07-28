@@ -180,6 +180,11 @@ class PaymentService
         $gatewayTransactionId = $payload['transaction_id'] ?? null;
         $orderReference = $payload['order_id'] ?? null;
 
+        if ($orderReference && Str::startsWith($orderReference, 'TOPUP-')) {
+            app(WalletService::class)->handleWebhook($payload);
+            return;
+        }
+
         $payment = null;
         if ($gatewayTransactionId) {
             $payment = Payment::where('gateway_transaction_id', $gatewayTransactionId)->first();

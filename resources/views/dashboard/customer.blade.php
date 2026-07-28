@@ -221,7 +221,7 @@
                         <span class="text-[10px] font-black tracking-tighter bg-white text-sky-700 px-2 py-0.5 rounded-sm uppercase">JK PAY</span>
                     </div>
                     <div>
-                        <div class="text-2xl font-black font-display tracking-tight">Rp0</div>
+                        <div class="text-2xl font-black font-display tracking-tight">Rp{{ number_format($balance, 0, ',', '.') }}</div>
                         <span class="text-[8px] text-sky-200 font-semibold block">Tap untuk riwayat dompet</span>
                     </div>
                 </div>
@@ -238,20 +238,20 @@
                     </button>
 
                     <!-- Top Up -->
-                    <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
+                    <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
                         <div class="w-9 h-9 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                         </div>
                         <span class="text-[9px] font-bold text-white tracking-wide">Isi Saldo</span>
-                    </button>
+                    </a>
 
                     <!-- Riwayat -->
-                    <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
+                    <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
                         <div class="w-9 h-9 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                         </div>
                         <span class="text-[9px] font-bold text-white tracking-wide">Riwayat</span>
-                    </button>
+                    </a>
 
                     <!-- Eksplor -->
                     <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">

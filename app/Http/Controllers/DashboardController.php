@@ -25,7 +25,8 @@ class DashboardController extends Controller
         // sepenuhnya oleh JavaScript lewat endpoint customerActiveOrdersFeed()
         // (GET /customer/orders/active-feed), baik untuk render pertama kali
         // maupun untuk polling real-time berikutnya (tawaran masuk, status deal, dst).
-        return view('dashboard.customer', compact('customer'));
+        $balance = $customer->wallet ? $customer->wallet->balance : 0;
+        return view('dashboard.customer', compact('customer', 'balance'));
     }
 
     /**

@@ -30,6 +30,23 @@ interface PaymentGatewayService
     public function createQris(Payment $payment): array;
 
     /**
+     * Buat Virtual Account untuk sebuah Topup di bank tertentu.
+     *
+     * @param \App\Models\Topup $topup
+     * @param string $bank Kode bank, mis. 'bca', 'bni', 'bri', 'permata', 'mandiri'.
+     * @return array{va_number: string, gateway_transaction_id: string, raw: array}
+     */
+    public function createVirtualAccountForTopup(\App\Models\Topup $topup, string $bank): array;
+
+    /**
+     * Buat QRIS untuk sebuah Topup.
+     *
+     * @param \App\Models\Topup $topup
+     * @return array{qr_string: string, gateway_transaction_id: string, raw: array}
+     */
+    public function createQrisForTopup(\App\Models\Topup $topup): array;
+
+    /**
      * Cek status transaksi langsung ke gateway. Dipakai untuk cross-check saat
      * admin approve bukti transfer manual (brief §0 keputusan #3), supaya admin
      * tidak asal klik "lunas" untuk bukti transfer palsu.

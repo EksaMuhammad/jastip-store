@@ -52,6 +52,18 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/customer/orders/{id}/payment/upload-proof', [PaymentController::class, 'uploadProof'])->name('customer.orders.payment.upload-proof');
     Route::post('/customer/orders/{id}/payment/cancel', [PaymentController::class, 'cancel'])->name('customer.orders.payment.cancel');
     Route::get('/customer/orders/{id}/payment/status', [PaymentController::class, 'status'])->name('customer.orders.payment.status');
+
+    // ===== E-Wallet =====
+    Route::get('/customer/wallet', function() {
+        return view('customer.wallet');
+    })->name('customer.wallet');
+    Route::get('/customer/wallet/pay-topup/{id}', function($id) {
+        $topup = \App\Models\Topup::findOrFail($id);
+        if ($topup->wallet->owner_id !== auth()->guard('customer')->id()) {
+            abort(403);
+        }
+        return view('customer.pay-topup', compact('topup'));
+    })->name('customer.wallet.pay_topup');
 });
 
 Route::middleware('auth:jastiper')->group(function () {

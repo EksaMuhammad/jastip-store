@@ -114,6 +114,101 @@ class MidtransGatewayService implements PaymentGatewayService
         ];
     }
 
+    public function createVirtualAccountForTopup(\App\Models\Topup $topup, string $bank): array
+    {
+        if (!$this->hasCredentials()) {
+            $vaNumber = $this->mockVaNumber($bank);
+            $transactionId = (string) Str::uuid();
+
+            Log::info("[MOCK MIDTRANS] createVirtualAccountForTopup order_id={$topup->gateway_reference} bank={$bank} va_number={$vaNumber}");
+
+            return [
+                'va_number' => $vaNumber,
+                'gateway_transaction_id' => $transactionId,
+                'raw' => [
+                    'mock' => true,
+                    'transaction_id' => $transactionId,
+                    'order_id' => $topup->gateway_reference,
+                    'transaction_status' => 'pending',
+                    'va_numbers' => [['bank' => $bank, 'va_number' => $vaNumber]],
+                ],
+            ];
+        }
+
+        $response = $this->client()->post($this->baseUrl() . '/charge', [
+            'payment_type' => 'bank_transfer',
+            'transaction_details' => [
+                'order_id' => $topup->gateway_reference,
+                'gross_amount' => (int) round((float) $topup->amount),
+            ],
+            'bank_transfer' => [
+                'bank' => $bank,
+            ],
+        ]);
+
+        $body = $response->json() ?? [];
+
+        if (!$response->successful()) {
+            Log::error('[MIDTRANS ERROR] createVirtualAccountForTopup gagal: ' . $response->body());
+            throw new \RuntimeException('Gagal membuat Virtual Account di Midtrans: ' . ($body['status_message'] ?? $response->body()));
+        }
+
+        return [
+            'va_number' => $body['va_numbers'][0]['va_number'] ?? null,
+            'gateway_transaction_id' => $body['transaction_id'] ?? null,
+            'raw' => $body,
+        ];
+    }
+
+    public function createQrisForTopup(\App\Models\Topup $topup): array
+    {
+        if (!$this->hasCredentials()) {
+            $qrString = 'MOCKQRIS-' . strtoupper(Str::random(20));
+            $transactionId = (string) Str::uuid();
+
+            Log::info("[MOCK MIDTRANS] createQrisForTopup order_id={$topup->gateway_reference} qr_string={$qrString}");
+
+            return [
+                'qr_string' => $qrString,
+                'gateway_transaction_id' => $transactionId,
+                'raw' => [
+                    'mock' => true,
+                    'transaction_id' => $transactionId,
+                    'order_id' => $topup->gateway_reference,
+                    'transaction_status' => 'pending',
+                ],
+            ];
+        }
+
+        $response = $this->client()->post($this->baseUrl() . '/charge', [
+            'payment_type' => 'qris',
+            'transaction_details' => [
+                'order_id' => $topup->gateway_reference,
+                'gross_amount' => (int) round((float) $topup->amount),
+            ],
+            'qris' => [
+                'acquirer' => 'gopay',
+            ],
+        ]);
+
+        $body = $response->json() ?? [];
+
+        if (!$response->successful()) {
+            Log::error('[MIDTRANS ERROR] createQrisForTopup gagal: ' . $response->body());
+            throw new \RuntimeException('Gagal membuat QRIS di Midtrans: ' . ($body['status_message'] ?? $response->body()));
+        }
+
+        $qrString = $body['qr_string']
+            ?? collect($body['actions'] ?? [])->firstWhere('name', 'generate-qr-code')['url']
+            ?? null;
+
+        return [
+            'qr_string' => $qrString,
+            'gateway_transaction_id' => $body['transaction_id'] ?? null,
+            'raw' => $body,
+        ];
+    }
+
     public function getStatus(string $gatewayTransactionId): array
     {
         if (!$this->hasCredentials()) {

@@ -167,28 +167,28 @@ new class extends Component
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'menunggu' ? 'background-color: #f59e0b; border-color: #f59e0b; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    ⏳ Menunggu Review
+                    Menunggu Review
                 </button>
                 <button 
                     wire:click="$set('filter_status', 'approved')" 
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'approved' ? 'background-color: #10b981; border-color: #10b981; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    ✅ Disetujui
+                    Disetujui
                 </button>
                 <button 
                     wire:click="$set('filter_status', 'rejected')" 
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'rejected' ? 'background-color: #e11d48; border-color: #e11d48; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    ❌ Ditolak
+                    Ditolak
                 </button>
                 <button 
                     wire:click="$set('filter_status', 'all')" 
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'all' ? 'background-color: #0f172a; border-color: #0f172a; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    🌐 Semua
+                    Semua
                 </button>
             </div>
 
@@ -206,68 +206,76 @@ new class extends Component
             </div>
         </div>
 
-        <!-- Grid Antrian Pengajuan -->
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            @forelse($verifications as $v)
-                <div class="bg-white border border-slate-200/80 rounded-3xl p-5 flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition duration-150">
-                    
-                    <div class="space-y-2.5">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] font-mono text-slate-400">{{ $v->created_at->format('d M Y - H:i') }}</span>
-                            <span>
+        <!-- Tabel Antrian Pengajuan -->
+        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+            <table class="w-full text-left text-xs text-slate-600">
+                <thead class="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider border-b border-slate-200">
+                    <tr>
+                        <th class="px-5 py-4">Tanggal</th>
+                        <th class="px-5 py-4">Jastiper</th>
+                        <th class="px-5 py-4">Wilayah & Radius</th>
+                        <th class="px-5 py-4">Status</th>
+                        <th class="px-5 py-4 text-right">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    @forelse($verifications as $v)
+                        <tr class="hover:bg-slate-50 transition duration-150">
+                            <td class="px-5 py-4 whitespace-nowrap">
+                                <span class="font-mono text-[11px] text-slate-500">{{ $v->created_at->format('d M Y') }}</span><br>
+                                <span class="text-[10px] text-slate-400">{{ $v->created_at->format('H:i') }}</span>
+                            </td>
+                            <td class="px-5 py-4">
+                                <div class="font-bold text-sm text-slate-800">{{ $v->jastiper->name }}</div>
+                                <div class="text-xs text-slate-500 mt-0.5">{{ $v->jastiper->phone_number }}</div>
+                            </td>
+                            <td class="px-5 py-4">
+                                <div class="font-bold text-slate-700">{{ $v->jastiper->wilayah?->name ?: 'N/A' }}</div>
+                                <div class="text-[11px] text-slate-500 mt-0.5">{{ number_format($v->jastiper->radius_km, 1) }} KM</div>
+                            </td>
+                            <td class="px-5 py-4 whitespace-nowrap">
                                 @if($v->status === 'menunggu')
-                                    <span class="bg-amber-50 border border-amber-100 text-amber-600 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Menunggu</span>
+                                    <span class="bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Menunggu</span>
                                 @elseif($v->status === 'approved')
-                                    <span class="bg-emerald-50 border border-emerald-100 text-emerald-600 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Approved</span>
+                                    <span class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Approved</span>
                                 @elseif($v->status === 'rejected')
-                                    <span class="bg-rose-50 border border-rose-100 text-rose-600 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Rejected</span>
+                                    <span class="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Rejected</span>
                                 @endif
-                            </span>
-                        </div>
-
-                        <div>
-                            <h4 class="font-display font-black text-sm text-slate-805 leading-snug">{{ $v->jastiper->name }}</h4>
-                            <p class="text-xs text-slate-400 font-semibold mt-0.5">📞 {{ $v->jastiper->phone_number }}</p>
-                        </div>
-
-                        <div class="bg-[#F3F4F6] border border-slate-100 p-3 rounded-2xl text-xs text-slate-500 space-y-1.5">
-                            <div>📍 Wilayah: <span class="font-bold text-slate-700">{{ $v->jastiper->wilayah?->name ?: 'N/A' }}</span></div>
-                            <div>🎯 Radius: <span class="font-bold text-slate-700">{{ number_format($v->jastiper->radius_km, 1) }} KM</span></div>
-                        </div>
-
-                        @if($v->status === 'rejected' && $v->rejection_reason)
-                            <div class="bg-rose-50 border border-rose-100 p-2.5 rounded-2xl text-xs text-rose-700 font-semibold italic">
-                                ❌ Alasan: "{{ $v->rejection_reason }}"
-                            </div>
-                        @endif
-
-                        @if($v->status !== 'menunggu' && $v->reviewer)
-                            <div class="text-[10px] text-slate-400">
-                                Direview oleh: <b>{{ $v->reviewer->name }}</b> pada {{ $v->reviewed_at->format('d M Y') }}
-                            </div>
-                        @endif
-                    </div>
-
-                    <div class="pt-3 border-t border-slate-100">
-                        <button 
-                            type="button" 
-                            wire:click="selectVerification({{ $v->id }})" 
-                            class="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold text-center py-2.5 rounded-full text-xs uppercase border border-slate-900 transition tracking-wider shadow-sm"
-                        >
-                            🔎 Review Dokumen
-                        </button>
-                    </div>
-
-                </div>
-            @empty
-                <div class="col-span-full py-16 text-center">
-                    <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </div>
-                    <h4 class="font-bold text-sm text-slate-700">Tidak Ada Antrian Verifikasi</h4>
-                    <p class="text-xs text-slate-400 mt-1">Belum ada pengajuan verifikasi baru dengan filter status "{{ $filter_status }}".</p>
-                </div>
-            @endforelse
+                                
+                                @if($v->status === 'rejected' && $v->rejection_reason)
+                                    <div class="text-[10px] text-rose-600 mt-2 max-w-[200px] truncate" title="{{ $v->rejection_reason }}">
+                                        Alasan: {{ $v->rejection_reason }}
+                                    </div>
+                                @endif
+                                @if($v->status !== 'menunggu' && $v->reviewer)
+                                    <div class="text-[10px] text-slate-400 mt-1">
+                                        Oleh: {{ $v->reviewer->name }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td class="px-5 py-4 text-right">
+                                <button 
+                                    type="button" 
+                                    wire:click="selectVerification({{ $v->id }})" 
+                                    class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg text-[10px] uppercase transition shadow-sm"
+                                >
+                                    Review
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-5 py-16 text-center">
+                                <div class="w-12 h-12 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <h4 class="font-bold text-sm text-slate-700">Tidak Ada Data</h4>
+                                <p class="text-xs text-slate-500 mt-1">Belum ada pengajuan verifikasi dengan filter "{{ $filter_status }}".</p>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
 
     </div>
@@ -340,7 +348,7 @@ new class extends Component
                                     wire:click="approveVerification({{ $selected_verification->id }})" 
                                     class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-center py-2.5 rounded-full transition shadow-md shadow-emerald-600/10 uppercase tracking-wider text-xs border border-emerald-500"
                                 >
-                                    ✅ SETUJUI (APPROVE) MITRA
+                                    SETUJUI (APPROVE) MITRA
                                 </button>
                             </div>
 
@@ -365,7 +373,7 @@ new class extends Component
                                     wire:click="rejectVerification({{ $selected_verification->id }})" 
                                     class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-center py-2.5 rounded-full transition shadow-md shadow-rose-600/10 uppercase tracking-wider text-xs border border-rose-500"
                                 >
-                                    ❌ TOLAK (REJECT) PENGAJUAN
+                                    TOLAK (REJECT) PENGAJUAN
                                 </button>
                             </div>
 

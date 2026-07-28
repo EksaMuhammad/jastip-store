@@ -243,6 +243,7 @@ new class extends Component
                 </form>
 
                 <!-- PANEL SIMULASI GPS REALTIME -->
+                @if(app()->environment('local', 'testing'))
                 <div class="mt-8 bg-slate-900 border border-slate-800 text-slate-300 p-5 rounded-3xl shadow-sm space-y-3.5">
                     <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
                         <span class="font-bold text-rose-500 flex items-center gap-1.5 text-xs">
@@ -274,6 +275,8 @@ new class extends Component
                         </button>
                     </div>
                 </div>
+                @endif
+
 
             </div>
 

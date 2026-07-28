@@ -157,28 +157,28 @@ new class extends Component
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'menunggu' ? 'background-color: #f59e0b; border-color: #f59e0b; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    ⏳ Menunggu Review
+                    Menunggu Review
                 </button>
                 <button
                     wire:click="$set('filter_status', 'lunas')"
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'lunas' ? 'background-color: #10b981; border-color: #10b981; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    ✅ Lunas
+                    Lunas
                 </button>
                 <button
                     wire:click="$set('filter_status', 'gagal')"
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'gagal' ? 'background-color: #e11d48; border-color: #e11d48; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    ❌ Ditolak
+                    Ditolak
                 </button>
                 <button
                     wire:click="$set('filter_status', 'semua')"
                     class="px-4 py-2 font-bold text-xs uppercase rounded-full border transition duration-150"
                     style="{{ $filter_status === 'semua' ? 'background-color: #0f172a; border-color: #0f172a; color: white;' : 'background-color: white; border-color: #e2e8f0; color: #475569;' }}"
                 >
-                    🌐 Semua
+                    Semua
                 </button>
             </div>
 
@@ -196,67 +196,79 @@ new class extends Component
             </div>
         </div>
 
-        <!-- Grid Antrian Pembayaran -->
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            @forelse($payments as $p)
-                <div class="bg-white border border-slate-200/80 rounded-3xl p-5 flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition duration-150">
-
-                    <div class="space-y-2.5">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] font-mono text-slate-400">{{ $p->created_at->format('d M Y - H:i') }}</span>
-                            <span>
-                                @if($p->status === 'menunggu')
-                                    <span class="bg-amber-50 border border-amber-100 text-amber-600 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Menunggu</span>
-                                @elseif($p->status === 'lunas')
-                                    <span class="bg-emerald-50 border border-emerald-100 text-emerald-600 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Lunas</span>
-                                @elseif($p->status === 'gagal')
-                                    <span class="bg-rose-50 border border-rose-100 text-rose-600 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Gagal</span>
-                                @elseif($p->status === 'kedaluwarsa')
-                                    <span class="bg-slate-100 border border-slate-200 text-slate-500 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Kedaluwarsa</span>
+        <!-- Tabel Antrian Pembayaran -->
+        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+            <table class="w-full text-left text-xs text-slate-600">
+                <thead class="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider border-b border-slate-200">
+                    <tr>
+                        <th class="px-5 py-4">Tanggal</th>
+                        <th class="px-5 py-4">Order & Customer</th>
+                        <th class="px-5 py-4">Nominal</th>
+                        <th class="px-5 py-4">Metode Pembayaran</th>
+                        <th class="px-5 py-4">Status</th>
+                        <th class="px-5 py-4 text-right">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    @forelse($payments as $p)
+                        <tr class="hover:bg-slate-50 transition duration-150">
+                            <td class="px-5 py-4 whitespace-nowrap">
+                                <span class="font-mono text-[11px] text-slate-500">{{ $p->created_at->format('d M Y') }}</span><br>
+                                <span class="text-[10px] text-slate-400">{{ $p->created_at->format('H:i') }}</span>
+                            </td>
+                            <td class="px-5 py-4">
+                                <div class="font-bold text-sm text-slate-800">Order #{{ $p->order_id }}</div>
+                                <div class="text-xs text-slate-500 mt-0.5">{{ $p->order->customer->name ?? 'N/A' }} ({{ $p->order->customer->phone_number ?? '-' }})</div>
+                            </td>
+                            <td class="px-5 py-4">
+                                <div class="font-bold text-slate-700">Rp{{ number_format($p->amount, 0, ',', '.') }}</div>
+                            </td>
+                            <td class="px-5 py-4">
+                                <div class="font-bold text-slate-700">{{ strtoupper($p->method) }}{{ $p->channel ? ' · ' . strtoupper($p->channel) : '' }}</div>
+                                @if($p->gateway_transaction_id)
+                                    <div class="text-[10px] text-slate-400 mt-0.5">Gateway: Ada</div>
                                 @endif
-                            </span>
-                        </div>
-
-                        <div>
-                            <h4 class="font-display font-black text-sm text-slate-805 leading-snug">Order #{{ $p->order_id }} — {{ $p->order->customer->name ?? 'N/A' }}</h4>
-                            <p class="text-xs text-slate-400 font-semibold mt-0.5">📞 {{ $p->order->customer->phone_number ?? '-' }}</p>
-                        </div>
-
-                        <div class="bg-[#F3F4F6] border border-slate-100 p-3 rounded-2xl text-xs text-slate-500 space-y-1.5">
-                            <div>💰 Nominal: <span class="font-bold text-slate-700">Rp{{ number_format($p->amount, 0, ',', '.') }}</span></div>
-                            <div>💳 Metode: <span class="font-bold text-slate-700">{{ strtoupper($p->method) }}{{ $p->channel ? ' · ' . strtoupper($p->channel) : '' }}</span></div>
-                            @if($p->gateway_transaction_id)
-                                <div>🔗 Riwayat gateway: <span class="font-bold text-slate-700">Ada (akan di-cross-check)</span></div>
-                            @endif
-                        </div>
-
-                        @if($p->status !== 'menunggu' && $p->verifiedByAdmin)
-                            <div class="text-[10px] text-slate-400">
-                                Direview oleh: <b>{{ $p->verifiedByAdmin->name }}</b> pada {{ optional($p->verified_at)->format('d M Y') }}
-                            </div>
-                        @endif
-                    </div>
-
-                    <div class="pt-3 border-t border-slate-100">
-                        <button
-                            type="button"
-                            wire:click="selectPayment({{ $p->id }})"
-                            class="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold text-center py-2.5 rounded-full text-xs uppercase border border-slate-900 transition tracking-wider shadow-sm"
-                        >
-                            🔎 Review Bukti Transfer
-                        </button>
-                    </div>
-
-                </div>
-            @empty
-                <div class="col-span-full py-16 text-center">
-                    <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </div>
-                    <h4 class="font-bold text-sm text-slate-700">Tidak Ada Antrian Pembayaran</h4>
-                    <p class="text-xs text-slate-400 mt-1">Belum ada bukti transfer manual dengan filter status "{{ $filter_status }}".</p>
-                </div>
-            @endforelse
+                            </td>
+                            <td class="px-5 py-4 whitespace-nowrap">
+                                @if($p->status === 'menunggu')
+                                    <span class="bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Menunggu</span>
+                                @elseif($p->status === 'lunas')
+                                    <span class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Lunas</span>
+                                @elseif($p->status === 'gagal')
+                                    <span class="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Gagal</span>
+                                @elseif($p->status === 'kedaluwarsa')
+                                    <span class="bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Kedaluwarsa</span>
+                                @endif
+                                
+                                @if($p->status !== 'menunggu' && $p->verifiedByAdmin)
+                                    <div class="text-[10px] text-slate-400 mt-2">
+                                        Oleh: {{ $p->verifiedByAdmin->name }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td class="px-5 py-4 text-right">
+                                <button 
+                                    type="button" 
+                                    wire:click="selectPayment({{ $p->id }})" 
+                                    class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg text-[10px] uppercase transition shadow-sm"
+                                >
+                                    Review
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-5 py-16 text-center">
+                                <div class="w-12 h-12 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <h4 class="font-bold text-sm text-slate-700">Tidak Ada Data</h4>
+                                <p class="text-xs text-slate-500 mt-1">Belum ada bukti transfer manual dengan filter "{{ $filter_status }}".</p>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
 
     </div>
@@ -346,14 +358,14 @@ new class extends Component
                                     wire:click="approvePayment({{ $selected_payment->id }})"
                                     class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-center py-2.5 rounded-full transition shadow-md shadow-emerald-600/10 uppercase tracking-wider text-xs border border-emerald-500"
                                 >
-                                    ✅ SETUJUI (LUNAS) & MULAI PROSES
+                                    SETUJUI (LUNAS) & MULAI PROSES
                                 </button>
                                 <button
                                     type="button"
                                     wire:click="confirmReject"
                                     class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-center py-2.5 rounded-full transition shadow-md shadow-rose-600/10 uppercase tracking-wider text-xs border border-rose-500"
                                 >
-                                    ❌ TOLAK BUKTI TRANSFER
+                                    TOLAK BUKTI TRANSFER
                                 </button>
                             </div>
                         @else

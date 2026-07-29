@@ -299,8 +299,8 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <!-- Card 1 -->
                         <div class="bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm p-8 rounded-sm transition">
-                            <div class="w-10 h-10 bg-rose-50 border border-rose-100 rounded-sm flex items-center justify-center mb-6">
-                                <div class="w-4 h-4 bg-rose-600 rounded-sm"></div>
+                            <div class="w-10 h-10 bg-rose-50 border border-rose-100 rounded-sm flex items-center justify-center mb-6 text-rose-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                             </div>
                             <h3 class="font-display font-bold text-xl text-slate-900 mb-2">Kuliner & Makanan</h3>
                             <p class="text-sm text-slate-600 leading-relaxed">
@@ -310,8 +310,8 @@
 
                         <!-- Card 2 -->
                         <div class="bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm p-8 rounded-sm transition">
-                            <div class="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-sm flex items-center justify-center mb-6">
-                                <div class="w-4 h-4 bg-emerald-600 rounded-sm"></div>
+                            <div class="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-sm flex items-center justify-center mb-6 text-emerald-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
                             </div>
                             <h3 class="font-display font-bold text-xl text-slate-900 mb-2">Fashion & Aksesoris</h3>
                             <p class="text-sm text-slate-600 leading-relaxed">
@@ -321,8 +321,8 @@
 
                         <!-- Card 3 -->
                         <div class="bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm p-8 rounded-sm transition">
-                            <div class="w-10 h-10 bg-indigo-50 border border-indigo-100 rounded-sm flex items-center justify-center mb-6">
-                                <div class="w-4 h-4 bg-indigo-600 rounded-sm"></div>
+                            <div class="w-10 h-10 bg-indigo-50 border border-indigo-100 rounded-sm flex items-center justify-center mb-6 text-indigo-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                             </div>
                             <h3 class="font-display font-bold text-xl text-slate-900 mb-2">Gadget & Elektronik</h3>
                             <p class="text-sm text-slate-600 leading-relaxed">
@@ -332,8 +332,8 @@
 
                         <!-- Card 4 -->
                         <div class="bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm p-8 rounded-sm transition">
-                            <div class="w-10 h-10 bg-amber-50 border border-amber-100 rounded-sm flex items-center justify-center mb-6">
-                                <div class="w-4 h-4 bg-amber-600 rounded-sm"></div>
+                            <div class="w-10 h-10 bg-amber-50 border border-amber-100 rounded-sm flex items-center justify-center mb-6 text-amber-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path></svg>
                             </div>
                             <h3 class="font-display font-bold text-xl text-slate-900 mb-2">Oleh-oleh Wilayah</h3>
                             <p class="text-sm text-slate-600 leading-relaxed">
@@ -343,8 +343,8 @@
 
                         <!-- Card 5 -->
                         <div class="bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm p-8 rounded-sm transition">
-                            <div class="w-10 h-10 bg-violet-50 border border-violet-100 rounded-sm flex items-center justify-center mb-6">
-                                <div class="w-4 h-4 bg-violet-600 rounded-sm"></div>
+                            <div class="w-10 h-10 bg-violet-50 border border-violet-100 rounded-sm flex items-center justify-center mb-6 text-violet-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             </div>
                             <h3 class="font-display font-bold text-xl text-slate-900 mb-2">Dokumen & Berkas</h3>
                             <p class="text-sm text-slate-600 leading-relaxed">
@@ -354,8 +354,8 @@
 
                         <!-- Card 6 -->
                         <div class="bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm p-8 rounded-sm transition">
-                            <div class="w-10 h-10 bg-sky-50 border border-sky-100 rounded-sm flex items-center justify-center mb-6">
-                                <div class="w-4 h-4 bg-sky-600 rounded-sm"></div>
+                            <div class="w-10 h-10 bg-sky-50 border border-sky-100 rounded-sm flex items-center justify-center mb-6 text-sky-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
                             </div>
                             <h3 class="font-display font-bold text-xl text-slate-900 mb-2">Belanja Bulanan & Harian</h3>
                             <p class="text-sm text-slate-600 leading-relaxed">

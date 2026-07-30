@@ -7,6 +7,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\OrderCancellationController;
+use App\Http\Controllers\OrderAddonController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -39,11 +41,13 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/orders/active-feed', [DashboardController::class, 'customerActiveOrdersFeed'])->name('customer.orders.active-feed');
     Route::post('/customer/offers/{id}/accept', [DashboardController::class, 'customerAcceptOffer'])->name('customer.offers.accept');
     Route::post('/customer/orders/{id}/expand-radius', [DashboardController::class, 'customerExpandOrderRadius'])->name('customer.orders.expand-radius');
-    Route::post('/customer/orders/{id}/cancel', [DashboardController::class, 'customerCancelOrder'])->name('customer.orders.cancel');
+    Route::post('/customer/orders/{id}/cancel', [OrderCancellationController::class, 'cancelOrder'])->name('customer.orders.cancel');
+    Route::post('/customer/orders/{id}/confirm', [DashboardController::class, 'customerConfirmDelivery'])->name('customer.orders.confirmation');
 
     // ===== Chat Personal per Order =====
     Route::post('/customer/orders/{id}/chat', [ChatController::class, 'send'])->name('customer.orders.chat.send');
     Route::get('/customer/orders/{id}/chat', [ChatController::class, 'history'])->name('customer.orders.chat.history');
+    Route::post('/customer/orders/{id}/addon', [OrderAddonController::class, 'requestAddon'])->name('customer.orders.addon.request');
 
     // ===== Pembayaran Wajib (Virtual Escrow) — Tahap 3 & 5 =====
     Route::get('/customer/orders/{id}/payment', [PaymentController::class, 'page'])->name('customer.orders.payment.page');
@@ -83,11 +87,13 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::post('/jastiper/orders/{id}/offer', [DashboardController::class, 'jastiperSubmitOffer'])->name('jastiper.orders.offer');
     Route::post('/jastiper/orders/multi-offer', [DashboardController::class, 'jastiperMultiSubmitOffer'])->name('jastiper.orders.multi-offer');
     Route::post('/jastiper/orders/{id}/start-process', [DashboardController::class, 'jastiperStartProcessOrder'])->name('jastiper.orders.start-process');
+    Route::post('/jastiper/orders/{id}/update-status', [DashboardController::class, 'jastiperUpdateOrderStatus'])->name('jastiper.orders.update-status');
     Route::post('/jastiper/orders/{id}/complete', [DashboardController::class, 'jastiperCompleteOrder'])->name('jastiper.orders.complete');
 
     // ===== Chat Personal per Order =====
     Route::post('/jastiper/orders/{id}/chat', [ChatController::class, 'send'])->name('jastiper.orders.chat.send');
     Route::get('/jastiper/orders/{id}/chat', [ChatController::class, 'history'])->name('jastiper.orders.chat.history');
+    Route::post('/jastiper/addons/{id}/respond', [OrderAddonController::class, 'respondAddon'])->name('jastiper.addons.respond');
 });
 
 // Admin Dashboard Routes

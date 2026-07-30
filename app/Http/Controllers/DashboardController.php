@@ -1012,4 +1012,70 @@ class DashboardController extends Controller
             'count' => $formatted->count(),
         ]);
     }
+
+    /**
+     * Aksi Jastiper untuk update status pesanan (progress).
+     */
+    public function jastiperUpdateOrderStatus(Request $request, $id)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $order = Order::where('id', $id)->where('jastiper_id', $jastiper->id)->first();
+
+        if (!$order) {
+            return redirect()->back()->with('error', 'Order tidak ditemukan atau bukan milik Anda.');
+        }
+
+        $request->validate(['status' => 'required|in:barang_diambil,sedang_diantar,tiba_tujuan']);
+        
+        $order->update(['status' => $request->status]);
+
+        $statusMessages = [
+            'barang_diambil' => "Jastiper telah mengambil barang pesanan \"{$order->description}\".",
+            'sedang_diantar' => "Jastiper sedang mengantar pesanan \"{$order->description}\" ke tujuan.",
+            'tiba_tujuan' => "Pesanan \"{$order->description}\" telah tiba di tujuan! Mohon konfirmasi penerimaan di aplikasi."
+        ];
+        
+        if (isset($statusMessages[$request->status])) {
+            \App\Services\WhatsAppService::sendMessage($order->customer->phone_number, $statusMessages[$request->status]);
+        }
+
+        return redirect()->back()->with('success', 'Status pesanan diperbarui.');
+    }
+
+    /**
+     * Aksi Customer untuk mengkonfirmasi barang diterima.
+     */
+    public function customerConfirmDelivery(Request $request, $id)
+    {
+        $customer = Auth::guard('customer')->user();
+        $order = Order::where('id', $id)->where('customer_id', $customer->id)->first();
+
+        if (!$order) {
+            $msg = 'Order tidak ditemukan atau bukan milik Anda.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 404)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        if ($order->status !== 'tiba_tujuan') {
+            $msg = 'Order belum bisa dikonfirmasi.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 400)
+                : redirect()->back()->with('error', $msg);
+        }
+
+        $order->update([
+            'status' => 'selesai',
+        ]);
+
+        $jastiper = $order->jastiper;
+        if ($jastiper) {
+            WhatsAppService::sendMessage($jastiper->phone_number, "Customer telah mengkonfirmasi penerimaan pesanan \"{$order->description}\". Pesanan selesai!");
+        }
+
+        $msg = 'Terima kasih telah mengkonfirmasi penerimaan barang!';
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg])
+            : redirect()->route('customer.dashboard')->with('success', $msg);
+    }
 }

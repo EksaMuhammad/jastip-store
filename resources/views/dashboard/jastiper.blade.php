@@ -431,8 +431,19 @@
                         <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-left">
                             <div class="flex justify-between items-start border-b border-slate-200/60 pb-2.5 gap-2">
                                 <div>
-                                    <span class="text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider {{ $active->status === 'deal' ? 'bg-sky-55 text-sky-600 border border-sky-200' : 'bg-emerald-55 text-emerald-600 border border-emerald-200' }}">
-                                        {{ $active->status === 'deal' ? 'Deal Terbentuk' : 'Sedang Diproses' }}
+                                    @php
+                                        $statusLabels = [
+                                            'deal' => 'Deal Terbentuk',
+                                            'diproses' => 'Sedang Diproses',
+                                            'barang_diambil' => 'Barang Diambil',
+                                            'sedang_diantar' => 'Sedang Diantar',
+                                            'tiba_tujuan' => 'Tiba di Tujuan',
+                                        ];
+                                        $label = $statusLabels[$active->status] ?? $active->status;
+                                        $colorClass = $active->status === 'deal' ? 'bg-sky-55 text-sky-600 border border-sky-200' : 'bg-emerald-55 text-emerald-600 border border-emerald-200';
+                                    @endphp
+                                    <span class="text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider {{ $colorClass }}">
+                                        {{ $label }}
                                     </span>
                                     <h4 class="font-extrabold text-xs text-slate-800 mt-2 leading-tight">{{ $active->description }}</h4>
                                     <span class="text-[9px] text-slate-400 block mt-0.5">Asal: {{ $active->origin_address ?: '-' }}</span>
@@ -457,13 +468,34 @@
                                             Mulai Belanja (Proses)
                                         </button>
                                     </form>
-                                @else
-                                    <form action="{{ route('jastiper.orders.complete', $active->id) }}" method="POST" class="w-full">
+                                @elseif($active->status === 'diproses')
+                                    <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
                                         @csrf
-                                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
-                                            Selesaikan Orderan
+                                        <input type="hidden" name="status" value="barang_diambil">
+                                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                            Konfirmasi Barang Diambil
                                         </button>
                                     </form>
+                                @elseif($active->status === 'barang_diambil')
+                                    <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
+                                        @csrf
+                                        <input type="hidden" name="status" value="sedang_diantar">
+                                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                            Mulai Mengantar
+                                        </button>
+                                    </form>
+                                @elseif($active->status === 'sedang_diantar')
+                                    <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
+                                        @csrf
+                                        <input type="hidden" name="status" value="tiba_tujuan">
+                                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                            Konfirmasi Tiba di Tujuan
+                                        </button>
+                                    </form>
+                                @elseif($active->status === 'tiba_tujuan')
+                                    <div class="w-full bg-gray-200 text-gray-500 font-bold text-[9px] py-2.5 rounded-xl uppercase tracking-wide shadow-sm text-center block">
+                                        Menunggu Konfirmasi Customer
+                                    </div>
                                 @endif
                             </div>
 

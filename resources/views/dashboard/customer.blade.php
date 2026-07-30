@@ -290,50 +290,48 @@
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Layanan Belanja Jastip</h3>
             
-            <div class="flex items-start justify-between text-center px-1">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 px-1">
                 
-                <!-- Jastip Kuliner -->
-                <a href="{{ route('customer.orders.create') }}?cat=beli-antar" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
-                    <div class="w-12 h-12 bg-rose-600 hover:bg-rose-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-rose-600/20 shrink-0">
-                        <!-- Food Cloche Icon -->
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3a9 9 0 00-9 9h18a9 9 0 00-9-9zM3 12h18M5 12v3a2 2 0 002 2h10a2 2 0 002-2v-3M12 2v1" />
-                        </svg>
-                    </div>
-                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Kuliner<br><span class="text-[8px] text-slate-500 font-medium">(Kuliner)</span></span>
+                <!-- 1. Beli-Antar -->
+                <a href="{{ route('customer.orders.create') }}?cat=beli-antar" class="group bg-white border border-slate-200 hover:border-rose-400 hover:shadow-md hover:shadow-rose-500/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
+                    <img src="{{ asset('images/services/beli-antar.png') }}" alt="Beli-Antar" class="w-20 h-16 object-contain mb-2 group-hover:scale-110 transition-transform drop-shadow-sm rounded-xl">
+                    <span class="text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Beli-Antar</span>
+                    <span class="text-[8px] text-slate-500 font-medium">Jastip Kuliner / Makanan</span>
                 </a>
 
-                <!-- Jastip Minimarket -->
-                <a href="{{ route('customer.orders.create') }}?cat=toko-kirim" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
-                    <div class="w-12 h-12 bg-sky-600 hover:bg-sky-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-sky-600/20 shrink-0">
-                        <!-- Shopping Bag Icon -->
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                    </div>
-                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Toko<br><span class="text-[8px] text-slate-500 font-medium">(Minimarket)</span></span>
+                <!-- 2. Ambil & Antar -->
+                <a href="{{ route('customer.orders.create') }}?cat=ambil-antar" class="group bg-white border border-slate-200 hover:border-sky-400 hover:shadow-md hover:shadow-sky-500/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2">
+                    <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Ambil & Antar" class="w-20 h-16 object-contain mb-2 group-hover:scale-110 transition-transform drop-shadow-sm rounded-xl">
+                    <span class="text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Ambil & Antar</span>
+                    <span class="text-[8px] text-slate-500 font-medium">Ambil barang / COD</span>
                 </a>
 
-                <!-- Jastip Pasar -->
-                <a href="{{ route('customer.orders.create') }}?cat=ambil-antar" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
-                    <div class="w-12 h-12 bg-amber-500 hover:bg-amber-600 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-amber-500/20 shrink-0">
-                        <!-- Shopping Cart Icon -->
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                    </div>
-                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Pasar<br><span class="text-[8px] text-slate-500 font-medium">(Pasar)</span></span>
+                <!-- 3. Toko Kirim -->
+                <a href="{{ route('customer.orders.create') }}?cat=toko-kirim" class="group bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md hover:shadow-amber-500/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
+                    <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Toko Kirim" class="w-20 h-16 object-contain mb-2 group-hover:scale-110 transition-transform drop-shadow-sm rounded-xl">
+                    <span class="text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Toko Kirim</span>
+                    <span class="text-[8px] text-slate-500 font-medium">Belanja Minimarket/Pasar</span>
                 </a>
 
-                <!-- Jastip Bebas -->
-                <a href="{{ route('customer.orders.create') }}?cat=kirim-pihak-ketiga" class="group flex flex-col items-center gap-2 focus:outline-none w-20">
-                    <div class="w-12 h-12 bg-emerald-600 hover:bg-emerald-700 hover:scale-105 rounded-2xl flex items-center justify-center transition duration-150 shadow-md shadow-emerald-600/20 shrink-0">
-                        <!-- 3D Box Package Icon -->
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
-                    </div>
-                    <span class="text-[10px] font-bold text-slate-850 leading-tight">Jastip Bebas<br><span class="text-[8px] text-slate-500 font-medium">(Titip Bebas)</span></span>
+                <!-- 4. Dokumen Kecil -->
+                <a href="{{ route('customer.orders.create') }}?cat=dokumen" class="group bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md hover:shadow-emerald-500/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+                    <img src="{{ asset('images/services/dokumen.png') }}" alt="Dokumen Kecil" class="w-20 h-16 object-contain mb-2 group-hover:scale-110 transition-transform drop-shadow-sm rounded-xl">
+                    <span class="text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Dokumen Kecil</span>
+                    <span class="text-[8px] text-slate-500 font-medium">Kirim surat / dokumen</span>
+                </a>
+
+                <!-- 5. Multi-Stop -->
+                <a href="{{ route('customer.orders.create') }}?cat=multi-stop" class="group bg-white border border-slate-200 hover:border-purple-400 hover:shadow-md hover:shadow-purple-500/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2">
+                    <img src="{{ asset('images/services/multi-stop.png') }}" alt="Multi-Stop" class="w-20 h-16 object-contain mb-2 group-hover:scale-110 transition-transform drop-shadow-sm rounded-xl">
+                    <span class="text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Multi-Stop</span>
+                    <span class="text-[8px] text-slate-500 font-medium">Banyak titik belanja/antar</span>
+                </a>
+
+                <!-- 6. Pihak Ketiga -->
+                <a href="{{ route('customer.orders.create') }}?cat=kirim-pihak-ketiga" class="group bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md hover:shadow-indigo-500/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    <img src="{{ asset('images/services/kirim-pihak-ketiga.png') }}" alt="Pihak Ketiga" class="w-20 h-16 object-contain mb-2 group-hover:scale-110 transition-transform drop-shadow-sm rounded-xl">
+                    <span class="text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Pihak Ketiga</span>
+                    <span class="text-[8px] text-slate-500 font-medium">Ekspedisi / Agen Kirim</span>
                 </a>
 
             </div>
@@ -399,7 +397,7 @@
                                         Status:
                                         <span class="font-extrabold uppercase"
                                             :class="order.status === 'menunggu_pembayaran' ? 'text-rose-500' : (['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'].includes(order.status) ? 'text-emerald-500' : 'text-amber-500')"
-                                            x-text="order.status === 'menunggu_pembayaran' ? 'Menunggu Pembayaran' : (order.status === 'deal' ? 'Deal Terbentuk' : (order.status === 'diproses' ? 'Sedang Diproses' : (order.status === 'ada_tawaran' ? 'Ada Tawaran Masuk' : 'Menunggu Jastiper')))"></span>
+                                            x-text="order.status === 'menunggu_pembayaran' ? 'Menunggu Pembayaran' : (order.status === 'deal' ? 'Deal Terbentuk' : (order.status === 'diproses' ? 'Sedang Diproses' : (order.status === 'barang_diambil' ? 'Barang Diambil' : (order.status === 'sedang_diantar' ? 'Sedang Diantar' : (order.status === 'tiba_tujuan' ? 'Tiba di Tujuan' : (order.status === 'ada_tawaran' ? 'Ada Tawaran Masuk' : 'Menunggu Jastiper')))))))"></span>
                                     </p>
                                     <p x-show="order.jastiper" x-cloak class="text-[8px] text-slate-500 mt-0.5">
                                         Mitra Jastiper: <b x-text="order.jastiper?.name"></b> (<span x-text="order.jastiper?.phone_number"></span>)
@@ -419,6 +417,21 @@
                                 <span>💳</span>
                                 <span>Bayar Sekarang</span>
                             </a>
+                        </template>
+
+                        <!-- Konfirmasi Terima Barang: muncul saat order 'tiba_tujuan' -->
+                        <template x-if="order.status === 'tiba_tujuan'">
+                            <div class="flex gap-2">
+                                <form :action="`/customer/orders/${order.id}/confirm`" method="POST" class="w-full">
+                                    @csrf
+                                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                        Konfirmasi Diterima
+                                    </button>
+                                </form>
+                                <a :href="`/customer/orders/${order.id}/report`" class="w-full bg-white border border-amber-500 hover:bg-amber-50 text-amber-600 font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block flex items-center justify-center">
+                                    Barang Tidak Sesuai
+                                </a>
+                            </div>
                         </template>
 
                         <!-- Tombol Chat: hanya muncul begitu order sudah deal (jastiper terkunci) -->

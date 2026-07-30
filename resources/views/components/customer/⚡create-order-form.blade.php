@@ -282,9 +282,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'beli-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <span class="w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center text-white text-sm">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-                    </span>
+                    <img src="{{ asset('images/services/beli-antar.png') }}" alt="Beli-Antar" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Beli-Antar</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Jastip Kuliner / Makanan</span>
@@ -298,9 +296,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'ambil-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <span class="w-8 h-8 bg-sky-500 rounded-full flex items-center justify-center text-white text-sm">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                    </span>
+                    <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Ambil-Antar" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Ambil & Antar</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Ambil barang / COD</span>
@@ -314,9 +310,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'toko-kirim' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <span class="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                    </span>
+                    <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Toko Kirim" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Toko Kirim</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Belanja Minimarket/Pasar</span>
@@ -330,9 +324,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'dokumen' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <span class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-sm">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    </span>
+                    <img src="{{ asset('images/services/dokumen.png') }}" alt="Dokumen Kecil" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Dokumen Kecil</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Kirim surat / dokumen</span>
@@ -346,9 +338,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'multi-stop' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <span class="w-8 h-8 bg-violet-500 rounded-full flex items-center justify-center text-white text-sm">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    </span>
+                    <img src="{{ asset('images/services/multi-stop.png') }}" alt="Multi-Stop" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Multi-Stop</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Banyak titik belanja/antar</span>
@@ -362,9 +352,7 @@ new class extends Component
                     class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'kirim-pihak-ketiga' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <span class="w-8 h-8 bg-fuchsia-500 rounded-full flex items-center justify-center text-white text-sm">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                    </span>
+                    <img src="{{ asset('images/services/kirim-pihak-ketiga.png') }}" alt="Pihak Ketiga" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Pihak Ketiga</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Ekspedisi / Agen Kirim</span>

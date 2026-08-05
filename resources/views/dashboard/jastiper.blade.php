@@ -197,6 +197,20 @@
                     this.loading = false;
                 }
             },
+
+            // Modal Tambahan Item
+            respondModalOpen: false,
+            respondAddonDesc: '',
+            respondUrl: '',
+
+            openRespondModal(url, description) {
+                this.respondUrl = url;
+                this.respondAddonDesc = description;
+                this.respondModalOpen = true;
+            },
+            closeRespondModal() {
+                this.respondModalOpen = false;
+            },
         };
     }
 </script>
@@ -210,6 +224,7 @@
         offerUrlTemplate: @json(route("jastiper.orders.offer", ["id" => "__ID__"])),
         multiOfferUrl: @json(route("jastiper.orders.multi-offer")),
     })'
+    @open-respond-modal.window="openRespondModal($event.detail.url, $event.detail.description)"
 >
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
     <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-20 z-40 px-4 py-3.5 shadow-sm">
@@ -506,6 +521,51 @@
                                 <span>💬</span>
                                 <span>Chat dengan {{ $active->customer->name }}</span>
                             </button>
+
+                            <!-- Addon Jastiper -->
+                            @if($active->addons->isNotEmpty())
+                                <div class="mt-3 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                                    <h4 class="text-[9px] font-black text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <svg class="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                                        Permintaan Tambahan Item ({{ $active->addons->count() }})
+                                    </h4>
+                                    <div class="space-y-2">
+                                        @foreach($active->addons as $addon)
+                                            <div class="bg-slate-50 border border-slate-100 p-2.5 rounded-lg text-left">
+                                                <p class="text-[10px] font-bold text-slate-800 line-clamp-2 mb-2">{{ $addon->description }}</p>
+                                                
+                                                @if($addon->payment_status === 'pending_jastiper')
+                                                    <div>
+                                                        <div class="grid grid-cols-2 gap-2">
+                                                            <button @click="openRespondModal('{{ route('jastiper.addons.respond', $addon->id) }}', '{{ addslashes($addon->description) }}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold py-1.5 rounded-md uppercase tracking-wider transition">Setujui & Isi Harga</button>
+                                                            <form action="{{ route('jastiper.addons.respond', $addon->id) }}" method="POST">
+                                                                @csrf
+                                                                <input type="hidden" name="action" value="reject">
+                                                                <button type="submit" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-600 text-[9px] font-bold py-1.5 rounded-md uppercase tracking-wider transition">Tolak</button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                @elseif($addon->payment_status === 'rejected')
+                                                    <span class="text-[8px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-bold line-through block w-fit">Ditolak</span>
+                                                @else
+                                                    <div class="flex items-end justify-between">
+                                                        <div class="flex flex-col items-start gap-1">
+                                                            @if($addon->payment_status === 'pending_payment')
+                                                                <span class="text-[8px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold">Menunggu Pembayaran</span>
+                                                            @elseif($addon->payment_status === 'paid_transfer')
+                                                                <span class="text-[8px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">Lunas (TF)</span>
+                                                            @elseif($addon->payment_status === 'paid_cod')
+                                                                <span class="text-[8px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">Tagih COD</span>
+                                                            @endif
+                                                        </div>
+                                                        <span class="text-[10px] font-black text-rose-600">+ Rp {{ number_format($addon->additional_fare, 0, ',', '.') }}</span>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -720,6 +780,35 @@
         <button type="button" @click="selected = []" class="text-slate-400 hover:text-white text-[9px] whitespace-nowrap">
             Batal
         </button>
+    </div>
+
+    <!-- Global Modal Isi Harga Tambahan Item untuk Jastiper -->
+    <div x-show="respondModalOpen" class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="z-index: 9999; display: none;" x-transition>
+        <div @click.away="closeRespondModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 overflow-hidden relative">
+            <div class="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                <h3 class="text-sm font-black text-slate-800">Tentukan Harga Tambahan</h3>
+                <button @click="closeRespondModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <p class="text-[10px] text-slate-500 mb-3 leading-normal">Berapa biaya tambahan (harga barang + upah) untuk item ini?</p>
+            <div class="bg-slate-50 p-2 rounded-lg mb-3 border border-slate-100">
+                <p class="text-[10px] font-bold text-slate-700" x-text="respondAddonDesc"></p>
+            </div>
+            
+            <form :action="respondUrl" method="POST">
+                @csrf
+                <input type="hidden" name="action" value="accept">
+                <div class="mb-4 text-left">
+                    <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Biaya (Rp)</label>
+                    <input type="number" name="additional_fare" required min="1000" class="w-full bg-slate-50 border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-xs font-black focus:outline-none focus:bg-white focus:border-emerald-500 transition duration-150">
+                </div>
+                
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-3 rounded-xl uppercase tracking-wider transition flex items-center justify-center">
+                    Kirim & Setujui
+                </button>
+            </form>
+        </div>
     </div>
 </div>
 

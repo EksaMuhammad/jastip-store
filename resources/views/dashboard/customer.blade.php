@@ -149,6 +149,75 @@
                     this.actionLoading = false;
                 }
             },
+
+            // Addon Modal State
+            addonModalOpen: false,
+            addonOrderId: null,
+            addonDescription: '',
+            addonLoading: false,
+
+            openAddonModal(orderId) {
+                this.addonOrderId = orderId;
+                this.addonDescription = '';
+                this.addonModalOpen = true;
+            },
+
+            closeAddonModal() {
+                this.addonModalOpen = false;
+                this.addonOrderId = null;
+            },
+
+            async submitAddon() {
+                if (!this.addonDescription.trim() || this.addonLoading || !this.addonOrderId) return;
+                this.addonLoading = true;
+                try {
+                    const path = `/customer/orders/${this.addonOrderId}/addon`;
+                    const res = await fetch(path, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                        body: JSON.stringify({ description: this.addonDescription })
+                    });
+                    const data = await res.json();
+                    customerNotify(data.message || (data.success ? 'Berhasil mengajukan tambahan item!' : 'Gagal'), data.success);
+                    if (data.success) {
+                        this.closeAddonModal();
+                        await this.fetchOrders(true);
+                    }
+                } catch (e) {
+                    customerNotify('Terjadi kesalahan koneksi.', false);
+                } finally {
+                    this.addonLoading = false;
+                }
+            },
+
+            async submitAddonPayment(orderId, addonId, method) {
+                if (this.actionLoading) return;
+                this.actionLoading = true;
+                try {
+                    const res = await fetch(`/customer/orders/${orderId}/addon/${addonId}/pay`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                        },
+                        body: JSON.stringify({ payment_method: method })
+                    });
+                    const data = await res.json();
+                    customerNotify(data.message, data.success);
+                    if (data.success) {
+                        await this.fetchOrders(true);
+                    }
+                } catch (e) {
+                    customerNotify('Gagal memproses pembayaran tambahan.', false);
+                } finally {
+                    this.actionLoading = false;
+                }
+            },
         };
     }
 </script>
@@ -444,6 +513,68 @@
                             </button>
                         </template>
 
+                        <!-- Tambahan Item (Addon) UI untuk Customer -->
+                        <template x-if="['diproses', 'barang_diambil'].includes(order.status)">
+                            <div class="mt-1.5">
+                                <button type="button" @click="openAddonModal(order.id)" class="w-full bg-white border border-rose-500 text-rose-600 hover:bg-rose-50 font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-sm">
+                                    <span>➕</span>
+                                    <span>Minta Tambahan Item</span>
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- Riwayat Tambahan Item -->
+                        <template x-if="order.addons && order.addons.length > 0">
+                            <div class="mt-3 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                                <h4 class="text-[9px] font-black text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                    <svg class="w-3 h-3 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                                    Riwayat Tambahan
+                                </h4>
+                                <div class="space-y-2">
+                                    <template x-for="addon in order.addons" :key="addon.id">
+                                        <div class="flex flex-col bg-slate-50 border border-slate-100 p-2.5 rounded-lg gap-2">
+                                            <div class="flex justify-between items-start">
+                                                <div class="min-w-0 pr-2 flex-1">
+                                                    <p class="text-[10px] font-bold text-slate-800 line-clamp-2" x-text="addon.description"></p>
+                                                </div>
+                                                <div class="shrink-0 text-right">
+                                                    <template x-if="addon.payment_status === 'pending_jastiper'">
+                                                        <span class="text-[8px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">Menunggu Jastiper</span>
+                                                    </template>
+                                                    <template x-if="addon.payment_status === 'rejected'">
+                                                        <span class="text-[8px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-bold line-through">Ditolak</span>
+                                                    </template>
+                                                    <template x-if="['pending_payment', 'paid_transfer', 'paid_cod'].includes(addon.payment_status)">
+                                                        <div class="flex flex-col items-end">
+                                                            <template x-if="addon.payment_status === 'pending_payment'">
+                                                                <span class="text-[8px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold mb-1">Pilih Pembayaran</span>
+                                                            </template>
+                                                            <template x-if="addon.payment_status === 'paid_transfer'">
+                                                                <span class="text-[8px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold mb-1">Lunas (TF)</span>
+                                                            </template>
+                                                            <template x-if="addon.payment_status === 'paid_cod'">
+                                                                <span class="text-[8px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold mb-1">Bayar COD</span>
+                                                            </template>
+                                                            <span class="text-[9px] font-black text-rose-600" x-text="'+ Rp ' + new Intl.NumberFormat('id-ID').format(addon.additional_fare)"></span>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Action Buttons for pending payment -->
+                                            <template x-if="addon.payment_status === 'pending_payment'">
+                                                <div class="grid grid-cols-2 gap-2 mt-1 border-t border-slate-100 pt-2">
+                                                    <button type="button" @click="submitAddonPayment(order.id, addon.id, 'transfer')" class="bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-bold py-1.5 rounded-md uppercase tracking-wider transition">Transfer</button>
+                                                    <button type="button" @click="submitAddonPayment(order.id, addon.id, 'cod')" class="bg-slate-800 hover:bg-slate-900 text-white text-[9px] font-bold py-1.5 rounded-md uppercase tracking-wider transition">Bayar COD</button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+
                         <!-- Widget Timeout: muncul kalau masih mencari & sudah lewat 2 menit -->
                         <template x-if="isSearching(order)">
                             <div>
@@ -550,6 +681,30 @@
         @endif
 
     </div>
+
+    <!-- Global Addon Modal untuk Customer -->
+    <div x-show="addonModalOpen" class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="z-index: 9999; display: none;" x-transition>
+        <div @click.away="closeAddonModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 overflow-hidden relative">
+            <div class="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                <h3 class="text-sm font-black text-slate-800">Minta Tambahan Item</h3>
+                <button @click="closeAddonModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <p class="text-[10px] text-slate-500 mb-3 leading-normal">Ada yang kelupaan? Tulis detail barang tambahan yang ingin dititip ke jastiper.</p>
+            
+            <textarea x-model="addonDescription" class="w-full border-slate-200 border rounded-xl p-3 text-[11px] focus:ring-rose-500 focus:border-rose-500 mb-4 bg-slate-50 resize-none outline-none" rows="3" placeholder="Misal: Tolong sekalian belikan air mineral 1 botol..."></textarea>
+            
+            <button @click="submitAddon()" :disabled="addonLoading || !addonDescription.trim()" class="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[10px] font-bold py-3 rounded-xl uppercase tracking-wider transition flex items-center justify-center">
+                <span x-show="!addonLoading">Kirim Permintaan</span>
+                <span x-show="addonLoading" class="flex items-center gap-2">
+                    <svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Mengirim...
+                </span>
+            </button>
+        </div>
+    </div>
+
 </div>
 
 @include('components.chat.order-chat-modal', [

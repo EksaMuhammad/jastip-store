@@ -266,12 +266,34 @@
 
                                 <p x-show="msg.message" class="text-[13px] leading-relaxed whitespace-pre-wrap font-medium" x-text="msg.message"></p>
 
-                                <!-- Placeholder tombol aksi — dipakai Sprint 7 -->
-                                <button type="button" x-show="msg.message_type === 'action_button'"
-                                    @click="alert('Fitur ini aktif di Sprint 7')"
-                                    class="mt-2 w-full bg-slate-950 hover:bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider py-2.5 rounded-xl transition shadow-sm">
-                                    <span x-text="msg.message || 'Aksi'"></span>
-                                </button>
+                                <!-- Tombol Aksi Dinamis (Permintaan Tambahan) -->
+                                <template x-if="msg.message_type === 'action_button'">
+                                    <div class="mt-2 w-full">
+                                        <!-- Jika Jastiper: Tombol aktif untuk setuju -->
+                                        <template x-if="viewerRole === 'jastiper' && msg.action_type && msg.action_type.startsWith('addon_request:')">
+                                            <button type="button"
+                                                @click="
+                                                    const addonId = msg.action_type.split(':')[1];
+                                                    const respondUrl = `/jastiper/addons/${addonId}/respond`;
+                                                    // Ambil deskripsi pesanan tanpa prefix teks 'Customer meminta tambahan pesanan:'
+                                                    const descMatch = msg.message.split('\n')[1] || 'Tambahan';
+                                                    window.dispatchEvent(new CustomEvent('open-respond-modal', { detail: { url: respondUrl, description: descMatch } }));
+                                                "
+                                                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold uppercase tracking-wider py-2.5 rounded-xl transition shadow-sm flex items-center justify-center gap-1.5">
+                                                <span>✔️</span>
+                                                <span>Tinjau & Setujui</span>
+                                            </button>
+                                        </template>
+                                        
+                                        <!-- Jika Customer: Tombol non-aktif menunggu Jastiper -->
+                                        <template x-if="viewerRole === 'customer' && msg.action_type && msg.action_type.startsWith('addon_request:')">
+                                            <button type="button" disabled
+                                                class="w-full bg-slate-200 text-slate-500 text-[9px] font-bold uppercase tracking-wider py-2.5 rounded-xl shadow-sm cursor-not-allowed">
+                                                Menunggu Konfirmasi Jastiper...
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
                             </div>
 
                             <!-- Timestamp -->

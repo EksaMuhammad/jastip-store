@@ -101,9 +101,27 @@ class ChatController extends Controller
             ->orderBy('id')
             ->get();
 
+        $messages = $chats->map(fn (Chat $chat) => $this->formatChat($chat, $order, $role))->values()->toArray();
+
+        // Inject Virtual Message at index 0 for Order Details
+        $virtualMessage = [
+            'id' => 0,
+            'sender_role' => 'system',
+            'sender_name' => 'Sistem',
+            'is_mine' => false,
+            'message_type' => 'text',
+            'message' => "🏷️ Detail Pesanan:\n" . $order->description . "\n\n💰 Estimasi Ongkir: Rp " . number_format($order->estimated_fare, 0, ',', '.'),
+            'attachment_url' => null,
+            'action_type' => null,
+            'is_read' => true,
+            'created_at' => $order->created_at->toIso8601String(),
+        ];
+        
+        array_unshift($messages, $virtualMessage);
+
         return response()->json([
             'success' => true,
-            'messages' => $chats->map(fn (Chat $chat) => $this->formatChat($chat, $order, $role))->values(),
+            'messages' => $messages,
         ]);
     }
 

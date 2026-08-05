@@ -44,10 +44,9 @@ class DashboardController extends Controller
             ->latest()
             ->get();
 
-        // Ambil order aktif yang dipegang Jastiper ini (deal, diproses, dst)
         $activeOrders = \App\Models\Order::where('jastiper_id', $jastiper->id)
             ->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
-            ->with('customer')
+            ->with(['customer', 'addons'])
             ->latest()
             ->get();
 
@@ -942,6 +941,7 @@ class DashboardController extends Controller
 
         $orders = Order::with([
                 'jastiper',
+                'addons',
                 'offers' => function ($q) {
                     $q->where('status', 'pending')->orderBy('offered_price', 'asc');
                 },
@@ -976,6 +976,15 @@ class DashboardController extends Controller
                     'name' => $order->jastiper->name,
                     'phone_number' => $order->jastiper->phone_number,
                 ] : null,
+                'addons' => $order->addons->map(function ($addon) {
+                    return [
+                        'id' => $addon->id,
+                        'description' => $addon->description,
+                        'payment_status' => $addon->payment_status,
+                        'additional_fare' => (float) $addon->additional_fare,
+                        'additional_fare_formatted' => 'Rp ' . number_format((float) $addon->additional_fare, 0, ',', '.'),
+                    ];
+                })->values(),
                 'offers' => $order->offers->map(function ($offer) use ($order) {
                     $responseSeconds = $order->created_at->diffInSeconds($offer->created_at);
                     if ($responseSeconds < 120) {

@@ -30,15 +30,18 @@ class OrderAddonController extends Controller
         $addon = OrderAddon::create([
             'order_id' => $order->id,
             'description' => $request->description,
+            'additional_fare' => 0,
             'payment_status' => 'pending_jastiper',
         ]);
 
-        // Send a system message in chat
+        // Send a system message in chat with action_button
         Chat::create([
             'order_id' => $order->id,
             'sender_type' => 'system',
-            'sender_id' => null,
-            'message' => "Customer meminta tambahan pesanan: {$request->description}",
+            'sender_id' => 0,
+            'message_type' => 'action_button',
+            'message' => "Customer meminta tambahan pesanan:\n" . $request->description,
+            'action_type' => 'addon_request:' . $addon->id,
         ]);
 
         return response()->json(['success' => true, 'addon' => $addon]);
@@ -67,11 +70,11 @@ class OrderAddonController extends Controller
             Chat::create([
                 'order_id' => $addon->order_id,
                 'sender_type' => 'system',
-                'sender_id' => null,
+                'sender_id' => 0,
                 'message' => "Jastiper menolak permintaan tambahan: {$addon->description}",
             ]);
             
-            return response()->json(['success' => true, 'message' => 'Tambahan ditolak.']);
+            return back()->with('success', 'Tambahan ditolak.');
         }
 
         // Accept
@@ -87,12 +90,54 @@ class OrderAddonController extends Controller
         Chat::create([
             'order_id' => $order->id,
             'sender_type' => 'system',
-            'sender_id' => null,
+            'sender_id' => 0,
             'message' => "Jastiper menerima permintaan tambahan: {$addon->description}. Biaya tambahan: Rp " . number_format($request->additional_fare, 0, ',', '.') . ". Tagihan telah diupdate.",
         ]);
 
         WhatsAppService::sendMessage($order->customer->phone_number, "Jastiper menyetujui tambahan pesanan Anda \"{$addon->description}\" dengan biaya Rp " . number_format($request->additional_fare, 0, ',', '.') . ". Silakan bayar sisa tagihan dari dashboard Anda.");
 
-        return response()->json(['success' => true, 'message' => 'Tambahan disetujui, tagihan diupdate.']);
+        return back()->with('success', 'Tambahan disetujui, tagihan diupdate.');
+    }
+
+    /**
+     * Customer chooses payment method for the addon
+     */
+    public function payAddon(Request $request, $order_id, $addon_id)
+    {
+        $customer = Auth::guard('customer')->user();
+        $order = Order::where('id', $order_id)->where('customer_id', $customer->id)->firstOrFail();
+        
+        $addon = OrderAddon::where('id', $addon_id)
+            ->where('order_id', $order->id)
+            ->where('payment_status', 'pending_payment')
+            ->firstOrFail();
+
+        $request->validate([
+            'payment_method' => 'required|in:transfer,cod'
+        ]);
+
+        if ($request->payment_method === 'cod') {
+            $addon->update(['payment_status' => 'paid_cod']);
+            
+            Chat::create([
+                'order_id' => $order->id,
+                'sender_type' => 'system',
+                'sender_id' => null,
+                'message' => "Customer memilih pembayaran COD untuk tambahan pesanan \"{$addon->description}\". Harap tagih Rp " . number_format($addon->additional_fare, 0, ',', '.') . " secara tunai saat pengantaran.",
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Pilihan COD tersimpan.']);
+        } else {
+            $addon->update(['payment_status' => 'paid_transfer']);
+
+            Chat::create([
+                'order_id' => $order->id,
+                'sender_type' => 'system',
+                'sender_id' => null,
+                'message' => "Customer telah membayar tagihan tambahan pesanan \"{$addon->description}\" via Transfer.",
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Pembayaran Transfer berhasil (Simulasi).']);
+        }
     }
 }

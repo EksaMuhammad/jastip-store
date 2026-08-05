@@ -48,6 +48,7 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/customer/orders/{id}/chat', [ChatController::class, 'send'])->name('customer.orders.chat.send');
     Route::get('/customer/orders/{id}/chat', [ChatController::class, 'history'])->name('customer.orders.chat.history');
     Route::post('/customer/orders/{id}/addon', [OrderAddonController::class, 'requestAddon'])->name('customer.orders.addon.request');
+    Route::post('/customer/orders/{id}/addon/{addon_id}/pay', [OrderAddonController::class, 'payAddon'])->name('customer.orders.addon.pay');
 
     // ===== Pembayaran Wajib (Virtual Escrow) — Tahap 3 & 5 =====
     Route::get('/customer/orders/{id}/payment', [PaymentController::class, 'page'])->name('customer.orders.payment.page');

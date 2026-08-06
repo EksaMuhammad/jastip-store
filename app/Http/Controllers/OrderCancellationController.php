@@ -18,7 +18,7 @@ class OrderCancellationController extends Controller
         $customer = Auth::guard('customer')->user();
         
         $request->validate([
-            'reason' => 'required|string|max:1000'
+            'reason' => 'nullable|string|max:1000'
         ]);
 
         $result = DB::transaction(function () use ($id, $customer, $request) {
@@ -71,7 +71,7 @@ class OrderCancellationController extends Controller
                 'status' => 'dibatalkan',
                 'cancelled_by_role' => 'customer',
                 'cancelled_by_id' => $customer->id,
-                'cancellation_reason' => $request->reason,
+                'cancellation_reason' => $request->reason ?? 'Dibatalkan oleh customer',
             ]);
 
             // Log Cancellation
@@ -80,7 +80,7 @@ class OrderCancellationController extends Controller
                 'cancelled_by_role' => 'customer',
                 'cancelled_by_id' => $customer->id,
                 'stage' => $stageCategory,
-                'reason' => $request->reason,
+                'reason' => $request->reason ?? 'Dibatalkan oleh customer',
                 'total_refund' => $totalRefund,
                 'jastiper_compensation' => $jastiperCompensation,
             ]);

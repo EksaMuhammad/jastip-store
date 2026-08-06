@@ -10,7 +10,9 @@ use App\Models\Order;
 use App\Models\Jastiper;
 use App\Services\WhatsAppService;
 use App\Services\OrderDealService;
+use App\Services\OrderCompletionService;
 use App\Services\ChatService;
+use App\Models\Komisi;
 
 class DashboardController extends Controller
 {
@@ -25,8 +27,15 @@ class DashboardController extends Controller
         // sepenuhnya oleh JavaScript lewat endpoint customerActiveOrdersFeed()
         // (GET /customer/orders/active-feed), baik untuk render pertama kali
         // maupun untuk polling real-time berikutnya (tawaran masuk, status deal, dst).
+        // Ambil order yang sudah selesai tapi belum diberi rating oleh customer
+        $unratedCompletedOrders = \App\Models\Order::where('customer_id', $customer->id)
+            ->where('status', 'selesai')
+            ->whereDoesntHave('rating')
+            ->latest()
+            ->get();
+
         $balance = $customer->wallet ? $customer->wallet->balance : 0;
-        return view('dashboard.customer', compact('customer', 'balance'));
+        return view('dashboard.customer', compact('customer', 'balance', 'unratedCompletedOrders'));
     }
 
     /**
@@ -56,7 +65,45 @@ class DashboardController extends Controller
         // kali halaman dibuka maupun untuk polling real-time berikutnya. Ini supaya
         // hanya ada SATU logika query (radius+kategori) yang dipakai, dan tidak ada
         // lagi perbedaan data antara render awal vs hasil polling.
-        return view('dashboard.jastiper', compact('jastiper', 'directOrders', 'activeOrders'));
+        // ===== Rekap Pendapatan ringkas untuk kartu di atas dashboard (Bagian 3
+        // Sprint 8 §2.10) — angka detail lengkap ada di halaman
+        // jastiper.earnings, di sini cukup ringkasan hari ini/bulan ini/rating/
+        // penyelesaian. Dihitung langsung di controller (bukan fetch JS)
+        // karena halaman ini render dashboard utuh sekali muat, bukan feed
+        // yang di-polling seperti bagian order.
+        $komisiBaseQuery = Komisi::whereHas('order', function ($q) use ($jastiper) {
+            $q->where('jastiper_id', $jastiper->id);
+        });
+
+        $todayEarnings = (clone $komisiBaseQuery)->whereDate('created_at', now()->toDateString())->sum('net_amount');
+        $monthEarnings = (clone $komisiBaseQuery)->whereYear('created_at', now()->year)->whereMonth('created_at', now()->month)->sum('net_amount');
+
+        $totalOrdersCount = Order::where('jastiper_id', $jastiper->id)
+            ->whereNotIn('status', ['menunggu_tawaran', 'menunggu_pembayaran'])
+            ->count();
+        $completedOrdersCount = Order::where('jastiper_id', $jastiper->id)->where('status', 'selesai')->count();
+        // Belum ada order relevan sama sekali -> tampilkan 100% (ramah untuk
+        // jastiper baru), bukan 0% yang terkesan buruk.
+        $completionRate = $totalOrdersCount > 0 ? round(($completedOrdersCount / $totalOrdersCount) * 100) : 100;
+
+        // Rating: pakai Badge (Bagian 2) kalau sudah ada datanya, fallback ke
+        // rata-rata langsung dari tabel ratings kalau Bagian 2 belum jalan/
+        // belum sempat recalculate.
+        $ratingAvg = $jastiper->badge?->avg_rating;
+        if (!$ratingAvg) {
+            $ratingAvg = $jastiper->ratings()->avg('rating');
+        }
+        $ratingAvg = $ratingAvg ? round((float) $ratingAvg, 1) : null;
+
+        return view('dashboard.jastiper', compact(
+            'jastiper',
+            'directOrders',
+            'activeOrders',
+            'todayEarnings',
+            'monthEarnings',
+            'completionRate',
+            'ratingAvg'
+        ));
     }
 
     /**
@@ -913,12 +960,12 @@ class DashboardController extends Controller
                 : redirect()->back()->with('error', $msg);
         }
 
-        $order->update(['status' => 'selesai']);
-
-        app(ChatService::class)->sendSystemMessage(
-            $order,
-            "Belanjaan Anda \"{$order->description}\" telah selesai dibelanjakan dan diantarkan oleh Jastiper {$jastiper->name}! Terima kasih telah menggunakan layanan JastipKuy. 🙏"
-        );
+        // Titik completion disentralisasi ke OrderCompletionService (Sprint 8
+        // Bagian 3 §2.3) — method ini yang bertanggung jawab set status
+        // 'selesai', potong komisi, kredit wallet jastiper, trigger badge
+        // recalc (Bagian 2), dan kirim notifikasi. Jangan lagi
+        // $order->update(['status' => 'selesai']) manual di sini.
+        app(OrderCompletionService::class)->completeOrder($order, 'jastiper');
 
         $msg = 'Pesanan berhasil diselesaikan!';
 
@@ -946,7 +993,8 @@ class DashboardController extends Controller
                     $q->where('status', 'pending')->orderBy('offered_price', 'asc');
                 },
                 'offers.jastiper' => function ($q) {
-                    $q->withAvg('ratings', 'rating')
+                    $q->with('badge')
+                      ->withAvg('ratings', 'rating')
                       ->withCount(['orders as completed_orders_count' => function ($q) {
                           $q->where('status', 'selesai');
                       }]);
@@ -998,7 +1046,8 @@ class DashboardController extends Controller
                         $speedTier = 'normal';
                     }
 
-                    $ratingAvg = $offer->jastiper?->ratings_avg_rating;
+                    $ratingAvg = $offer->jastiper?->badge?->avg_rating ?? $offer->jastiper?->ratings_avg_rating;
+                    $badgeLevel = $offer->jastiper?->badge?->badge_level ?? 'bronze';
 
                     return [
                         'offer_id' => $offer->id,
@@ -1008,6 +1057,7 @@ class DashboardController extends Controller
                         'offered_price_formatted' => 'Rp ' . number_format((float) $offer->offered_price, 0, ',', '.'),
                         'rating_avg' => $ratingAvg ? round((float) $ratingAvg, 1) : null,
                         'completed_orders_count' => $offer->jastiper->completed_orders_count ?? 0,
+                        'badge_level' => $badgeLevel,
                         'response_speed_label' => $speedLabel,
                         'response_speed_tier' => $speedTier,
                     ];
@@ -1073,14 +1123,11 @@ class DashboardController extends Controller
                 : redirect()->back()->with('error', $msg);
         }
 
-        $order->update([
-            'status' => 'selesai',
-        ]);
-
-        $jastiper = $order->jastiper;
-        if ($jastiper) {
-            WhatsAppService::sendMessage($jastiper->phone_number, "Customer telah mengkonfirmasi penerimaan pesanan \"{$order->description}\". Pesanan selesai!");
-        }
+        // Titik completion disentralisasi ke OrderCompletionService (Sprint 8
+        // Bagian 3 §2.3) — sama seperti jastiperCompleteOrder() di atas,
+        // supaya potong komisi & kredit wallet jastiper juga terjadi lewat
+        // jalur konfirmasi customer ini.
+        app(OrderCompletionService::class)->completeOrder($order, 'customer');
 
         $msg = 'Terima kasih telah mengkonfirmasi penerimaan barang!';
         return $request->wantsJson()

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Models\Topup;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -26,6 +27,38 @@ class WalletService
             WalletTransaction::create([
                 'wallet_id' => $lockedWallet->id,
                 'type' => 'kredit',
+                'amount' => $amount,
+                'source' => $source,
+                'reference_order_id' => $referenceOrderId,
+                'description' => $description,
+            ]);
+        });
+    }
+
+    /**
+     * Kurangi saldo wallet (debit). Brief Sprint 8 Bagian 3 §2.4 — dipakai
+     * untuk memotong saldo jastiper saat pengajuan withdraw DISETUJUI admin
+     * (bukan saat pengajuan dibuat, lihat WithdrawService).
+     *
+     * Pola lock & exception meniru persis PaymentService::payWithWallet().
+     *
+     * @throws InsufficientBalanceException kalau saldo tidak cukup.
+     */
+    public function debit(Wallet $wallet, float $amount, string $source, ?int $referenceOrderId = null, ?string $description = null): void
+    {
+        DB::transaction(function () use ($wallet, $amount, $source, $referenceOrderId, $description) {
+            $lockedWallet = Wallet::where('id', $wallet->id)->lockForUpdate()->first();
+            $balance = (float) $lockedWallet->balance;
+
+            if ($balance < $amount) {
+                throw InsufficientBalanceException::forWallet($balance, $amount);
+            }
+
+            $lockedWallet->decrement('balance', $amount);
+
+            WalletTransaction::create([
+                'wallet_id' => $lockedWallet->id,
+                'type' => 'debit',
                 'amount' => $amount,
                 'source' => $source,
                 'reference_order_id' => $referenceOrderId,

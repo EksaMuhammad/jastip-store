@@ -9,12 +9,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Enum alteration is tricky, let's use raw SQL since we know it's MySQL
-        DB::statement("ALTER TABLE order_addons MODIFY COLUMN payment_status VARCHAR(255) DEFAULT 'pending_jastiper'");
+        Schema::table('order_addons', function (Blueprint $table) {
+            $table->string('payment_status')->default('pending_jastiper')->change();
+        });
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE order_addons MODIFY COLUMN payment_status ENUM('menunggu', 'lunas', 'gagal') DEFAULT 'menunggu'");
+        Schema::table('order_addons', function (Blueprint $table) {
+            $table->enum('payment_status', ['menunggu', 'lunas', 'gagal'])->default('menunggu')->change();
+        });
     }
 };

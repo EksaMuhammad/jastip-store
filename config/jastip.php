@@ -30,4 +30,31 @@ return [
         'percentage' => env('JASTIP_KOMISI_PERCENTAGE', 10),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Badge / Trust Level
+    |--------------------------------------------------------------------------
+    |
+    | Threshold untuk level badge Jastiper.
+    |
+    */
+    'badge' => [
+        'thresholds' => [
+            'silver' => [
+                'total_completed_orders' => 10,
+                'avg_rating' => 4.0,
+            ],
+            'gold' => [
+                'total_completed_orders' => 30,
+                'avg_rating' => 4.5,
+                'avg_response_time_minutes' => 5,
+            ],
+            'platinum' => [
+                'total_completed_orders' => 75,
+                'avg_rating' => 4.8,
+                'avg_response_time_minutes' => 3,
+            ],
+        ],
+    ],
+
 ];

@@ -9,6 +9,9 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\OrderCancellationController;
 use App\Http\Controllers\OrderAddonController;
+use App\Http\Controllers\EarningsController;
+use App\Http\Controllers\AdminWithdrawController;
+use App\Http\Controllers\RatingController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -69,6 +72,10 @@ Route::middleware('auth:customer')->group(function () {
         }
         return view('customer.pay-topup', compact('topup'));
     })->name('customer.wallet.pay_topup');
+
+    // ===== Rating & Review (Sprint 8 Bagian 1) =====
+    Route::get('/customer/orders/{id}/rating', [RatingController::class, 'showForm'])->name('customer.orders.rating.form');
+    Route::post('/customer/orders/{id}/rating', [RatingController::class, 'store'])->name('customer.orders.rating.store');
 });
 
 Route::middleware('auth:jastiper')->group(function () {
@@ -95,6 +102,11 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::post('/jastiper/orders/{id}/chat', [ChatController::class, 'send'])->name('jastiper.orders.chat.send');
     Route::get('/jastiper/orders/{id}/chat', [ChatController::class, 'history'])->name('jastiper.orders.chat.history');
     Route::post('/jastiper/addons/{id}/respond', [OrderAddonController::class, 'respondAddon'])->name('jastiper.addons.respond');
+
+    // ===== Rekap Pendapatan & Withdraw (Sprint 8 Bagian 3) =====
+    Route::get('/jastiper/earnings', [EarningsController::class, 'recap'])->name('jastiper.earnings');
+    Route::get('/jastiper/earnings/data', [EarningsController::class, 'recapData'])->name('jastiper.earnings.data');
+    Route::post('/jastiper/earnings/withdraw', [EarningsController::class, 'requestWithdraw'])->name('jastiper.earnings.withdraw');
 });
 
 // Admin Dashboard Routes
@@ -106,6 +118,11 @@ Route::middleware('auth:admin')->group(function () {
     // ===== Pembayaran Wajib (Virtual Escrow) — verifikasi manual bukti transfer =====
     Route::get('/admin/payments', [PaymentController::class, 'adminPage'])->name('admin.payments');
     Route::post('/admin/payments/{id}/verify', [PaymentController::class, 'adminVerify'])->name('admin.payments.verify');
+
+    // ===== Withdraw Jastiper — approval admin (Sprint 8 Bagian 3) =====
+    Route::get('/admin/withdraws', [AdminWithdrawController::class, 'index'])->name('admin.withdraws');
+    Route::post('/admin/withdraws/{id}/approve', [AdminWithdrawController::class, 'approve'])->name('admin.withdraws.approve');
+    Route::post('/admin/withdraws/{id}/reject', [AdminWithdrawController::class, 'reject'])->name('admin.withdraws.reject');
 });
 
 // Webhook Midtrans — publik, TANPA middleware auth:*. Validitas payload

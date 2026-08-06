@@ -312,28 +312,30 @@
             <div class="flex justify-between items-start">
                 <div class="space-y-1">
                     <span class="text-[9px] uppercase font-bold text-emerald-100 tracking-wider block">Pendapatan Jastiper Hari Ini</span>
-                    <div class="text-3xl font-black font-display tracking-tight">Rp0</div>
+                    <div class="text-3xl font-black font-display tracking-tight">Rp{{ number_format($todayEarnings, 0, ',', '.') }}</div>
                     <span class="text-[8px] text-emerald-200/80 font-semibold block">ID: #JSTP-{{ str_pad($jastiper->id, 4, '0', STR_PAD_LEFT) }}</span>
                 </div>
 
-                <button onclick="showMaintenanceToast(event)" class="bg-slate-950/40 hover:bg-slate-950/60 border border-white/20 text-white text-[9px] font-bold px-3.5 py-2 rounded-full transition uppercase tracking-wide">
+                <a href="{{ route('jastiper.earnings') }}" class="bg-slate-950/40 hover:bg-slate-950/60 border border-white/20 text-white text-[9px] font-bold px-3.5 py-2 rounded-full transition uppercase tracking-wide inline-block text-center">
                     Tarik Saldo
-                </button>
+                </a>
             </div>
 
             <!-- Perf Metrics Grid -->
             <div class="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 mt-5 text-center">
                 <div>
                     <span class="text-[8px] font-bold text-emerald-100 uppercase tracking-wide block">Bulan Ini</span>
-                    <span class="text-xs font-black block mt-0.5">Rp0</span>
+                    <span class="text-xs font-black block mt-0.5">Rp{{ number_format($monthEarnings, 0, ',', '.') }}</span>
                 </div>
                 <div>
                     <span class="text-[8px] font-bold text-emerald-100 uppercase tracking-wide block">Penyelesaian</span>
-                    <span class="text-xs font-black block mt-0.5">100%</span>
+                    <span class="text-xs font-black block mt-0.5">{{ $completionRate }}%</span>
                 </div>
                 <div>
                     <span class="text-[8px] font-bold text-emerald-100 uppercase tracking-wide block">Rating</span>
-                    <span class="text-xs font-black block mt-0.5 text-amber-300">★ 5.0</span>
+                    <div class="mt-0.5">
+                        <x-badge-display :level="$jastiper->badge->badge_level ?? 'bronze'" :rating="$ratingAvg" />
+                    </div>
                 </div>
             </div>
         </div>

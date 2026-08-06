@@ -76,18 +76,9 @@
                                         <h4 class="font-extrabold text-xs text-slate-800 leading-none">{{ $jastiper->name }}</h4>
                                         <!-- Trust Badge Level -->
                                         @php
-                                            $badgeColors = [
-                                                'bronze' => 'bg-amber-100 text-amber-700 border-amber-200',
-                                                'silver' => 'bg-slate-100 text-slate-700 border-slate-200',
-                                                'gold' => 'bg-yellow-100 text-yellow-700 border-yellow-200',
-                                                'platinum' => 'bg-rose-100 text-rose-700 border-rose-200'
-                                            ];
                                             $level = $jastiper->badge ? $jastiper->badge->badge_level : 'bronze';
-                                            $badgeColor = $badgeColors[$level] ?? $badgeColors['bronze'];
                                         @endphp
-                                        <span class="text-[8px] font-black uppercase border px-1.5 py-0.5 rounded-sm {{ $badgeColor }} tracking-wider">
-                                            {{ $level }}
-                                        </span>
+                                        <x-badge-display :level="$level" :compact="true" />
                                     </div>
                                     
                                     <!-- Ratings and Response Time -->
@@ -195,9 +186,7 @@
                                             <div>
                                                 <div class="flex items-center gap-2">
                                                     <h4 class="font-extrabold text-xs text-slate-800 leading-none">{{ $jastiper->name }}</h4>
-                                                    <span class="text-[8px] font-black uppercase border px-1.5 py-0.5 rounded-sm bg-yellow-100 text-yellow-700 border-yellow-200 tracking-wider">
-                                                        {{ $jastiper->badge ? $jastiper->badge->badge_level : 'Bronze' }}
-                                                    </span>
+                                                    <x-badge-display :level="$jastiper->badge ? $jastiper->badge->badge_level : 'bronze'" :compact="true" />
                                                 </div>
                                                 <div class="flex items-center gap-2 mt-1.5 text-[9px] text-slate-400 font-semibold">
                                                     <span class="text-amber-500 flex items-center gap-0.5">
@@ -268,9 +257,7 @@
                                             <div>
                                                 <div class="flex items-center gap-2">
                                                     <h4 class="font-extrabold text-xs text-slate-800 leading-none">{{ $jastiper->name }}</h4>
-                                                    <span class="text-[8px] font-black uppercase border px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-700 border-slate-200 tracking-wider">
-                                                        {{ $jastiper->badge ? $jastiper->badge->badge_level : 'Bronze' }}
-                                                    </span>
+                                                    <x-badge-display :level="$jastiper->badge ? $jastiper->badge->badge_level : 'bronze'" :compact="true" />
                                                 </div>
                                                 <div class="flex items-center gap-2 mt-1.5 text-[9px] text-slate-400 font-semibold">
                                                     <span class="text-amber-500 flex items-center gap-0.5">

@@ -614,6 +614,17 @@
                                         <div class="min-w-0">
                                             <p class="text-[10px] font-bold text-slate-800 truncate" x-text="offer.jastiper_name"></p>
                                             <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                                <span class="inline-flex items-center gap-1 border px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider"
+                                                    :class="{
+                                                        'bg-amber-700 text-amber-50 border-amber-800': offer.badge_level === 'bronze' || !offer.badge_level,
+                                                        'bg-slate-400 text-slate-900 border-slate-500': offer.badge_level === 'silver',
+                                                        'bg-amber-400 text-amber-900 border-amber-500': offer.badge_level === 'gold',
+                                                        'bg-cyan-300 text-cyan-900 border-cyan-400': offer.badge_level === 'platinum'
+                                                    }"
+                                                    :title="'Jastiper ' + (offer.badge_level ? offer.badge_level.charAt(0).toUpperCase() + offer.badge_level.slice(1) : 'Bronze')">
+                                                    <span x-text="offer.badge_level === 'platinum' ? '💎' : (offer.badge_level === 'gold' ? '👑' : (offer.badge_level === 'silver' ? '🛡️' : '🥉'))"></span>
+                                                    <span x-text="offer.badge_level || 'bronze'"></span>
+                                                </span>
                                                 <span class="text-[8px] font-bold text-amber-500" x-show="offer.rating_avg">⭐ <span x-text="offer.rating_avg"></span> (<span x-text="offer.completed_orders_count"></span> Selesai)</span>
                                                 <span class="text-[8px] font-bold text-slate-400" x-show="!offer.rating_avg">Jastiper Baru</span>
                                                 <span class="text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider"
@@ -640,6 +651,33 @@
                 </template>
             </div>
         </div>
+
+        <!-- Pesanan Selesai — Ajakan Beri Rating (Sprint 8 — Epic 6 Bagian 1) -->
+        @if($unratedCompletedOrders->isNotEmpty())
+            <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3">
+                <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Beri Rating Pesanan Anda</h3>
+                <div class="space-y-2.5">
+                    @foreach($unratedCompletedOrders as $order)
+                        <div class="flex items-center justify-between gap-3 p-3.5 bg-amber-50 border border-amber-100 rounded-2xl">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-9 h-9 bg-amber-400/20 rounded-full flex items-center justify-center shrink-0 text-base">
+                                    ⭐
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="font-bold text-[11px] text-slate-800 truncate">{{ $order->description }}</p>
+                                    <p class="text-[9px] text-slate-500 font-medium mt-0.5">
+                                        Jastiper: {{ $order->jastiper->name ?? '-' }}
+                                    </p>
+                                </div>
+                            </div>
+                            <a href="{{ route('customer.orders.rating.form', ['id' => $order->id]) }}" class="inline-flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white font-bold text-[9px] px-3.5 py-2 rounded-full transition uppercase tracking-wider whitespace-nowrap shadow-sm shrink-0">
+                                Beri Rating
+                            </a>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
 
 
         <!-- Jastiper Favorit Real-time Status -->

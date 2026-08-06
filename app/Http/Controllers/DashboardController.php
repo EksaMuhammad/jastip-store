@@ -39,6 +39,61 @@ class DashboardController extends Controller
     }
 
     /**
+     * Halaman Aktivitas Customer (Proses & Riwayat).
+     */
+    public function customerActivity()
+    {
+        $customer = Auth::guard('customer')->user();
+        
+        $activeOrders = \App\Models\Order::where('customer_id', $customer->id)
+            ->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
+            ->with(['jastiper', 'addons'])
+            ->latest()
+            ->get();
+            
+        $pastOrders = \App\Models\Order::where('customer_id', $customer->id)
+            ->whereIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
+            ->with(['jastiper'])
+            ->latest()
+            ->get();
+
+        return view('dashboard.customer.activity', compact('customer', 'activeOrders', 'pastOrders'));
+    }
+
+    /**
+     * Halaman Riwayat Chat Customer.
+     */
+    public function customerChats()
+    {
+        $customer = Auth::guard('customer')->user();
+
+        $orders = \App\Models\Order::where('customer_id', $customer->id)
+            ->whereNotNull('jastiper_id')
+            ->with(['jastiper', 'chats' => function ($query) {
+                $query->latest();
+            }])
+            ->get();
+
+        $conversations = $orders->map(function ($order) {
+            $latestChat = $order->chats->first();
+            $unreadCount = $order->chats()->where('sender_role', '!=', 'customer')->where('is_read', false)->count();
+
+            return [
+                'order_id' => $order->id,
+                'order_description' => $order->description,
+                'jastiper_name' => $order->jastiper->name ?? 'Jastiper',
+                'jastiper_id' => $order->jastiper_id,
+                'latest_message' => $latestChat ? ($latestChat->message_type === 'image' ? '📷 [Foto]' : $latestChat->message) : 'Belum ada pesan. Mulai percakapan...',
+                'latest_message_time' => $latestChat ? $latestChat->created_at->format('d/m/y') : $order->created_at->format('d/m/y'),
+                'latest_message_timestamp' => $latestChat ? $latestChat->created_at : $order->created_at,
+                'unread_count' => $unreadCount,
+            ];
+        })->sortByDesc('latest_message_timestamp')->values();
+
+        return view('dashboard.customer.chats', compact('customer', 'conversations'));
+    }
+
+    /**
      * Dashboard untuk Jastiper.
      */
     public function jastiperDashboard()

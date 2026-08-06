@@ -78,6 +78,12 @@ new class extends Component
             $this->recipient_phone = $customer->phone_number;
         }
 
+        // Tangkap parameter query kategori
+        $cat = request()->query('cat');
+        if ($cat && in_array($cat, ['beli-antar', 'ambil-antar', 'toko-kirim', 'dokumen', 'multi-stop', 'kirim-pihak-ketiga'])) {
+            $this->category = $cat;
+        }
+
         // Tangkap parameter query booking langsung
         $jastiperId = request()->query('jastiper_id');
         if ($jastiperId) {

@@ -23,6 +23,10 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
+        // Percayai header dari reverse proxy (cloudflared tunnel) supaya Laravel
+        // tahu request aslinya HTTPS dan generate URL asset dengan skema yang benar.
+        $middleware->trustProxies(at: '*');
+
         $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
             if ($request->is('admin') || $request->is('admin/*')) {
                 return route('admin.login');

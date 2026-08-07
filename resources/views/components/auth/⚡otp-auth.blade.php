@@ -124,6 +124,16 @@ new class extends Component
             'login_password.required' => 'Kata sandi wajib diisi.',
         ]);
 
+        // Cegah brute-force tebak password: kunci berdasar nomor HP + role,
+        // bukan per-IP, supaya penyerang tidak bisa lolos cuma dengan ganti IP.
+        $rateLimitKey = 'login-password:' . $this->role . ':' . $this->phone_number;
+
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
+            $seconds = RateLimiter::availableIn($rateLimitKey);
+            $this->error_message = "Terlalu banyak percobaan salah. Silakan coba lagi dalam {$seconds} detik, atau login menggunakan OTP.";
+            return;
+        }
+
         // Cari user
         if ($this->role === 'customer') {
             $user = Customer::where('phone_number', $this->phone_number)->first();
@@ -132,15 +142,19 @@ new class extends Component
         }
 
         if (!$user) {
+            RateLimiter::hit($rateLimitKey, 300);
             $this->error_message = 'User tidak ditemukan.';
             return;
         }
 
         // Cek password
         if (!$user->password || !Hash::check($this->login_password, $user->password)) {
+            RateLimiter::hit($rateLimitKey, 300);
             $this->error_message = 'Kata sandi salah. Jika lupa, Anda bisa login menggunakan OTP.';
             return;
         }
+
+        RateLimiter::clear($rateLimitKey);
 
         // Login
         Auth::guard($this->role)->login($user);
@@ -289,6 +303,17 @@ new class extends Component
             'otp_input.size' => 'Kode OTP harus berupa 6 digit angka.',
         ]);
 
+        // Cegah brute-force tebak OTP (6 digit = 1 juta kombinasi). Tanpa ini,
+        // OTP bisa ditembak habis dalam waktu singkat sebelum masa berlakunya
+        // (5 menit) habis. Kunci berdasar nomor HP + role, bukan per-IP.
+        $rateLimitKey = 'verify-otp:' . $this->role . ':' . $this->phone_number;
+
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
+            $seconds = RateLimiter::availableIn($rateLimitKey);
+            $this->error_message = "Terlalu banyak percobaan salah. Silakan kirim ulang OTP dalam {$seconds} detik.";
+            return;
+        }
+
         if ($this->role === 'customer') {
             $user = Customer::where('phone_number', $this->phone_number)->first();
         } else {
@@ -296,11 +321,13 @@ new class extends Component
         }
 
         if (!$user) {
+            RateLimiter::hit($rateLimitKey, 300);
             $this->error_message = 'User tidak ditemukan.';
             return;
         }
 
-        if ($user->otp_code !== $this->otp_input) {
+        if (!hash_equals((string) $user->otp_code, $this->otp_input)) {
+            RateLimiter::hit($rateLimitKey, 300);
             $this->error_message = 'Kode OTP salah.';
             return;
         }
@@ -309,6 +336,8 @@ new class extends Component
             $this->error_message = 'Kode OTP telah kedaluwarsa. Kirim ulang OTP.';
             return;
         }
+
+        RateLimiter::clear($rateLimitKey);
 
         // Sukses verifikasi
         $user->otp_code = null;

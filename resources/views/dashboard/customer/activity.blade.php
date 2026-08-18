@@ -61,22 +61,22 @@
             <!-- Tabs Row -->
             <div class="flex justify-between items-center mt-4 border-b border-slate-100 text-xs font-bold text-slate-400">
                 <button @click="activeTab = 'riwayat'" 
-                        :class="activeTab === 'riwayat' ? 'text-emerald-600 border-b-2 border-emerald-600 pb-2' : 'pb-2'" 
+                        :class="activeTab === 'riwayat' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
                         class="flex-1 text-center transition">
                     Riwayat
                 </button>
                 <button @click="activeTab = 'dalam_proses'" 
-                        :class="activeTab === 'dalam_proses' ? 'text-emerald-600 border-b-2 border-emerald-600 pb-2' : 'pb-2'" 
+                        :class="activeTab === 'dalam_proses' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
                         class="flex-1 text-center transition">
                     Dalam proses
                 </button>
                 <button @click="activeTab = 'terjadwal'" 
-                        :class="activeTab === 'terjadwal' ? 'text-emerald-600 border-b-2 border-emerald-600 pb-2' : 'pb-2'" 
+                        :class="activeTab === 'terjadwal' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
                         class="flex-1 text-center transition">
                     Terjadwal
                 </button>
                 <button @click="activeTab = 'draf'" 
-                        :class="activeTab === 'draf' ? 'text-emerald-600 border-b-2 border-emerald-600 pb-2' : 'pb-2'" 
+                        :class="activeTab === 'draf' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
                         class="flex-1 text-center transition">
                     Draf
                 </button>
@@ -93,7 +93,7 @@
             <!-- Transaksi GoPay Card -->
             <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition" onclick="window.location='{{ route('customer.wallet') }}'">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 bg-sky-500 text-white rounded-xl flex items-center justify-center shadow-sm">
+                    <div class="w-9 h-9 bg-rose-600 text-white rounded-xl flex items-center justify-center shadow-sm">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
                     </div>
                     <span class="text-xs font-bold text-slate-800">Transaksi JastipKuy Pay</span>
@@ -115,7 +115,7 @@
                             <div class="flex justify-between items-start gap-3">
                                 <div class="flex items-start gap-3 min-w-0">
                                     
-                                    <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                                    <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
                                     </div>
                                     
@@ -145,7 +145,7 @@
                             
                             <!-- Action button -->
                             <div class="border-t border-slate-100 pt-2 flex justify-end">
-                                <a href="{{ route('customer.orders.create') }}?cat={{ $order->category }}" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] px-5 py-2 rounded-full transition uppercase tracking-wider shadow-sm">
+                                <a href="{{ route('customer.orders.create') }}?cat={{ $order->category }}" class="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] px-5 py-2 rounded-full transition uppercase tracking-wider shadow-sm">
                                     Mau lagi
                                 </a>
                             </div>
@@ -168,7 +168,7 @@
                 <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <h4 class="font-bold text-slate-700 text-sm">Tidak ada pesanan aktif</h4>
                 <p class="text-xs text-slate-400 mt-1 max-w-[240px] mx-auto leading-normal">Pesan jastip Anda sekarang untuk mulai melacak lokasinya secara real-time.</p>
-                <a href="{{ route('customer.orders.create') }}" class="inline-block mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-6 py-2.5 rounded-full transition uppercase tracking-wider shadow-sm">
+                <a href="{{ route('customer.orders.create') }}" class="inline-block mt-4 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] px-6 py-2.5 rounded-full transition uppercase tracking-wider shadow-sm">
                     Pesan Jastip
                 </a>
             </div>
@@ -233,7 +233,7 @@
                             <template x-if="order.status === 'tiba_tujuan'">
                                 <form :action="'/customer/orders/' + order.id + '/confirm'" method="POST" class="w-full">
                                     @csrf
-                                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[9px] py-2.5 rounded-xl uppercase tracking-wider shadow-sm">
+                                    <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[9px] py-2.5 rounded-xl uppercase tracking-wider shadow-sm">
                                         Konfirmasi Diterima
                                     </button>
                                 </form>

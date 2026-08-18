@@ -39,6 +39,57 @@
             initialLoaded: false,
             pollHandle: null,
 
+            searchQuery: '',
+            searchResults: [],
+            searchLoading: false,
+            searchFocused: false,
+            searchTimeout: null,
+
+            onSearchInput() {
+                if (this.searchTimeout) clearTimeout(this.searchTimeout);
+                this.searchTimeout = setTimeout(() => this.performSearch(), 350);
+            },
+
+            async performSearch() {
+                const query = this.searchQuery.trim();
+                if (query.length < 3) {
+                    this.searchResults = [];
+                    return;
+                }
+                this.searchLoading = true;
+                try {
+                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&viewbox=112.45,-8.20,112.85,-7.75&bounded=1`;
+                    const res = await fetch(url, {
+                        headers: {
+                            'Accept-Language': 'id-ID,id;q=0.9'
+                        }
+                    });
+                    const data = await res.json();
+                    this.searchResults = data.map(item => {
+                        const name = item.address.amenity || item.address.shop || item.address.restaurant || item.address.cafe || item.address.fast_food || item.address.supermarket || item.address.mall || item.address.office || item.name || item.display_name.split(',')[0];
+                        return {
+                            name: name,
+                            display_name: item.display_name,
+                            lat: item.lat,
+                            lon: item.lon
+                        };
+                    });
+                } catch (e) {
+                    // silent fail
+                } finally {
+                    this.searchLoading = false;
+                }
+            },
+
+            selectSearchItem(item) {
+                const createUrl = new URL('{{ route("customer.orders.create") }}', window.location.origin);
+                createUrl.searchParams.set('cat', 'beli-antar');
+                createUrl.searchParams.set('origin_address', item.name + ', ' + item.display_name.split(',')[0]);
+                createUrl.searchParams.set('origin_lat', item.lat);
+                createUrl.searchParams.set('origin_lng', item.lon);
+                window.location.href = createUrl.toString();
+            },
+
             init() {
                 this.fetchOrders();
                 this.pollHandle = setInterval(() => this.fetchOrders(true), 6000);
@@ -240,11 +291,32 @@
             <div class="relative flex-grow">
                 <input 
                     type="text" 
+                    x-model="searchQuery"
+                    @input="onSearchInput"
+                    @focus="searchFocused = true"
+                    @blur="setTimeout(() => searchFocused = false, 250)"
                     placeholder="Cari makanan khas Malang, minimarket, atau jastiper..." 
                     class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-700 pl-11 pr-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150"
                 >
                 <div class="absolute left-4 top-3.5 text-slate-400">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+
+                <!-- Dropdown suggestions -->
+                <div x-show="searchFocused && (searchResults.length > 0 || searchLoading)" 
+                     class="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto p-2 space-y-1"
+                     x-cloak>
+                    <!-- Loading state -->
+                    <div x-show="searchLoading" class="text-center py-4 text-xs font-semibold text-slate-400">
+                        Mencari lokasi di Malang...
+                    </div>
+                    <!-- Results list -->
+                    <template x-show="!searchLoading" x-for="item in searchResults">
+                        <button type="button" @click="selectSearchItem(item)" class="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition flex flex-col gap-0.5">
+                            <span class="text-xs font-extrabold text-slate-800" x-text="item.name"></span>
+                            <span class="text-[9px] text-slate-450 truncate w-full" x-text="item.display_name"></span>
+                        </button>
+                    </template>
                 </div>
             </div>
 

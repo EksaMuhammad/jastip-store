@@ -84,6 +84,20 @@ new class extends Component
             $this->category = $cat;
         }
 
+        // Tangkap parameter query alamat asal & koordinat dari pencarian dashboard
+        $originAddress = request()->query('origin_address');
+        if ($originAddress) {
+            $this->origin_address = urldecode($originAddress);
+        }
+        $originLat = request()->query('origin_lat');
+        if ($originLat) {
+            $this->origin_lat = (float) $originLat;
+        }
+        $originLng = request()->query('origin_lng');
+        if ($originLng) {
+            $this->origin_lng = (float) $originLng;
+        }
+
         // Tangkap parameter query booking langsung
         $jastiperId = request()->query('jastiper_id');
         if ($jastiperId) {

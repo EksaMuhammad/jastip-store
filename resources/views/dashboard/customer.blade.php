@@ -277,21 +277,18 @@
         </div>
 
         <!-- Gopay Card Layout (JastipKuy Pay) -->
-        <div class="bg-gradient-to-r from-sky-600 to-sky-700 text-white rounded-3xl p-5 shadow-lg border border-sky-500/20 relative overflow-hidden">
-            <!-- Decorative Accent circles inside card -->
-            <div class="absolute -right-12 -top-12 w-28 h-28 bg-white/10 rounded-full blur-xl"></div>
-            <div class="absolute -left-6 -bottom-6 w-20 h-20 bg-white/5 rounded-full blur-md"></div>
+        <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-5 shadow-lg border border-rose-500/20 relative overflow-hidden">
             
             <div class="flex items-stretch justify-between relative z-10 gap-3">
                 <!-- Left Section: Balance & Brand -->
                 <div class="flex flex-col justify-between space-y-3 pr-4 border-r border-white/20">
                     <div class="flex items-center gap-1.5">
                         <!-- Tiny GoPay-style Logo -->
-                        <span class="text-[10px] font-black tracking-tighter bg-white text-sky-700 px-2 py-0.5 rounded-sm uppercase">JK PAY</span>
+                        <span class="text-[10px] font-black tracking-tighter bg-white text-rose-600 px-2 py-0.5 rounded-sm uppercase">JK PAY</span>
                     </div>
                     <div>
                         <div class="text-2xl font-black font-display tracking-tight">Rp{{ number_format($balance, 0, ',', '.') }}</div>
-                        <span class="text-[8px] text-sky-200 font-semibold block">Tap untuk riwayat dompet</span>
+                        <span class="text-[8px] text-rose-100 font-semibold block">Tap untuk riwayat dompet</span>
                     </div>
                 </div>
 
@@ -410,8 +407,7 @@
         <div class="space-y-3">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Promo Rekomendasi</h3>
             
-            <div class="w-full bg-gradient-to-br from-rose-500 to-rose-600 text-white rounded-3xl p-5 shadow-sm relative overflow-hidden border border-rose-400/20">
-                <div class="absolute -right-8 -bottom-8 w-24 h-24 bg-white/10 rounded-full blur-lg"></div>
+            <div class="w-full bg-telkomsel-pattern-promo text-white rounded-3xl p-5 shadow-sm relative overflow-hidden border border-rose-400/20">
                 <div class="relative z-10 space-y-3">
                     <span class="text-[8px] bg-white text-rose-600 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Promo Khusus</span>
                     <div>

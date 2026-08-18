@@ -3,3 +3,51 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    body {
+        position: relative;
+        background-color: #F8FAFC;
+    }
+    
+    /* Subtle red dot-grid texture overlay across the body background */
+    body::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background-image: radial-gradient(#EC0A23 0.6px, transparent 0.6px), radial-gradient(#EC0A23 0.6px, transparent 0.6px);
+        background-size: 24px 24px;
+        background-position: 0 0, 12px 12px;
+        opacity: 0.022; /* Faint enough to prevent eye fatigue while adding nice depth */
+    }
+}
+
+@layer utilities {
+    /* MyTelkomsel brand gradient style */
+    .bg-telkomsel-gradient {
+        background: linear-gradient(135deg, #EC0A23 0%, #FF4D5E 100%);
+    }
+
+    /* Premium Telkomsel Card with custom organic wave patterns (curves + circle vector) */
+    .bg-telkomsel-pattern-card {
+        background-color: #EC0A23;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0,100 C30,40 70,60 100,0 L100,100 Z' fill='rgba(255,255,255,0.08)'/%3E%3Cpath d='M0,100 C50,20 80,40 100,20 L100,100 Z' fill='rgba(255,255,255,0.05)'/%3E%3Ccircle cx='85' cy='15' r='10' fill='rgba(255,255,255,0.06)'/%3E%3C/svg%3E");
+        background-size: cover;
+    }
+
+    /* Telkomsel Promo Card with a different wavy pattern (overlapping smooth bezier hills) */
+    .bg-telkomsel-pattern-promo {
+        background-color: #EC0A23;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0,70 Q30,95 60,60 T100,75 L100,100 L0,100 Z' fill='rgba(255,255,255,0.07)'/%3E%3Cpath d='M0,85 Q40,65 75,85 T100,65 L100,100 L0,100 Z' fill='rgba(255,255,255,0.05)'/%3E%3Cpath d='M0,0 C35,35 65,5 100,30 L100,0 Z' fill='rgba(255,255,255,0.05)'/%3E%3C/svg%3E");
+        background-size: cover;
+    }
+
+    /* Red glassmorphism style card overlays */
+    .bg-telkomsel-glass {
+        background: rgba(236, 10, 35, 0.03);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(236, 10, 35, 0.08);
+    }
+}

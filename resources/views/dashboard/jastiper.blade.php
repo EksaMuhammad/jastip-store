@@ -306,17 +306,15 @@
         @endif
 
         <!-- Driver Earnings Card (Gopartner Style Performance Metrics) -->
-        <div class="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-3xl p-5 shadow-lg border border-emerald-500/20 relative overflow-hidden">
-            <div class="absolute -right-8 -top-8 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-
+        <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-5 shadow-lg border border-rose-500/20 relative overflow-hidden">
             <div class="flex justify-between items-start">
                 <div class="space-y-1">
-                    <span class="text-[9px] uppercase font-bold text-emerald-100 tracking-wider block">Pendapatan Jastiper Hari Ini</span>
+                    <span class="text-[9px] uppercase font-bold text-rose-100 tracking-wider block">Pendapatan Jastiper Hari Ini</span>
                     <div class="text-3xl font-black font-display tracking-tight">Rp{{ number_format($todayEarnings, 0, ',', '.') }}</div>
-                    <span class="text-[8px] text-emerald-200/80 font-semibold block">ID: #JSTP-{{ str_pad($jastiper->id, 4, '0', STR_PAD_LEFT) }}</span>
+                    <span class="text-[8px] text-rose-200/80 font-semibold block">ID: #JSTP-{{ str_pad($jastiper->id, 4, '0', STR_PAD_LEFT) }}</span>
                 </div>
 
-                <a href="{{ route('jastiper.earnings') }}" class="bg-slate-950/40 hover:bg-slate-950/60 border border-white/20 text-white text-[9px] font-bold px-3.5 py-2 rounded-full transition uppercase tracking-wide inline-block text-center">
+                <a href="{{ route('jastiper.earnings') }}" class="bg-slate-950/30 hover:bg-slate-950/50 border border-white/20 text-white text-[9px] font-bold px-3.5 py-2 rounded-full transition uppercase tracking-wide inline-block text-center">
                     Tarik Saldo
                 </a>
             </div>
@@ -324,15 +322,15 @@
             <!-- Perf Metrics Grid -->
             <div class="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 mt-5 text-center">
                 <div>
-                    <span class="text-[8px] font-bold text-emerald-100 uppercase tracking-wide block">Bulan Ini</span>
+                    <span class="text-[8px] font-bold text-rose-100 uppercase tracking-wide block">Bulan Ini</span>
                     <span class="text-xs font-black block mt-0.5">Rp{{ number_format($monthEarnings, 0, ',', '.') }}</span>
                 </div>
                 <div>
-                    <span class="text-[8px] font-bold text-emerald-100 uppercase tracking-wide block">Penyelesaian</span>
+                    <span class="text-[8px] font-bold text-rose-100 uppercase tracking-wide block">Penyelesaian</span>
                     <span class="text-xs font-black block mt-0.5">{{ $completionRate }}%</span>
                 </div>
                 <div>
-                    <span class="text-[8px] font-bold text-emerald-100 uppercase tracking-wide block">Rating</span>
+                    <span class="text-[8px] font-bold text-rose-100 uppercase tracking-wide block">Rating</span>
                     <div class="mt-0.5">
                         <x-badge-display :level="$jastiper->badge->badge_level ?? 'bronze'" :rating="$ratingAvg" />
                     </div>

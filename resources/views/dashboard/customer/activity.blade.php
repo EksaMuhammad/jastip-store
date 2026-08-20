@@ -5,7 +5,7 @@
 @section('content')
 <div class="min-h-screen bg-[#F3F4F6] pb-16" 
      x-data="{ 
-        activeTab: 'dalam_proses',
+        activeTab: new URLSearchParams(window.location.search).get('tab') || 'dalam_proses',
         orders: [],
         initialLoaded: false,
         pollHandle: null,

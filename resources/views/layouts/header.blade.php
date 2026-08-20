@@ -26,7 +26,7 @@
                     <a href="{{ route('customer.dashboard') }}" class="text-sm font-semibold {{ request()->is('customer/dashboard') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Beranda</a>
                     <a href="{{ route('customer.booking') }}" class="text-sm font-semibold {{ request()->is('customer/booking') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Booking Jastiper</a>
                     <a href="{{ route('customer.orders.create') }}" class="text-sm font-semibold {{ request()->is('customer/orders/create') ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Pesan Jastip</a>
-                    <a href="#" onclick="showMaintenanceToast(event)" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Riwayat</a>
+                    <a href="{{ route('customer.activity', ['tab' => 'riwayat']) }}" class="text-sm font-semibold {{ request()->query('tab') === 'riwayat' ? 'text-rose-600 font-extrabold' : 'text-slate-600 hover:text-rose-600' }} transition">Riwayat</a>
                     <a href="#" onclick="showMaintenanceToast(event)" class="text-sm font-semibold text-slate-600 hover:text-rose-600 transition">Profil Saya</a>
                 </nav>
             @elseif(request()->is('jastiper/*', 'jastiper'))

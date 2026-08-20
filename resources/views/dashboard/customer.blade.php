@@ -483,7 +483,7 @@
                 <div class="relative z-10 space-y-3">
                     <span class="text-[8px] bg-white text-rose-600 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Promo Khusus</span>
                     <div>
-                        <h4 class="font-display font-black text-sm">Diskon Ongkir Jastip s.d 50% 🚀</h4>
+                        <h4 class="font-display font-black text-sm">Diskon Ongkir Jastip s.d 50%</h4>
                         <p class="text-[9px] text-rose-100 mt-1 max-w-[240px]">Belanja di mana saja se-Malang Raya lebih murah menggunakan kurir mitra JastipKuy Pro.</p>
                     </div>
                     <div class="text-[8px] text-rose-200/90 font-mono">*Syarat & ketentuan berlaku.</div>

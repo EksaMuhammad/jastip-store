@@ -9,6 +9,10 @@
         orders: [],
         initialLoaded: false,
         pollHandle: null,
+        filterLayanan: 'semua',
+        filterMetode: 'semua',
+        filterLayananLabel: 'Layanan',
+        filterMetodeLabel: 'Metode',
         
         init() {
             this.fetchOrders();
@@ -91,19 +95,46 @@
         <div x-show="activeTab === 'riwayat'" class="space-y-4 animate-fade-in" x-transition>
 
             <!-- Transaction Filters (GoPay style) -->
-            <div class="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                <button class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm">
-                    <span>Semua Tanggal</span>
-                    <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
-                <button class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm">
-                    <span>Layanan</span>
-                    <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
-                <button class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm">
-                    <span>Metode</span>
-                    <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
+            <div class="flex items-center gap-2 pb-1 overflow-visible">
+                <!-- Dropdown Tanggal -->
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm focus:outline-none">
+                        <span>Semua Tanggal</span>
+                        <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-30 w-36 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
+                        <button @click="open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition">Semua Tanggal</button>
+                        <button @click="open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition">Bulan Ini</button>
+                    </div>
+                </div>
+
+                <!-- Dropdown Layanan -->
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm focus:outline-none">
+                        <span x-text="filterLayananLabel">Layanan</span>
+                        <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-30 w-44 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
+                        <button @click="filterLayanan = 'semua'; filterLayananLabel = 'Semua Layanan'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'semua' ? 'text-rose-600' : ''">Semua Layanan</button>
+                        <button @click="filterLayanan = 'beli-antar'; filterLayananLabel = 'Beli-Antar'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'beli-antar' ? 'text-rose-600' : ''">Beli-Antar</button>
+                        <button @click="filterLayanan = 'ambil-antar'; filterLayananLabel = 'Ambil & Antar'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'ambil-antar' ? 'text-rose-600' : ''">Ambil & Antar</button>
+                        <button @click="filterLayanan = 'toko-kirim'; filterLayananLabel = 'Toko Kirim'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'toko-kirim' ? 'text-rose-600' : ''">Toko Kirim</button>
+                        <button @click="filterLayanan = 'dokumen'; filterLayananLabel = 'Dokumen'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'dokumen' ? 'text-rose-600' : ''">Dokumen</button>
+                        <button @click="filterLayanan = 'multi-stop'; filterLayananLabel = 'Multi-Stop'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'multi-stop' ? 'text-rose-600' : ''">Multi-Stop</button>
+                    </div>
+                </div>
+
+                <!-- Dropdown Metode -->
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm focus:outline-none">
+                        <span x-text="filterMetodeLabel">Metode</span>
+                        <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-30 w-36 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
+                        <button @click="filterMetode = 'semua'; filterMetodeLabel = 'Semua Metode'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterMetode === 'semua' ? 'text-rose-600' : ''">Semua Metode</button>
+                        <button @click="filterMetode = 'jkpay'; filterMetodeLabel = 'JK PAY'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterMetode === 'jkpay' ? 'text-rose-600' : ''">JK PAY</button>
+                    </div>
+                </div>
             </div>
 
             <!-- List of Past Orders Grouped by Date -->
@@ -116,14 +147,22 @@
             @else
                 <div class="space-y-4">
                     @foreach($pastOrders->groupBy(fn($order) => $order->created_at->format('d M Y')) as $date => $orders)
-                        <div class="space-y-2">
+                        <div class="space-y-2" 
+                             x-data="{ 
+                                 hasVisibleOrders() {
+                                     return [...$el.querySelectorAll('.transaction-row')].some(el => el.style.display !== 'none');
+                                 }
+                             }"
+                             x-show="hasVisibleOrders()"
+                             x-effect="$nextTick(() => {})">
                             <!-- Date Heading -->
                             <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 pt-2">{{ $date }}</h3>
                             
                             <!-- Card Container for this Date's Transactions -->
                             <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100 shadow-sm">
                                 @foreach($orders as $order)
-                                    <div class="flex items-center justify-between p-3.5 hover:bg-slate-50 transition duration-150">
+                                    <div class="transaction-row flex items-center justify-between p-3.5 hover:bg-slate-50 transition duration-150"
+                                         x-show="(filterLayanan === 'semua' || '{{ $order->category }}' === filterLayanan || ('{{ $order->category }}' === 'kuliner' && filterLayanan === 'beli-antar')) && (filterMetode === 'semua' || filterMetode === 'jkpay')">
                                         
                                         <!-- Left: Circular Icon & details -->
                                         <div class="flex items-center gap-3 min-w-0">

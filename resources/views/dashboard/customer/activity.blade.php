@@ -90,18 +90,23 @@
         <!-- ================= RIWAYAT TAB ================= -->
         <div x-show="activeTab === 'riwayat'" class="space-y-4 animate-fade-in" x-transition>
 
-            <!-- Transaksi GoPay Card -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition" onclick="window.location='{{ route('customer.wallet') }}'">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 bg-rose-600 text-white rounded-xl flex items-center justify-center shadow-sm">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
-                    </div>
-                    <span class="text-xs font-bold text-slate-800">Transaksi JastipKuy Pay</span>
-                </div>
-                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <!-- Transaction Filters (GoPay style) -->
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <button class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm">
+                    <span>Semua Tanggal</span>
+                    <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <button class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm">
+                    <span>Layanan</span>
+                    <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <button class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm">
+                    <span>Metode</span>
+                    <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
             </div>
 
-            <!-- List of Past Orders -->
+            <!-- List of Past Orders Grouped by Date -->
             @if($pastOrders->isEmpty())
                 <div class="bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-sm">
                     <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
@@ -109,45 +114,60 @@
                     <p class="text-xs text-slate-400 mt-1 max-w-[240px] mx-auto leading-normal">Setelah Anda memesan jastip dan selesai, daftarnya akan muncul di sini.</p>
                 </div>
             @else
-                <div class="space-y-3">
-                    @foreach($pastOrders as $order)
-                        <div class="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm flex flex-col gap-3">
-                            <div class="flex justify-between items-start gap-3">
-                                <div class="flex items-start gap-3 min-w-0">
-                                    
-                                    <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-                                    </div>
-                                    
-                                    <div class="min-w-0">
-                                        <span class="text-[10px] font-bold text-slate-400 font-mono block">{{ $order->created_at->format('d M, H:i') }}</span>
-                                        <h4 class="font-extrabold text-slate-800 text-xs mt-1 truncate">{{ $order->description }}</h4>
-                                        
-                                        <!-- Status Badge -->
-                                        <div class="flex items-center gap-1.5 mt-2">
-                                            @if($order->status === 'selesai')
-                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                <span class="text-[10px] font-bold text-emerald-600">Perjalanan selesai</span>
-                                            @elseif($order->status === 'dibatalkan')
-                                                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0"></span>
-                                                <span class="text-[10px] font-bold text-rose-600">Pesanan dibatalkan</span>
-                                            @else
-                                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                                                <span class="text-[10px] font-bold text-amber-500">Bermasalah</span>
-                                            @endif
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="text-right shrink-0">
-                                    <span class="text-xs font-black text-slate-800">Rp{{ number_format($order->agreed_fare ?? $order->estimated_fare, 0, ',', '.') }}</span>
-                                </div>
-                            </div>
+                <div class="space-y-4">
+                    @foreach($pastOrders->groupBy(fn($order) => $order->created_at->format('d M Y')) as $date => $orders)
+                        <div class="space-y-2">
+                            <!-- Date Heading -->
+                            <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 pt-2">{{ $date }}</h3>
                             
-                            <!-- Action button -->
-                            <div class="border-t border-slate-100 pt-2 flex justify-end">
-                                <a href="{{ route('customer.orders.create') }}?cat={{ $order->category }}" class="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] px-5 py-2 rounded-full transition uppercase tracking-wider shadow-sm">
-                                    Mau lagi
-                                </a>
+                            <!-- Card Container for this Date's Transactions -->
+                            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100 shadow-sm">
+                                @foreach($orders as $order)
+                                    <div class="flex items-center justify-between p-3.5 hover:bg-slate-50 transition duration-150">
+                                        
+                                        <!-- Left: Circular Icon & details -->
+                                        <div class="flex items-center gap-3 min-w-0">
+                                            <div class="w-11 h-11 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center shrink-0">
+                                                @if($order->category === 'beli-antar' || $order->category === 'kuliner')
+                                                    <img src="{{ asset('images/services/beli-antar.png') }}" class="w-7 h-7 object-contain">
+                                                @elseif($order->category === 'ambil-antar')
+                                                    <img src="{{ asset('images/services/ambil-antar.png') }}" class="w-7 h-7 object-contain">
+                                                @elseif($order->category === 'toko-kirim')
+                                                    <img src="{{ asset('images/services/toko-kirim.png') }}" class="w-7 h-7 object-contain">
+                                                @elseif($order->category === 'dokumen')
+                                                    <img src="{{ asset('images/services/dokumen.png') }}" class="w-7 h-7 object-contain">
+                                                @elseif($order->category === 'multi-stop')
+                                                    <img src="{{ asset('images/services/multi-stop.png') }}" class="w-7 h-7 object-contain">
+                                                @else
+                                                    <img src="{{ asset('images/services/kirim-pihak-ketiga.png') }}" class="w-7 h-7 object-contain">
+                                                @endif
+                                            </div>
+                                            
+                                            <div class="min-w-0">
+                                                <h4 class="font-extrabold text-slate-800 text-xs truncate leading-tight">{{ $order->description }}</h4>
+                                                <span class="text-[9px] text-slate-400 font-semibold mt-0.5 block truncate">
+                                                    {{ $order->origin_address ?: 'Malang Raya' }}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Right: Pricing & Payment Method -->
+                                        <div class="text-right shrink-0">
+                                            @if($order->status === 'dibatalkan')
+                                                <span class="text-xs font-extrabold text-rose-600">-Rp{{ number_format($order->agreed_fare ?? $order->estimated_fare, 0, ',', '.') }}</span>
+                                                <span class="text-[9px] font-bold text-rose-500 block">Dibatalkan</span>
+                                            @else
+                                                <span class="text-xs font-extrabold text-slate-800">-Rp{{ number_format($order->agreed_fare ?? $order->estimated_fare, 0, ',', '.') }}</span>
+                                                <span class="text-[9px] font-bold text-emerald-600 block">Selesai</span>
+                                            @endif
+                                            <div class="flex items-center justify-end gap-1 mt-0.5 text-[8px] font-bold text-slate-400">
+                                                <svg class="w-2.5 h-2.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                                <span>JK PAY</span>
+                                            </div>
+                                        </div>
+                                        
+                                    </div>
+                                @endforeach
                             </div>
                         </div>
                     @endforeach

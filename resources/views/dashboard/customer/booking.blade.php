@@ -24,7 +24,7 @@
                 <p class="text-xs text-slate-400 mt-1">Pilih Jastiper yang sedang check-in di lokasi belanja atau pesan kembali Jastiper favorit Anda.</p>
             </div>
             
-            <!-- Tab Buttons (Gojek Rounded Style) -->
+            <!-- Tab Buttons  -->
             <div class="bg-slate-100 p-1.5 rounded-full flex gap-1 shrink-0 border border-slate-200">
                 <button 
                     @click="tab = 'checkin'" 

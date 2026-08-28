@@ -17,10 +17,10 @@ class DatabaseSeeder extends Seeder
         $this->call(CancellationPolicySeeder::class);
 
         // 2. Seed Wilayah
-        $wilayah = Wilayah::create([
-            'name' => 'Malang Kota',
-            'default_radius_km' => 5.00,
-            'is_active' => true,
+        \DB::table('wilayah')->insert([
+            ['id' => 11, 'name' => 'Malang Kota', 'default_radius_km' => 5.00, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 13, 'name' => 'Malang Kota', 'default_radius_km' => 5.00, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 14, 'name' => 'Malang Kota', 'default_radius_km' => 5.00, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
         ]);
 
         // 3. Seed Admins
@@ -28,22 +28,6 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@jastipkuy.com',
             'password_hash' => Hash::make('password123'),
             'name' => 'Admin JastipKuy',
-        ]);
-
-        // 4. Seed Customers
-        Customer::create([
-            'phone_number' => '081234567890',
-            'name' => 'Budi Utomo',
-        ]);
-
-        // 5. Seed Jastiper
-        Jastiper::create([
-            'phone_number' => '089876543210',
-            'name' => 'Siti Aminah',
-            'verification_status' => 'approved',
-            'wilayah_id' => $wilayah->id,
-            'radius_km' => 5.00,
-            'is_available' => true,
         ]);
     }
 }

@@ -350,6 +350,8 @@
 
         <!-- Gopay Card Layout (JastipKuy Pay) -->
         <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-5 shadow-lg border border-rose-500/20 relative overflow-hidden">
+            <!-- Background Banner from Mobile scaled to hide white margins -->
+            <img src="{{ asset('images/jkpay_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.12] origin-center pointer-events-none z-0">
             
             <div class="flex items-stretch justify-between relative z-10 gap-3">
                 <!-- Left Section: Balance & Brand -->
@@ -365,7 +367,7 @@
                 </div>
 
                 <!-- Right Section: Quick Action Buttons (Gojek Icon Row Style) -->
-                <div class="flex-grow grid grid-cols-4 gap-2 items-center justify-between text-center">
+                <div class="flex-grow flex justify-between items-center pl-3 pr-1 text-center">
                     
                     <!-- Bayar (Pay) -->
                     <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
@@ -480,6 +482,8 @@
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Promo Rekomendasi</h3>
             
             <div class="w-full bg-telkomsel-pattern-promo text-white rounded-3xl p-5 shadow-sm relative overflow-hidden border border-rose-400/20">
+                <!-- Background Banner from Mobile scaled to hide white margins -->
+                <img src="{{ asset('images/promo_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.12] origin-center pointer-events-none z-0">
                 <div class="relative z-10 space-y-3">
                     <span class="text-[8px] bg-white text-rose-600 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Promo Khusus</span>
                     <div>

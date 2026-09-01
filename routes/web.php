@@ -109,6 +109,9 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::get('/jastiper/earnings', [EarningsController::class, 'recap'])->name('jastiper.earnings');
     Route::get('/jastiper/earnings/data', [EarningsController::class, 'recapData'])->name('jastiper.earnings.data');
     Route::post('/jastiper/earnings/withdraw', [EarningsController::class, 'requestWithdraw'])->name('jastiper.earnings.withdraw');
+
+    // ===== Profil Jastiper =====
+    Route::get('/jastiper/profile', [DashboardController::class, 'jastiperProfile'])->name('jastiper.profile');
 });
 
 // Admin Dashboard Routes

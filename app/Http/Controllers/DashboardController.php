@@ -162,6 +162,34 @@ class DashboardController extends Controller
     }
 
     /**
+     * Halaman Profil Jastiper.
+     */
+    public function jastiperProfile()
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $jastiper->load(['wilayah', 'latestVerification']);
+
+        $completedOrdersCount = Order::where('jastiper_id', $jastiper->id)->where('status', 'selesai')->count();
+        $totalOrdersCount = Order::where('jastiper_id', $jastiper->id)
+            ->whereNotIn('status', ['menunggu_tawaran', 'menunggu_pembayaran'])
+            ->count();
+        $completionRate = $totalOrdersCount > 0 ? round(($completedOrdersCount / $totalOrdersCount) * 100) : 100;
+
+        $ratingAvg = $jastiper->badge?->avg_rating;
+        if (!$ratingAvg) {
+            $ratingAvg = $jastiper->ratings()->avg('rating');
+        }
+        $ratingAvg = $ratingAvg ? round((float) $ratingAvg, 1) : null;
+
+        return view('jastiper.profile', compact(
+            'jastiper',
+            'completedOrdersCount',
+            'completionRate',
+            'ratingAvg'
+        ));
+    }
+
+    /**
      * Halaman Buat Request Baru oleh Customer.
      */
     public function customerCreateOrder()

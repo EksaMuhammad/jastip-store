@@ -79,82 +79,151 @@
                             </div>
                         </div>
 
-                        <!-- Right Hero Form (Calculator Simulation) -->
-                        <div id="calculator" class="lg:col-span-5">
-                            <div class="bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] rounded-sm p-6 sm:p-8">
-                                <div class="border-b border-slate-100 pb-4 mb-5">
-                                    <h2 class="font-display font-extrabold text-xl text-slate-900 flex items-center gap-2">
-                                        <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                                        Simulasi Tarif Jastip
-                                    </h2>
-                                    <p class="text-xs text-slate-500 mt-1">Cek perkiraan komisi Jastiper & ongkir wilayah Anda secara transparan.</p>
+                        <!-- Right Hero Mockup (Customer Dashboard) -->
+                        <div class="lg:col-span-5 relative flex justify-center lg:justify-end">
+                            <!-- Decorative blur elements -->
+                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4/5 h-4/5 bg-rose-400/20 blur-3xl rounded-full z-0"></div>
+                            
+                            <!-- Phone Mockup Container -->
+                            <div class="relative z-10 w-full max-w-[320px] bg-slate-900 rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-slate-800 rotate-2 hover:rotate-0 transition-transform duration-500 group">
+                                <!-- Phone Notch/Island -->
+                                <div class="absolute top-4 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-20 flex justify-center items-center shadow-inner">
+                                    <div class="w-1.5 h-1.5 bg-slate-700/50 rounded-full mr-2"></div>
+                                    <div class="w-1.5 h-1.5 bg-slate-700/50 rounded-full"></div>
                                 </div>
-
-                                <form id="jastip-calculator" class="space-y-4" onsubmit="event.preventDefault(); calculateEstimates();">
-                                    <!-- Input Wilayah -->
-                                    <div>
-                                        <label for="calc-wilayah" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Wilayah Pembelian</label>
-                                        <select id="calc-wilayah" class="w-full bg-slate-50 border border-slate-300 focus:border-rose-600 focus:ring-1 focus:ring-rose-600 text-slate-800 text-sm font-medium p-3 rounded-sm outline-none transition" onchange="calculateEstimates()">
-                                            <option value="1" data-radius="5">Malang Kota (Area Terdekat)</option>
-                                            <option value="2" data-radius="10">Kabupaten Malang (+ Rp5,000)</option>
-                                            <option value="3" data-radius="15">Kota Batu & Area Luar (+ Rp12,000)</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Kategori Barang -->
-                                    <div>
-                                        <label for="calc-kategori" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Kategori Barang</label>
-                                        <select id="calc-kategori" class="w-full bg-slate-50 border border-slate-300 focus:border-rose-600 focus:ring-1 focus:ring-rose-600 text-slate-800 text-sm font-medium p-3 rounded-sm outline-none transition" onchange="calculateEstimates()">
-                                            <option value="kuliner" data-fee="15000">Kuliner & Makanan (Fee Jastip Hemat)</option>
-                                            <option value="fashion" data-fee="25000">Fashion & Pakaian (Premium Box/Bag)</option>
-                                            <option value="elektronik" data-fee="50000">Gadget & Elektronik (Jaminan Safety)</option>
-                                            <option value="lainnya" data-fee="20000">Lain-lain (Belanja Harian/Supermarket)</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Range Slider Berat / Bobot -->
-                                    <div>
-                                        <div class="flex justify-between items-center mb-1">
-                                            <label for="calc-weight" class="text-xs font-bold text-slate-700 uppercase tracking-wider">Perkiraan Berat Barang</label>
-                                            <span id="weight-label" class="text-sm font-bold text-rose-600">1 kg</span>
+                                
+                                <!-- Screen Content -->
+                                <div class="bg-slate-50 w-full h-[620px] rounded-[2rem] overflow-hidden flex flex-col relative border border-slate-800">
+                                    
+                                    <!-- Header -->
+                                    <div class="bg-white px-5 pt-11 pb-4 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] z-10">
+                                        <div class="flex justify-between items-center">
+                                            <div>
+                                                <p class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Lokasi Pengantaran</p>
+                                                <div class="flex items-center gap-1 cursor-pointer">
+                                                    <span class="font-display font-bold text-sm text-slate-900">Malang Kota</span>
+                                                    <svg class="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                                                </div>
+                                            </div>
+                                            <div class="w-9 h-9 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shadow-sm cursor-pointer hover:border-rose-300 transition">
+                                                <img src="https://ui-avatars.com/api/?name=Budi+U&background=FFE4E6&color=E11D48" alt="Profile" class="w-full h-full object-cover">
+                                            </div>
                                         </div>
-                                        <input type="range" id="calc-weight" min="1" max="10" value="1" class="w-full h-2 bg-slate-200 rounded-sm appearance-none cursor-pointer accent-rose-600" oninput="updateWeightLabel(this.value); calculateEstimates();">
-                                    </div>
-
-                                    <!-- Perkiraan Harga Barang -->
-                                    <div>
-                                        <label for="calc-price" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Harga Barang Yang Dititip (Rp)</label>
-                                        <div class="relative">
-                                            <span class="absolute left-3 top-3 text-slate-400 font-bold text-sm">Rp</span>
-                                            <input type="number" id="calc-price" value="100000" min="10000" step="5000" class="w-full bg-slate-50 border border-slate-300 focus:border-rose-600 focus:ring-1 focus:ring-rose-600 text-slate-800 text-sm font-bold pl-9 pr-3 py-3 rounded-sm outline-none transition" oninput="calculateEstimates()">
+                                        <!-- Search -->
+                                        <div class="mt-4 relative group/search">
+                                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                                <svg class="w-4 h-4 text-slate-400 group-focus-within/search:text-rose-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                            </div>
+                                            <input type="text" placeholder="Mau titip apa hari ini?" class="w-full bg-slate-100 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:border-rose-300 focus:ring-2 focus:ring-rose-100 outline-none transition cursor-pointer">
                                         </div>
                                     </div>
 
-                                    <!-- Hasil Perhitungan / Live Estimates -->
-                                    <div class="bg-slate-50 border border-slate-200 p-4 space-y-2 rounded-sm text-sm">
-                                        <div class="flex justify-between text-slate-600">
-                                            <span>Komisi Jastiper:</span>
-                                            <span id="out-jastip-fee" class="font-semibold text-slate-900">Rp15,000</span>
+                                    <!-- Scrollable Content -->
+                                    <div class="flex-1 overflow-y-auto px-5 py-5 pb-24 no-scrollbar space-y-6">
+                                        
+                                        <!-- Promo Banner -->
+                                        <div class="bg-gradient-to-r from-rose-600 to-rose-500 rounded-2xl p-4 text-white shadow-md shadow-rose-200 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform">
+                                            <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-md"></div>
+                                            <div class="absolute -left-4 -bottom-4 w-20 h-20 bg-black/10 rounded-full blur-sm"></div>
+                                            <h3 class="font-display font-bold text-lg mb-1 relative z-10 leading-tight">Diskon Jastip<br>Mulai 50%</h3>
+                                            <p class="text-[10px] text-rose-100 mb-3 relative z-10 opacity-90">Khusus makanan area Suhat.</p>
+                                            <button class="bg-white text-rose-600 text-xs font-bold py-1.5 px-3.5 rounded-full relative z-10 shadow-sm hover:bg-slate-50 transition">Klaim Sekarang</button>
                                         </div>
-                                        <div class="flex justify-between text-slate-600">
-                                            <span>Biaya Pengantaran Wilayah:</span>
-                                            <span id="out-delivery-fee" class="font-semibold text-slate-900">Rp8,000</span>
+
+                                        <!-- Categories -->
+                                        <div>
+                                            <h3 class="font-display font-bold text-sm text-slate-900 mb-3">Kategori Titipan</h3>
+                                            <div class="grid grid-cols-4 gap-3">
+                                                <div class="flex flex-col items-center gap-1.5 cursor-pointer group/cat">
+                                                    <div class="w-12 h-12 bg-orange-50 group-hover/cat:bg-orange-100 border border-orange-100 rounded-2xl flex items-center justify-center shadow-sm transition p-2">
+                                                        <img src="{{ asset('images/services/beli-antar.png') }}" alt="Makanan" class="w-full h-full object-contain drop-shadow-sm group-hover/cat:scale-110 transition-transform">
+                                                    </div>
+                                                    <span class="text-[10px] font-medium text-slate-600 text-center leading-tight group-hover/cat:text-slate-900 transition">Makanan</span>
+                                                </div>
+                                                <div class="flex flex-col items-center gap-1.5 cursor-pointer group/cat">
+                                                    <div class="w-12 h-12 bg-blue-50 group-hover/cat:bg-blue-100 border border-blue-100 rounded-2xl flex items-center justify-center shadow-sm transition p-2">
+                                                        <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Fashion" class="w-full h-full object-contain drop-shadow-sm group-hover/cat:scale-110 transition-transform">
+                                                    </div>
+                                                    <span class="text-[10px] font-medium text-slate-600 text-center leading-tight group-hover/cat:text-slate-900 transition">Fashion</span>
+                                                </div>
+                                                <div class="flex flex-col items-center gap-1.5 cursor-pointer group/cat">
+                                                    <div class="w-12 h-12 bg-purple-50 group-hover/cat:bg-purple-100 border border-purple-100 rounded-2xl flex items-center justify-center shadow-sm transition p-2">
+                                                        <img src="{{ asset('images/services/kirim-pihak-ketiga.png') }}" alt="Elektronik" class="w-full h-full object-contain drop-shadow-sm group-hover/cat:scale-110 transition-transform">
+                                                    </div>
+                                                    <span class="text-[10px] font-medium text-slate-600 text-center leading-tight group-hover/cat:text-slate-900 transition">Elektronik</span>
+                                                </div>
+                                                <div class="flex flex-col items-center gap-1.5 cursor-pointer group/cat">
+                                                    <div class="w-12 h-12 bg-emerald-50 group-hover/cat:bg-emerald-100 border border-emerald-100 rounded-2xl flex items-center justify-center shadow-sm transition p-2">
+                                                        <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Lainnya" class="w-full h-full object-contain drop-shadow-sm group-hover/cat:scale-110 transition-transform">
+                                                    </div>
+                                                    <span class="text-[10px] font-medium text-slate-600 text-center leading-tight group-hover/cat:text-slate-900 transition">Lainnya</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="flex justify-between text-slate-600">
-                                            <span>Biaya Proteksi Escrow (Aman):</span>
-                                            <span id="out-platform-fee" class="font-semibold text-emerald-600">Rp5,000</span>
+
+                                        <!-- Active Orders -->
+                                        <div>
+                                            <div class="flex justify-between items-end mb-3">
+                                                <h3 class="font-display font-bold text-sm text-slate-900">Titipan Aktif</h3>
+                                                <a href="#" class="text-[10px] text-rose-600 font-bold hover:text-rose-700">Lihat Semua</a>
+                                            </div>
+                                            
+                                            <!-- Order Card -->
+                                            <div class="bg-white p-3.5 rounded-2xl shadow-[0_4px_15px_-4px_rgba(0,0,0,0.06)] border border-slate-100 cursor-pointer hover:border-rose-200 transition group/card">
+                                                <div class="flex justify-between items-start mb-3">
+                                                    <div class="flex items-center gap-2.5">
+                                                        <div class="w-9 h-9 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shadow-sm">
+                                                            <img src="https://ui-avatars.com/api/?name=Ahmad+J&background=E2E8F0&color=475569" alt="Jastiper" class="w-full h-full object-cover">
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-[11px] font-bold text-slate-900 group-hover/card:text-rose-600 transition">Ahmad J.</p>
+                                                            <p class="text-[9px] text-slate-500 font-medium">Jastiper &bull; <span class="text-emerald-600 font-semibold">Sedang Mengantar</span></p>
+                                                        </div>
+                                                    </div>
+                                                    <span class="bg-rose-50 text-rose-600 border border-rose-100 text-[9px] font-bold px-2 py-0.5 rounded-md">Berlangsung</span>
+                                                </div>
+                                                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mb-4">
+                                                    <p class="text-[11px] font-bold text-slate-800 mb-0.5 line-clamp-1">Kopi Kenangan & 2 Item lainnya</p>
+                                                    <p class="text-[10px] text-slate-500">Total Est: <span class="font-bold text-slate-700">Rp 85.000</span></p>
+                                                </div>
+                                                
+                                                <!-- Progress Bar Minimalist -->
+                                                <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2 relative overflow-hidden">
+                                                    <div class="absolute bg-emerald-500 h-1.5 rounded-full left-0 top-0 transition-all duration-1000" style="width: 75%"></div>
+                                                </div>
+                                                <div class="flex justify-between text-[8px] text-slate-400 font-semibold px-1">
+                                                    <span class="text-emerald-600">Diterima</span>
+                                                    <span class="text-emerald-600 text-center">Beli</span>
+                                                    <span class="text-emerald-600 text-center">Antar</span>
+                                                    <span class="text-right">Selesai</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="border-t border-slate-200 pt-2 flex justify-between font-bold text-base text-slate-900">
-                                            <span>Total Estimasi Jasa:</span>
-                                            <span id="out-total-fee" class="text-rose-600">Rp28,000</span>
-                                        </div>
+
                                     </div>
 
-                                    <!-- CTA Belanja -->
-                                    <button type="button" id="btn-calc-submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-center py-3.5 rounded-sm transition tracking-wide text-sm">
-                                        BUAT PERMINTAAN SEKARANG
-                                    </button>
-                                </form>
+                                    <!-- Bottom Navigation -->
+                                    <div class="absolute bottom-0 left-0 w-full bg-white border-t border-slate-100 px-6 py-3.5 flex justify-between items-center z-20 pb-5 rounded-b-[2rem] shadow-[0_-4px_15px_-4px_rgba(0,0,0,0.05)]">
+                                        <div class="flex flex-col items-center text-rose-600 gap-1 cursor-pointer">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                                            <span class="text-[9px] font-bold">Beranda</span>
+                                        </div>
+                                        <div class="flex flex-col items-center text-slate-400 hover:text-rose-500 gap-1 cursor-pointer transition">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                                            <span class="text-[9px] font-medium">Pesanan</span>
+                                        </div>
+                                        <div class="relative flex flex-col items-center text-slate-400 hover:text-rose-500 gap-1 cursor-pointer transition">
+                                            <div class="absolute -top-0.5 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white shadow-sm"></div>
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                            <span class="text-[9px] font-medium">Pesan</span>
+                                        </div>
+                                        <div class="flex flex-col items-center text-slate-400 hover:text-rose-500 gap-1 cursor-pointer transition">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                            <span class="text-[9px] font-medium">Profil</span>
+                                        </div>
+                                    </div>
+                                    
+                                </div>
                             </div>
                         </div>
 

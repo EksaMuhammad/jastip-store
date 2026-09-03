@@ -19,7 +19,9 @@ class Topup extends Model
         'raw_response',
         'raw_webhook_payload',
         'payment_deadline',
+        'proof_image',
         'verified_at',
+        'verified_by_admin_id',
     ];
 
     protected $casts = [
@@ -33,5 +35,10 @@ class Topup extends Model
     public function wallet()
     {
         return $this->belongsTo(Wallet::class);
+    }
+
+    public function verifiedByAdmin()
+    {
+        return $this->belongsTo(Admin::class, 'verified_by_admin_id');
     }
 }

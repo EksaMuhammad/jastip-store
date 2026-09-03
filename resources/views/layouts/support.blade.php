@@ -30,7 +30,7 @@
     <body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-rose-600 selection:text-white flex flex-col min-h-screen">
 
         <!-- Header -->
-        @if(!request()->is('admin/*', 'admin'))
+        @if(!request()->is('admin/*', 'admin', 'login', 'register'))
             @include('layouts.header')
         @endif
 
@@ -107,7 +107,7 @@
         @endif
 
         <!-- Footer -->
-        @if(!request()->is('customer/*', 'jastiper/*', 'admin/*', 'customer', 'jastiper', 'admin'))
+        @if(!request()->is('customer/*', 'jastiper/*', 'admin/*', 'customer', 'jastiper', 'admin', 'login', 'register'))
             @include('layouts.footer')
         @endif
 

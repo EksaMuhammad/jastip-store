@@ -41,6 +41,7 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/jastiper/{id}/availability', [DashboardController::class, 'customerJastiperAvailability'])->name('customer.jastiper.availability');
     Route::get('/customer/activity', [DashboardController::class, 'customerActivity'])->name('customer.activity');
     Route::get('/customer/chats', [DashboardController::class, 'customerChats'])->name('customer.chats');
+    Route::get('/customer/profile', [DashboardController::class, 'customerProfile'])->name('customer.profile');
 
     // ===== Bidding & Deal (Halaman Tawaran & Deal) =====
     Route::get('/customer/orders/active-feed', [DashboardController::class, 'customerActiveOrdersFeed'])->name('customer.orders.active-feed');

@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Exceptions\InsufficientBalanceException;
+use App\Models\Admin;
 use App\Models\Topup;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class WalletService
@@ -161,5 +164,60 @@ class WalletService
         } else {
             $topup->update(['raw_webhook_payload' => $payload]);
         }
+    }
+
+    /**
+     * BUGFIX: Customer upload bukti transfer manual untuk topup (fallback
+     * kalau VA/QRIS bermasalah). Sama seperti PaymentService::submitManualProof()
+     * untuk order — tidak langsung mengubah status Topup, menunggu admin approve.
+     */
+    public function submitManualProof(Topup $topup, UploadedFile $proof): Topup
+    {
+        $path = $proof->store('topup-proofs', 'public');
+
+        $topup->update(['proof_image' => $path]);
+
+        return $topup->fresh();
+    }
+
+    /**
+     * BUGFIX: Admin approve/reject bukti transfer manual topup. Pola & cross-check
+     * ke gateway sama seperti PaymentService::adminVerifyManualProof(), bedanya
+     * status "sukses" topup namanya 'berhasil' (bukan 'lunas') dan approve di
+     * sini mengkredit wallet customer, bukan memindahkan status order.
+     */
+    public function adminVerifyManualProof(Topup $topup, Admin $admin, bool $approve): Topup
+    {
+        if ($approve && $topup->gateway_transaction_id) {
+            $gatewayStatus = $this->gateway->getStatus($topup->gateway_transaction_id);
+
+            Log::info('[ADMIN VERIFY] Cross-check status Midtrans sebelum approve topup.', [
+                'topup_id' => $topup->id,
+                'gateway_status' => $gatewayStatus,
+            ]);
+        }
+
+        if ($approve) {
+            return DB::transaction(function () use ($topup, $admin) {
+                $topup->update([
+                    'status' => 'berhasil',
+                    'verified_at' => now(),
+                    'verified_by_admin_id' => $admin->id,
+                ]);
+
+                $wallet = $topup->wallet()->lockForUpdate()->first();
+                $this->credit($wallet, (float) $topup->amount, 'topup', null, "Topup manual disetujui admin ({$topup->gateway_reference})");
+
+                return $topup->fresh();
+            });
+        }
+
+        $topup->update([
+            'status' => 'gagal',
+            'verified_at' => now(),
+            'verified_by_admin_id' => $admin->id,
+        ]);
+
+        return $topup->fresh();
     }
 }

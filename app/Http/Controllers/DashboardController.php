@@ -94,6 +94,30 @@ class DashboardController extends Controller
     }
 
     /**
+     * Halaman Profil Customer.
+     */
+    public function customerProfile()
+    {
+        $customer = Auth::guard('customer')->user();
+        $balance = $customer->wallet ? $customer->wallet->balance : 0;
+        
+        $completedOrdersCount = Order::where('customer_id', $customer->id)
+            ->where('status', 'selesai')
+            ->count();
+            
+        $totalOrdersCount = Order::where('customer_id', $customer->id)->count();
+        $favoriteCount = $customer->favorites()->count();
+
+        return view('customer.profile', compact(
+            'customer',
+            'balance',
+            'completedOrdersCount',
+            'totalOrdersCount',
+            'favoriteCount'
+        ));
+    }
+
+    /**
      * Dashboard untuk Jastiper.
      */
     public function jastiperDashboard()

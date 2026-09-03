@@ -40,7 +40,7 @@
         </main>
 
         <!-- Sticky Bottom Navigation for Mobile Dashboards -->
-        @if(request()->is('customer/*', 'customer'))
+        @if(request()->is('customer/*', 'customer') && !request()->is('customer/cart', 'customer/cart/*'))
             <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] px-4 py-2 flex justify-around items-center">
                 
                 <!-- Beranda -->

@@ -44,6 +44,17 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/profile', [DashboardController::class, 'customerProfile'])->name('customer.profile');
 
     // ===== Bidding & Deal (Halaman Tawaran & Deal) =====
+    // Catalog / GoFood & GoMart Routes
+    Route::get('/customer/search', [\App\Http\Controllers\Customer\SearchController::class, 'index'])->name('customer.search');
+    Route::get('/customer/food', [\App\Http\Controllers\Customer\MerchantController::class, 'food'])->name('customer.food');
+    Route::get('/customer/mart', [\App\Http\Controllers\Customer\MerchantController::class, 'mart'])->name('customer.mart');
+    Route::get('/customer/merchant/{merchant}', [\App\Http\Controllers\Customer\MerchantController::class, 'show'])->name('customer.merchant.show');
+    
+    // Cart Routes
+    Route::get('/customer/cart', [\App\Http\Controllers\Customer\CartController::class, 'index'])->name('customer.cart.index');
+    Route::post('/customer/cart/add/{product}', [\App\Http\Controllers\Customer\CartController::class, 'add'])->name('customer.cart.add');
+    Route::post('/customer/cart/checkout', [\App\Http\Controllers\Customer\CartController::class, 'checkout'])->name('customer.cart.checkout');
+    
     Route::get('/customer/orders/active-feed', [DashboardController::class, 'customerActiveOrdersFeed'])->name('customer.orders.active-feed');
     Route::post('/customer/offers/{id}/accept', [DashboardController::class, 'customerAcceptOffer'])->name('customer.offers.accept');
     Route::post('/customer/orders/{id}/expand-radius', [DashboardController::class, 'customerExpandOrderRadius'])->name('customer.orders.expand-radius');

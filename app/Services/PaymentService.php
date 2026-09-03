@@ -158,7 +158,11 @@ class PaymentService
             ]);
 
             $order = $payment->order()->lockForUpdate()->first();
-            app(OrderDealService::class)->startProcessing($order);
+            if ($order->is_catalog_order) {
+                $order->update(['status' => 'menunggu_tawaran']);
+            } else {
+                app(OrderDealService::class)->startProcessing($order);
+            }
 
             return $payment->fresh();
         });
@@ -215,7 +219,11 @@ class PaymentService
                 ]);
 
                 $order = $payment->order()->lockForUpdate()->first();
-                app(OrderDealService::class)->startProcessing($order);
+                if ($order->is_catalog_order) {
+                    $order->update(['status' => 'menunggu_tawaran']);
+                } else {
+                    app(OrderDealService::class)->startProcessing($order);
+                }
             });
         } elseif (in_array($status, ['expire', 'cancel', 'deny', 'failure'], true)) {
             $payment->update([

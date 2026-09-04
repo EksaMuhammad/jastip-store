@@ -145,6 +145,26 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/withdraws', [AdminWithdrawController::class, 'index'])->name('admin.withdraws');
     Route::post('/admin/withdraws/{id}/approve', [AdminWithdrawController::class, 'approve'])->name('admin.withdraws.approve');
     Route::post('/admin/withdraws/{id}/reject', [AdminWithdrawController::class, 'reject'])->name('admin.withdraws.reject');
+
+    // ===== Manajemen Merchant dan Produk (Admin) =====
+    Route::resource('admin/merchants', \App\Http\Controllers\AdminMerchantController::class)->names([
+        'index' => 'admin.merchants.index',
+        'create' => 'admin.merchants.create',
+        'store' => 'admin.merchants.store',
+        'show' => 'admin.merchants.show',
+        'edit' => 'admin.merchants.edit',
+        'update' => 'admin.merchants.update',
+        'destroy' => 'admin.merchants.destroy',
+    ]);
+    Route::resource('admin/merchants.products', \App\Http\Controllers\AdminProductController::class)->shallow()->names([
+        'index' => 'admin.products.index',
+        'create' => 'admin.products.create',
+        'store' => 'admin.products.store',
+        'show' => 'admin.products.show',
+        'edit' => 'admin.products.edit',
+        'update' => 'admin.products.update',
+        'destroy' => 'admin.products.destroy',
+    ]);
 });
 
 // Webhook Midtrans — publik, TANPA middleware auth:*. Validitas payload

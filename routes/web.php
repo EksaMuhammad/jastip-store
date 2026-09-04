@@ -128,6 +128,11 @@ Route::middleware('auth:jastiper')->group(function () {
 
 // Admin Dashboard Routes
 Route::middleware('auth:admin')->group(function () {
+    Route::get('/admin', function () {
+        return redirect()->route('admin.dashboard');
+    });
+    Route::get('/admin/dashboard', [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
+    
     Route::get('/admin/verification', [DashboardController::class, 'adminVerification'])->name('admin.verification');
     // Admin endpoint for updating verification status (simulation/actual)
     Route::post('/admin/verification/{id}/update', [DashboardController::class, 'adminVerificationUpdate'])->name('admin.verification.update');

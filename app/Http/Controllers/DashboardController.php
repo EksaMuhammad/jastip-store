@@ -277,6 +277,31 @@ class DashboardController extends Controller
     }
 
     /**
+     * Halaman Utama Dashboard Admin.
+     */
+    public function adminDashboard()
+    {
+        $totalOrders = \App\Models\Order::count();
+        $totalCompletedOrders = \App\Models\Order::where('status', 'selesai')->count();
+        $totalNetRevenue = \App\Models\Komisi::sum('commission_amount');
+        $activeJastipers = \App\Models\Jastiper::where('verification_status', 'approved')->count();
+        $totalCustomers = \App\Models\Customer::count();
+
+        $latestOrders = \App\Models\Order::with(['customer', 'jastiper'])
+            ->latest()
+            ->paginate(10);
+
+        return view('admin.dashboard', compact(
+            'totalOrders', 
+            'totalCompletedOrders', 
+            'totalNetRevenue', 
+            'activeJastipers', 
+            'totalCustomers',
+            'latestOrders'
+        ));
+    }
+
+    /**
      * Halaman dashboard antrian verifikasi Admin.
      */
     public function adminVerification()

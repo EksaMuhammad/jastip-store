@@ -319,56 +319,56 @@
         </div>
 
         <!-- Gopay Card Layout (JastipKuy Pay) -->
-        <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-5 shadow-lg border border-rose-500/20 relative overflow-hidden">
+        <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-4 shadow-lg border border-rose-500/20 relative overflow-hidden">
             <!-- Background Banner from Mobile scaled to hide white margins -->
-            <img src="{{ asset('images/jkpay_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.12] origin-center pointer-events-none z-0">
+            <img src="{{ asset('images/jkpay_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.3] origin-center pointer-events-none z-0">
             
-            <div class="flex items-stretch justify-between relative z-10 gap-3">
+            <div class="flex items-center justify-between relative z-10 gap-2">
                 <!-- Left Section: Balance & Brand -->
-                <div class="flex flex-col justify-between space-y-3 pr-4 border-r border-white/20">
+                <div class="flex flex-col justify-center space-y-2 pr-3 border-r border-white/20 shrink-0">
                     <div class="flex items-center gap-1.5">
                         <!-- Tiny GoPay-style Logo -->
-                        <span class="text-[10px] font-black tracking-tighter bg-white text-rose-600 px-2 py-0.5 rounded-sm uppercase">JK PAY</span>
+                        <span class="text-[9px] font-black tracking-tighter bg-white text-rose-600 px-1.5 py-0.5 rounded-sm uppercase">JK PAY</span>
                     </div>
                     <div>
-                        <div class="text-2xl font-black font-display tracking-tight">Rp{{ number_format($balance, 0, ',', '.') }}</div>
-                        <span class="text-[8px] text-rose-100 font-semibold block">Tap untuk riwayat dompet</span>
+                        <div class="text-xl font-black font-display tracking-tight leading-none">Rp{{ number_format($balance, 0, ',', '.') }}</div>
+                        <span class="text-[7px] text-rose-100 font-semibold block mt-1">Tap untuk riwayat</span>
                     </div>
                 </div>
 
                 <!-- Right Section: Quick Action Buttons (Gojek Icon Row Style) -->
-                <div class="flex-grow flex justify-between items-center pl-3 pr-1 text-center">
+                <div class="flex-grow flex justify-around items-center pl-1 text-center">
                     
                     <!-- Bayar (Pay) -->
                     <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-9 h-9 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 11v3m5-13H7m0 10h10m-5-10v10"></path></svg>
                         </div>
-                        <span class="text-[9px] font-bold text-white tracking-wide">Bayar</span>
+                        <span class="text-[8px] font-bold text-white tracking-wide">Bayar</span>
                     </button>
 
                     <!-- Top Up -->
                     <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-9 h-9 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                         </div>
-                        <span class="text-[9px] font-bold text-white tracking-wide">Isi Saldo</span>
+                        <span class="text-[8px] font-bold text-white tracking-wide">Top Up</span>
                     </a>
 
                     <!-- Riwayat -->
                     <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-9 h-9 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                         </div>
-                        <span class="text-[9px] font-bold text-white tracking-wide">Riwayat</span>
+                        <span class="text-[8px] font-bold text-white tracking-wide">Riwayat</span>
                     </a>
 
                     <!-- Eksplor -->
                     <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-9 h-9 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                         </div>
-                        <span class="text-[9px] font-bold text-white tracking-wide">Lainnya</span>
+                        <span class="text-[8px] font-bold text-white tracking-wide">Lainnya</span>
                     </button>
 
                 </div>
@@ -551,8 +551,8 @@
                             </div>
                         </template>
 
-                        <!-- Tombol Chat: hanya muncul begitu order sudah deal (jastiper terkunci) -->
-                        <template x-if="!isSearching(order)">
+                        <!-- Tombol Chat: hanya muncul begitu order sudah deal (jastiper terkunci) atau punya jastiper (direct booking) -->
+                        <template x-if="!isSearching(order) && order.jastiper">
                             <button type="button"
                                 @click="window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id, orderLabel: order.description } }))"
                                 class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-xs">

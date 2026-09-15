@@ -113,8 +113,22 @@
                 return order.status === 'menunggu_tawaran' || order.status === 'ada_tawaran';
             },
 
+            getStatusLabel(status) {
+                const labels = {
+                    'menunggu_tawaran': 'Sedang Mencari Jastiper Terdekat...',
+                    'ada_tawaran': 'Ada Tawaran Masuk',
+                    'menunggu_pembayaran': 'Menunggu Pembayaran',
+                    'deal': 'Deal Terbentuk',
+                    'diproses': 'Sedang Diproses',
+                    'barang_diambil': 'Barang Telah Diambil',
+                    'sedang_diantar': 'Sedang Diantar',
+                    'tiba_tujuan': 'Tiba di Tujuan'
+                };
+                return labels[status] || status.replace('_', ' ');
+            },
+
             needsPayment(order) {
-                return order.status === 'menunggu_pembayaran';
+                return order.status === 'menunggu_pembayaran' && !order.has_uploaded_proof;
             },
 
             paymentUrl(order) {
@@ -514,7 +528,7 @@
                                         Status:
                                         <span class="font-extrabold uppercase"
                                             :class="order.status === 'menunggu_pembayaran' ? 'text-rose-500' : (['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'].includes(order.status) ? 'text-emerald-500' : 'text-amber-500')"
-                                            x-text="order.status === 'menunggu_pembayaran' ? 'Menunggu Pembayaran' : (order.status === 'deal' ? 'Deal Terbentuk' : (order.status === 'diproses' ? 'Sedang Diproses' : (order.status === 'barang_diambil' ? 'Barang Diambil' : (order.status === 'sedang_diantar' ? 'Sedang Diantar' : (order.status === 'tiba_tujuan' ? 'Tiba di Tujuan' : (order.status === 'ada_tawaran' ? 'Ada Tawaran Masuk' : 'Menunggu Jastiper')))))))"></span>
+                                            x-text="getStatusLabel(order.status)"></span>
                                     </p>
                                     <p x-show="order.jastiper" x-cloak class="text-[8px] text-slate-500 mt-0.5">
                                         Mitra Jastiper: <b x-text="order.jastiper?.name"></b> (<span x-text="order.jastiper?.phone_number"></span>)
@@ -533,6 +547,15 @@
                                 class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-xs">
                                 <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                                 <span>Bayar Sekarang</span>
+                            </a>
+                        </template>
+
+                        <!-- Banner Menunggu Verifikasi Admin -->
+                        <template x-if="order.status === 'menunggu_pembayaran' && order.has_uploaded_proof">
+                            <a :href="paymentUrl(order)"
+                                class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-xs">
+                                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Menunggu Verifikasi Admin</span>
                             </a>
                         </template>
 

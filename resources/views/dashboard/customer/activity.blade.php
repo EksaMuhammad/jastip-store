@@ -44,7 +44,7 @@
         
         getStatusLabel(status) {
             const labels = {
-                'menunggu_tawaran': 'Mencari Jastiper',
+                'menunggu_tawaran': 'Sedang Mencari Jastiper Terdekat...',
                 'ada_tawaran': 'Ada Tawaran Masuk',
                 'menunggu_pembayaran': 'Menunggu Pembayaran',
                 'deal': 'Deal Terbentuk',
@@ -283,9 +283,14 @@
 
                         <!-- Contextual Action Buttons -->
                         <div class="flex gap-2">
-                            <template x-if="order.status === 'menunggu_pembayaran'">
+                            <template x-if="order.status === 'menunggu_pembayaran' && !order.has_uploaded_proof">
                                 <a :href="'/customer/orders/' + order.id + '/payment'" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[9px] py-2.5 rounded-xl text-center uppercase tracking-wider block shadow-sm">
                                     Bayar Sekarang
+                                </a>
+                            </template>
+                            <template x-if="order.status === 'menunggu_pembayaran' && order.has_uploaded_proof">
+                                <a :href="'/customer/orders/' + order.id + '/payment'" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-[9px] py-2.5 rounded-xl text-center uppercase tracking-wider block shadow-sm">
+                                    Menunggu Verifikasi
                                 </a>
                             </template>
                             

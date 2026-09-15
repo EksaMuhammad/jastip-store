@@ -11,9 +11,10 @@
             <a href="{{ route('customer.dashboard') }}" class="text-slate-700 bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </a>
-            <div class="flex-grow mx-3 bg-slate-100 py-1.5 px-3 rounded-full flex items-center justify-center gap-1.5">
+            <div class="flex-grow mx-3 bg-slate-100 py-1.5 px-3 rounded-full flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-200 transition" onclick="document.getElementById('modal-location').classList.remove('hidden')">
                 <svg class="w-3.5 h-3.5 text-slate-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
-                <span class="text-[10px] font-bold text-slate-800 line-clamp-1">Lokasi Anda Sekarang</span>
+                <span class="text-[10px] font-bold text-slate-800 line-clamp-1">{{ session('customer_location', 'Malang, Jawa Timur') }}</span>
+                <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <a href="{{ route('customer.cart.index') }}" class="relative text-slate-700 bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
@@ -141,6 +142,29 @@
                 </div>
             </a>
             @endforeach
+        </div>
+    </div>
+    <!-- Modal Location -->
+    <div id="modal-location" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="document.getElementById('modal-location').classList.add('hidden')"></div>
+        <div class="relative bg-white rounded-3xl w-full max-w-sm p-6 overflow-hidden shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-black text-lg text-slate-900">Ubah Lokasi Pengiriman</h3>
+                <button onclick="document.getElementById('modal-location').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <form action="{{ route('customer.location.update') }}" method="POST">
+                @csrf
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-700 mb-2">Pilih atau Ketik Alamat Anda</label>
+                    <textarea name="location" rows="3" required class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="Contoh: Jl. Ijen No 12, Malang">{{ session('customer_location', 'Malang, Jawa Timur') }}</textarea>
+                </div>
+                <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-xl transition">
+                    Simpan Lokasi
+                </button>
+            </form>
         </div>
     </div>
 </div>

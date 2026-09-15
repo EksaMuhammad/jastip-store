@@ -36,7 +36,7 @@
             <div class="space-y-3">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Tujuan Pengiriman</label>
-                    <textarea name="delivery_location" required rows="2" class="w-full border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500 text-sm" placeholder="Contoh: Jl. Sudirman No 12, Pintu Pagar Hitam"></textarea>
+                    <textarea name="delivery_location" required rows="2" class="w-full border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500 text-sm" placeholder="Contoh: Jl. Sudirman No 12, Pintu Pagar Hitam">{{ session('customer_location', 'Malang, Jawa Timur') }}</textarea>
                 </div>
             </div>
         </div>
@@ -73,9 +73,8 @@
         <!-- Billing Summary Card -->
         @php
             $ongkir = 15000;
-            $appFee = env('APP_FEE_CUSTOMER', 2000);
             $dpBarang = $totalBarang * 0.5;
-            $totalBayarSekarang = $dpBarang + $ongkir + $appFee;
+            $totalBayarSekarang = $dpBarang + $ongkir;
         @endphp
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
             <h2 class="font-bold text-slate-800 text-sm mb-3">Ringkasan Pembayaran</h2>
@@ -89,28 +88,24 @@
                     <span>Ongkos Kirim (Flat)</span>
                     <span>Rp{{ number_format($ongkir, 0, ',', '.') }}</span>
                 </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Biaya Aplikasi</span>
-                    <span>Rp{{ number_format($appFee, 0, ',', '.') }}</span>
-                </div>
                 
                 <hr class="border-slate-100 my-2">
                 
                 <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-3">
                     <h3 class="font-bold text-blue-800 text-xs mb-1">Skema Downpayment (DP) 50%</h3>
-                    <p class="text-[10px] text-blue-600 mb-2 leading-relaxed">Untuk mencegah pesanan fiktif, Anda wajib membayar Ongkir + Biaya Aplikasi + DP 50% Harga Estimasi Barang melalui JKPay.</p>
+                    <p class="text-[10px] text-blue-600 mb-2 leading-relaxed">Untuk mencegah pesanan fiktif, Anda wajib membayar DP 50% + Ongkir melalui JKPay <b>setelah pesanan disetujui Jastiper</b>.</p>
                     
                     <div class="flex justify-between items-center text-blue-800 font-semibold mb-1">
                         <span>DP Barang (50%)</span>
                         <span>Rp{{ number_format($dpBarang, 0, ',', '.') }}</span>
                     </div>
                     <div class="flex justify-between items-center text-blue-800 font-semibold mb-1">
-                        <span>Ongkir + Biaya Aplikasi</span>
-                        <span>Rp{{ number_format($ongkir + $appFee, 0, ',', '.') }}</span>
+                        <span>Ongkir</span>
+                        <span>Rp{{ number_format($ongkir, 0, ',', '.') }}</span>
                     </div>
                     
                     <div class="mt-2 pt-2 border-t border-blue-200 flex justify-between items-center">
-                        <span class="font-black text-blue-900 text-sm">Bayar Sekarang via JKPay</span>
+                        <span class="font-black text-blue-900 text-sm">Total DP (Dibayar Nanti)</span>
                         <span class="font-black text-blue-900 text-sm">Rp{{ number_format($totalBayarSekarang, 0, ',', '.') }}</span>
                     </div>
                 </div>
@@ -127,11 +122,11 @@
         <!-- Bottom Checkout Sticky Bar -->
         <div class="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50 flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
             <div class="flex flex-col">
-                <span class="text-[10px] text-slate-500 font-medium">Total Bayar Sekarang</span>
+                <span class="text-[10px] text-slate-500 font-medium">Estimasi Total DP</span>
                 <span class="font-black text-rose-600 text-lg">Rp{{ number_format($totalBayarSekarang, 0, ',', '.') }}</span>
             </div>
             <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white font-black px-6 py-3 rounded-full text-sm shadow-md transition">
-                Pesan Sekarang
+                Cari Jastiper
             </button>
         </div>
     </form>

@@ -62,7 +62,7 @@ class PaymentService
         $payment = Payment::create([
             'order_id' => $order->id,
             'method' => 'transfer',
-            'amount' => $order->agreed_fare ?? $order->estimated_fare,
+            'amount' => $order->downpayment_amount ?? ($order->agreed_fare ?? $order->estimated_fare),
             'status' => 'menunggu',
             'payment_deadline' => now()->addMinutes($deadlineMinutes),
             'gateway_reference' => $this->generateGatewayReference($order),

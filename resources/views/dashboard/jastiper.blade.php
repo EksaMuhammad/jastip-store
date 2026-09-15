@@ -227,7 +227,7 @@
     @open-respond-modal.window="openRespondModal($event.detail.url, $event.detail.description)"
 >
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
-    <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-20 z-40 px-4 py-3.5 shadow-sm">
+    <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-16 sm:top-20 z-40 px-4 py-3.5 shadow-sm">
         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4 flex-wrap">
 
             <!-- Driver Info & Status -->

@@ -77,7 +77,7 @@
 
     <!-- Sticky Floating Cart Widget (Only visible if something is added) -->
     <!-- In a real app, this state would be managed globally via Alpine/Livewire. Here we use a simple static link for demonstration -->
-    <div class="fixed bottom-4 left-4 right-4 z-50">
+    <div class="fixed bottom-24 left-4 right-4 z-50">
         <a href="{{ route('customer.cart.index') }}" class="flex items-center justify-between bg-rose-600 text-white rounded-full p-4 shadow-lg shadow-rose-600/30 font-bold hover:bg-rose-700 transition">
             <div class="flex items-center gap-3">
                 <div class="bg-white/20 p-2 rounded-full relative">

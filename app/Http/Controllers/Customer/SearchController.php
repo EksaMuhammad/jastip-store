@@ -30,6 +30,6 @@ class SearchController extends Controller
             ->take(10)
             ->get();
 
-        return view('customer.search.results', compact('merchants', 'products', 'query'));
+        return view('customer.search', compact('merchants', 'products', 'query'));
     }
 }

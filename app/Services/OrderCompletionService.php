@@ -80,6 +80,10 @@ class OrderCompletionService
                     "Customer telah mengkonfirmasi penerimaan pesanan \"{$order->description}\". Pesanan selesai!"
                 );
             }
+            app(ChatService::class)->sendSystemMessage(
+                $order,
+                "Customer telah mengkonfirmasi penerimaan pesanan \"{$order->description}\". Pesanan selesai!"
+            );
         }
     }
 }

@@ -42,6 +42,7 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/activity', [DashboardController::class, 'customerActivity'])->name('customer.activity');
     Route::get('/customer/chats', [DashboardController::class, 'customerChats'])->name('customer.chats');
     Route::get('/customer/profile', [DashboardController::class, 'customerProfile'])->name('customer.profile');
+    Route::post('/customer/location', [\App\Http\Controllers\Customer\LocationController::class, 'update'])->name('customer.location.update');
 
     // ===== Bidding & Deal (Halaman Tawaran & Deal) =====
     // Catalog / GoFood & GoMart Routes

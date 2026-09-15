@@ -71,17 +71,13 @@ class CartController extends Controller
         }
 
         // DP Logic: 50% of items + full ongkir + app fee
-        $appFee = env('APP_FEE_CUSTOMER', 2000);
-        
-        // We will need the customer to input location in checkout, but for now let's assume a flat delivery fee or calculate it.
-        // In real app, delivery fee is calculated by maps. Let's assume a default for now, or require a form submission.
         $deliveryFee = 15000; // Hardcoded fallback, should be from form input.
         
         if ($request->has('delivery_fee')) {
             $deliveryFee = $request->input('delivery_fee');
         }
 
-        $dpAmount = ($estimatedItemsPrice * 0.5) + $deliveryFee + $appFee;
+        $dpAmount = ($estimatedItemsPrice * 0.5) + $deliveryFee;
 
         // Create Order
         $order = \App\Models\Order::create([
@@ -93,17 +89,17 @@ class CartController extends Controller
             'weight_category' => 'ringan',
             'description' => "Pesanan dari Katalog: " . $merchantName,
             'origin_address' => $merchant ? $merchant->address : 'Sesuai Toko',
-            'origin_lat' => 0,
-            'origin_lng' => 0,
+            'origin_lat' => -7.9839, // Default Malang coordinates
+            'origin_lng' => 112.6214,
             'destination_address' => $request->input('delivery_location', 'Alamat Customer'),
-            'destination_lat' => 0,
-            'destination_lng' => 0,
+            'destination_lat' => -7.9839,
+            'destination_lng' => 112.6214,
             'recipient_name' => Auth::guard('customer')->user()->name,
             'recipient_phone' => Auth::guard('customer')->user()->phone_number,
-            'estimated_fare' => $dpAmount, // We use this for the initial payment calculation
-            'downpayment_amount' => $dpAmount,
+            'estimated_fare' => $deliveryFee, // Only the delivery fee for Jastiper to see
+            'downpayment_amount' => $dpAmount, // Full DP (Items * 0.5 + delivery fee)
             'cash_amount' => 0,
-            'status' => 'menunggu_pembayaran',
+            'status' => 'menunggu_tawaran', // Allow jastiper to see and bid on this order
         ]);
 
         // Create Order Items
@@ -121,9 +117,6 @@ class CartController extends Controller
         $cart->cartItems()->delete();
         $cart->update(['merchant_id' => null]);
 
-        // Redirect to JKPay payment page for the order
-        app(\App\Services\PaymentService::class)->initiate($order);
-        
-        return redirect()->route('customer.orders.payment.page', ['id' => $order->id]);
+        return redirect()->route('customer.dashboard')->with('success', 'Pesanan Katalog berhasil dibuat! Menunggu tawaran dari Jastiper.');
     }
 }

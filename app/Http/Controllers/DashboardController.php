@@ -904,12 +904,25 @@ class DashboardController extends Controller
                 ->update(['status' => 'rejected']);
 
             // Jalur Bidding: deal terbentuk (jastiper_id + agreed_fare terkunci).
+            $dealService = app(OrderDealService::class);
+
+            if ($order->is_catalog_order) {
+                // Jika pesanan dari katalog, DP harus disesuaikan dengan ongkir baru (agreed_fare)
+                // DP = Harga Barang * 50% + agreed_fare
+                // Karena $order->downpayment_amount yang lama adalah = Harga Barang * 50% + estimated_fare
+                // Kita cukup tambahkan selisihnya
+                $fareDifference = $offer->offered_price - $order->estimated_fare;
+                $newDpAmount = $order->downpayment_amount + $fareDifference;
+                $order->update(['downpayment_amount' => $newDpAmount]);
+            }
+
+            $order = $dealService->formDeal($order, $offer->jastiper, (float) $offer->offered_price, 'bidding');
+
             // SEJAK FITUR PEMBAYARAN WAJIB (lihat BRIEF-fitur-pembayaran.md §1.1), order
             // tidak lagi berhenti di status 'deal' menunggu jastiper tap "Mulai Proses" —
             // order langsung lanjut ke 'menunggu_pembayaran' di sini lewat
             // PaymentService::initiate(), sama seperti jalur Booking Langsung. Jastiper baru
             // bisa mulai memproses setelah pembayaran customer terkonfirmasi lunas.
-            $order = app(OrderDealService::class)->formDeal($order, $offer->jastiper, (float) $offer->offered_price, 'bidding');
             app(\App\Services\PaymentService::class)->initiate($order);
 
             return [
@@ -1121,6 +1134,9 @@ class DashboardController extends Controller
         $orders = Order::with([
                 'jastiper',
                 'addons',
+                'payments' => function ($q) {
+                    $q->where('status', 'menunggu')->latest('id');
+                },
                 'offers' => function ($q) {
                     $q->where('status', 'pending')->orderBy('offered_price', 'asc');
                 },
@@ -1148,6 +1164,7 @@ class DashboardController extends Controller
                 'status' => $order->status,
                 'estimated_fare' => (float) $order->estimated_fare,
                 'estimated_fare_formatted' => 'Rp ' . number_format((float) $order->estimated_fare, 0, ',', '.'),
+                'has_uploaded_proof' => $order->payments->first() && $order->payments->first()->proof_image !== null,
                 'agreed_fare_formatted' => $order->agreed_fare ? 'Rp ' . number_format((float) $order->agreed_fare, 0, ',', '.') : null,
                 'created_at' => $order->created_at->toIso8601String(),
                 'seconds_since_created' => $secondsSinceCreated,
@@ -1228,6 +1245,7 @@ class DashboardController extends Controller
         
         if (isset($statusMessages[$request->status])) {
             \App\Services\WhatsAppService::sendMessage($order->customer->phone_number, $statusMessages[$request->status]);
+            app(\App\Services\ChatService::class)->sendSystemMessage($order, $statusMessages[$request->status]);
         }
 
         return redirect()->back()->with('success', 'Status pesanan diperbarui.');

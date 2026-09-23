@@ -389,8 +389,14 @@
             </div>
         </div>
 
-        <!-- Promo Flyer Banner Card (Siap diintegrasikan flyer banner admin) -->
-        <div class="block bg-slate-950 border border-slate-800 text-white rounded-3xl p-4 shadow-md hover:scale-[1.01] transition duration-150 relative overflow-hidden group cursor-pointer" onclick="showMaintenanceToast(event)">
+        <!-- Promo Flyer Banner Card (Dinamis dari admin) -->
+        @php
+            $flyerPromos = $promos->where('type', 'flyer');
+            $adsPromos = $promos->where('type', 'ads');
+        @endphp
+
+        @foreach($flyerPromos as $promo)
+        <div class="block bg-slate-950 border border-slate-800 text-white rounded-3xl p-4 shadow-md hover:scale-[1.01] transition duration-150 relative overflow-hidden group cursor-pointer mb-3" onclick="showMaintenanceToast(event)">
             <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-rose-600/25 rounded-full blur-xl"></div>
             <div class="flex justify-between items-center gap-3 relative z-10">
                 <div class="flex items-center gap-3">
@@ -401,18 +407,27 @@
                     </div>
                     <div>
                         <div class="flex items-center gap-1.5 mb-0.5">
-                            <span class="text-[9px] bg-rose-600 text-white font-black px-2 py-0.5 rounded-md uppercase tracking-wider">Promo Spesial</span>
-                            <span class="text-[9px] text-amber-400 font-bold">Voucher Aktif</span>
+                            @if($promo->badge_1)
+                            <span class="text-[9px] bg-rose-600 text-white font-black px-2 py-0.5 rounded-md uppercase tracking-wider">{{ $promo->badge_1 }}</span>
+                            @endif
+                            @if($promo->badge_2)
+                            <span class="text-[9px] text-amber-400 font-bold">{{ $promo->badge_2 }}</span>
+                            @endif
                         </div>
-                        <h4 class="font-display font-black text-xs uppercase tracking-wider text-white">Diskon Ongkir Jastip 50%</h4>
-                        <p class="text-[10px] text-slate-300 font-medium mt-0.5 leading-tight">Gunakan promo spesial hari ini untuk hemat ongkir belanja jastip!</p>
+                        <h4 class="font-display font-black text-xs uppercase tracking-wider text-white">{{ $promo->title }}</h4>
+                        @if($promo->description)
+                        <p class="text-[10px] text-slate-300 font-medium mt-0.5 leading-tight">{{ $promo->description }}</p>
+                        @endif
                     </div>
                 </div>
+                @if($promo->button_text)
                 <span class="text-xs bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-3.5 py-1.5 rounded-full uppercase tracking-wider shrink-0 shadow-sm">
-                    Klaim
+                    {{ $promo->button_text }}
                 </span>
+                @endif
             </div>
         </div>
+        @endforeach
 
         <!-- JastipKuy Services Horizontal Row (Menu Grid: 3 pilihan per baris x 2 baris) -->
         <div class="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-sm space-y-3.5">
@@ -465,23 +480,39 @@
             </div>
         </div>
 
-        <!-- Promos Ads Banner Carousel (Redesign Iklan Gojek) -->
+        <!-- Promos Ads Banner Carousel -->
+        @if($adsPromos->count() > 0)
         <div class="space-y-3">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Promo Rekomendasi</h3>
             
-            <div class="w-full bg-telkomsel-pattern-promo text-white rounded-3xl p-5 shadow-sm relative overflow-hidden border border-rose-400/20">
-                <!-- Background Banner from Mobile scaled to hide white margins -->
+            @foreach($adsPromos as $promo)
+            <div class="w-full {{ $promo->image_path ? '' : 'bg-telkomsel-pattern-promo' }} text-white rounded-3xl p-5 shadow-sm relative overflow-hidden border border-rose-400/20 mb-3">
+                @if($promo->image_path)
+                <!-- Custom Background Banner -->
+                <img src="{{ asset('storage/'.$promo->image_path) }}" class="absolute inset-0 w-full h-full object-cover pointer-events-none z-0">
+                <div class="absolute inset-0 bg-black/40 z-0"></div> <!-- Overlay biar text tetep kebaca -->
+                @else
+                <!-- Default Background Banner -->
                 <img src="{{ asset('images/promo_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.12] origin-center pointer-events-none z-0">
+                @endif
                 <div class="relative z-10 space-y-3">
-                    <span class="text-[8px] bg-white text-rose-600 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Promo Khusus</span>
+                    @if($promo->badge_1)
+                    <span class="text-[8px] bg-white text-rose-600 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">{{ $promo->badge_1 }}</span>
+                    @endif
                     <div>
-                        <h4 class="font-display font-black text-sm">Diskon Ongkir Jastip s.d 50%</h4>
-                        <p class="text-[9px] text-rose-100 mt-1 max-w-[240px]">Belanja di mana saja se-Malang Raya lebih murah menggunakan kurir mitra JastipKuy Pro.</p>
+                        <h4 class="font-display font-black text-sm">{{ $promo->title }}</h4>
+                        @if($promo->description)
+                        <p class="text-[9px] text-rose-100 mt-1 max-w-[240px]">{{ $promo->description }}</p>
+                        @endif
                     </div>
-                    <div class="text-[8px] text-rose-200/90 font-mono">*Syarat & ketentuan berlaku.</div>
+                    @if($promo->terms)
+                    <div class="text-[8px] text-rose-200/90 font-mono">{{ $promo->terms }}</div>
+                    @endif
                 </div>
             </div>
+            @endforeach
         </div>
+        @endif
 
         <!-- Pelacakan Pesanan Aktif (Active Order Tracker + Bidding List) -->
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">

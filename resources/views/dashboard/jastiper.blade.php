@@ -174,7 +174,7 @@
                 if (!ids.length || this.loading) return;
                 this.loading = true;
 
-                try {
+                try {=
                     const path = new URL(this.multiOfferUrl, window.location.origin).pathname;
                     const url = new URL(path, window.location.origin);
                     const res = await fetch(url.toString(), {

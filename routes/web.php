@@ -42,6 +42,7 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/activity', [DashboardController::class, 'customerActivity'])->name('customer.activity');
     Route::get('/customer/chats', [DashboardController::class, 'customerChats'])->name('customer.chats');
     Route::get('/customer/profile', [DashboardController::class, 'customerProfile'])->name('customer.profile');
+    Route::put('/customer/profile', [DashboardController::class, 'updateCustomerProfile'])->name('customer.profile.update');
     Route::post('/customer/location', [\App\Http\Controllers\Customer\LocationController::class, 'update'])->name('customer.location.update');
 
     // ===== Bidding & Deal (Halaman Tawaran & Deal) =====
@@ -146,6 +147,17 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/withdraws', [AdminWithdrawController::class, 'index'])->name('admin.withdraws');
     Route::post('/admin/withdraws/{id}/approve', [AdminWithdrawController::class, 'approve'])->name('admin.withdraws.approve');
     Route::post('/admin/withdraws/{id}/reject', [AdminWithdrawController::class, 'reject'])->name('admin.withdraws.reject');
+
+    // ===== Manajemen Promo (Admin) =====
+    Route::resource('admin/promos', \App\Http\Controllers\AdminPromoController::class)->names([
+        'index' => 'admin.promos.index',
+        'create' => 'admin.promos.create',
+        'store' => 'admin.promos.store',
+        'show' => 'admin.promos.show',
+        'edit' => 'admin.promos.edit',
+        'update' => 'admin.promos.update',
+        'destroy' => 'admin.promos.destroy',
+    ]);
 
     // ===== Manajemen Merchant dan Produk (Admin) =====
     Route::resource('admin/merchants', \App\Http\Controllers\AdminMerchantController::class)->names([

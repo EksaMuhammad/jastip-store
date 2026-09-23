@@ -13,6 +13,7 @@ use App\Services\OrderDealService;
 use App\Services\OrderCompletionService;
 use App\Services\ChatService;
 use App\Models\Komisi;
+use App\Models\Promo;
 
 class DashboardController extends Controller
 {
@@ -34,8 +35,10 @@ class DashboardController extends Controller
             ->latest()
             ->get();
 
+        $promos = Promo::where('is_active', true)->latest()->get();
+
         $balance = $customer->wallet ? $customer->wallet->balance : 0;
-        return view('dashboard.customer', compact('customer', 'balance', 'unratedCompletedOrders'));
+        return view('dashboard.customer', compact('customer', 'balance', 'unratedCompletedOrders', 'promos'));
     }
 
     /**
@@ -115,6 +118,24 @@ class DashboardController extends Controller
             'totalOrdersCount',
             'favoriteCount'
         ));
+    }
+
+    /**
+     * Update Profil Customer
+     */
+    public function updateCustomerProfile(Request $request)
+    {
+        $customer = Auth::guard('customer')->user();
+        
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $customer->update([
+            'name' => $request->name,
+        ]);
+
+        return redirect()->back()->with('success', 'Profil berhasil diperbarui!');
     }
 
     /**

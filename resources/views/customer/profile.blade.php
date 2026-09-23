@@ -44,7 +44,7 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between">
                         <h2 class="font-display font-black text-base text-slate-900 truncate leading-tight">{{ $customer->name }}</h2>
-                        <button type="button" onclick="showMaintenanceToast(event)" class="text-slate-400 hover:text-slate-600 transition" title="Edit Profil">
+                        <button type="button" onclick="document.getElementById('editProfileModal').classList.remove('hidden')" class="text-slate-400 hover:text-slate-600 transition" title="Edit Profil">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
                             </svg>
@@ -94,16 +94,7 @@
             </div>
         </div>
 
-        {{-- ===== EMAIL / PROTECTION ALERT BANNER (Gojek Style) ===== --}}
-        <div class="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border border-amber-200/80 rounded-3xl p-4 flex items-center justify-between gap-3 shadow-xs">
-            <div class="space-y-1">
-                <h4 class="font-bold text-xs text-amber-900">Perlindungan Ekstra Akun</h4>
-                <p class="text-[10px] text-amber-700 font-medium">Verifikasi kontak untuk pengalaman jastip lebih aman.</p>
-            </div>
-            <button type="button" onclick="showMaintenanceToast(event)" class="bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shrink-0 transition shadow-sm">
-                Verifikasi
-            </button>
-        </div>
+
 
         {{-- ===== SECTION 1: PREFERENSI / PENGATURAN AKUN ===== --}}
         <div>
@@ -233,4 +224,90 @@
 
     </div>
 </div>
+@endsection
+
+@section('scripts')
+<div id="editProfileModal" class="fixed inset-0 z-[100] hidden">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="document.getElementById('editProfileModal').classList.add('hidden')"></div>
+    <div class="absolute bottom-0 left-0 right-0 max-w-lg mx-auto bg-white rounded-t-[32px] p-6 shadow-2xl transform transition-transform animate-slideUp">
+        <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+        
+        <h3 class="font-display font-black text-lg text-slate-800 mb-2">Edit Profil</h3>
+        <p class="text-xs text-slate-500 mb-6">Ubah detail akun Anda di bawah ini.</p>
+
+        <form action="{{ route('customer.profile.update') }}" method="POST">
+            @csrf
+            @method('PUT')
+            
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-slate-700 mb-2">Nama Lengkap</label>
+                <input type="text" name="name" value="{{ $customer->name }}" class="w-full text-sm border-slate-200 rounded-xl px-4 py-3 focus:border-rose-500 focus:ring focus:ring-rose-200 transition" required>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-slate-700 mb-2">Nomor Telepon</label>
+                <input type="text" value="+62 {{ $customer->phone_number }}" class="w-full text-sm border-slate-200 bg-slate-50 text-slate-500 rounded-xl px-4 py-3 cursor-not-allowed" disabled>
+                <p class="text-[10px] text-slate-400 mt-1">Nomor telepon tidak dapat diubah dari sini.</p>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" onclick="document.getElementById('editProfileModal').classList.add('hidden')" class="w-1/3 py-3.5 rounded-2xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition text-sm">
+                    Batal
+                </button>
+                <button type="submit" class="w-2/3 py-3.5 rounded-2xl font-bold text-white bg-rose-600 hover:bg-rose-700 transition shadow-lg shadow-rose-500/30 text-sm">
+                    Simpan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function showMaintenanceToast(event) {
+        event?.preventDefault();
+        
+        // Cek apakah ada toast lama, jika ada hapus
+        const oldToast = document.getElementById('maintenance-toast');
+        if (oldToast) oldToast.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'maintenance-toast';
+        toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-slate-800 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-slideDown max-w-[90vw] w-[350px]';
+        toast.innerHTML = `
+            <div class="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <div>
+                <p class="text-xs font-bold leading-tight">Fitur Belum Tersedia</p>
+                <p class="text-[10px] text-slate-300 mt-0.5">Mohon maaf, halaman ini masih dalam tahap pengembangan.</p>
+            </div>
+        `;
+        document.body.appendChild(toast);
+
+        // Hapus setelah 3 detik
+        setTimeout(() => {
+            if(toast.parentElement) {
+                toast.classList.replace('animate-slideDown', 'animate-slideUp');
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 3000);
+    }
+</script>
+<style>
+    @keyframes slideDown {
+        from { transform: translate(-50%, -100%); opacity: 0; }
+        to { transform: translate(-50%, 0); opacity: 1; }
+    }
+    @keyframes slideUp {
+        from { transform: translateY(100%); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-slideDown {
+        animation: slideDown 0.3s ease-out forwards;
+    }
+    .animate-slideUp {
+        animation: slideUp 0.3s ease-out forwards;
+    }
+</style>
 @endsection

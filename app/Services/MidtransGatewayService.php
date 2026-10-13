@@ -233,6 +233,94 @@ class MidtransGatewayService implements PaymentGatewayService
         return $response->json() ?? [];
     }
 
+    public function createSnapTokenForTopup(\App\Models\Topup $topup): array
+    {
+        if (!$this->hasCredentials()) {
+            $snapToken = 'MOCK-SNAP-' . strtoupper(Str::random(24));
+            Log::info("[MOCK MIDTRANS SNAP] createSnapTokenForTopup order_id={$topup->gateway_reference} token={$snapToken}");
+
+            return [
+                'token' => $snapToken,
+                'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/' . $snapToken,
+                'mock' => true,
+            ];
+        }
+
+        $customer = $topup->wallet?->owner;
+        $snapBaseUrl = config('services.midtrans.is_production')
+            ? 'https://app.midtrans.com/snap/v1/transactions'
+            : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+
+        $response = $this->client()->post($snapBaseUrl, [
+            'transaction_details' => [
+                'order_id' => $topup->gateway_reference,
+                'gross_amount' => (int) round((float) $topup->amount),
+            ],
+            'customer_details' => [
+                'first_name' => $customer?->name ?? 'Customer JastipKuy',
+                'email' => $customer?->email ?? 'customer@jastipkuy.com',
+                'phone' => $customer?->phone_number ?? '08123456789',
+            ],
+        ]);
+
+        $body = $response->json() ?? [];
+
+        if (!$response->successful()) {
+            Log::error('[MIDTRANS SNAP ERROR] createSnapTokenForTopup gagal: ' . $response->body());
+            throw new \RuntimeException('Gagal membuat Snap Token di Midtrans: ' . ($body['error_messages'][0] ?? $response->body()));
+        }
+
+        return [
+            'token' => $body['token'] ?? null,
+            'redirect_url' => $body['redirect_url'] ?? null,
+            'mock' => false,
+        ];
+    }
+
+    public function createSnapTokenForPayment(Payment $payment): array
+    {
+        if (!$this->hasCredentials()) {
+            $snapToken = 'MOCK-SNAP-' . strtoupper(Str::random(24));
+            Log::info("[MOCK MIDTRANS SNAP] createSnapTokenForPayment order_id={$payment->gateway_reference} token={$snapToken}");
+
+            return [
+                'token' => $snapToken,
+                'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/' . $snapToken,
+                'mock' => true,
+            ];
+        }
+
+        $customer = $payment->order?->customer;
+        $snapBaseUrl = config('services.midtrans.is_production')
+            ? 'https://app.midtrans.com/snap/v1/transactions'
+            : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+
+        $response = $this->client()->post($snapBaseUrl, [
+            'transaction_details' => [
+                'order_id' => $payment->gateway_reference,
+                'gross_amount' => (int) round((float) $payment->amount),
+            ],
+            'customer_details' => [
+                'first_name' => $customer?->name ?? 'Customer JastipKuy',
+                'email' => $customer?->email ?? 'customer@jastipkuy.com',
+                'phone' => $customer?->phone_number ?? '08123456789',
+            ],
+        ]);
+
+        $body = $response->json() ?? [];
+
+        if (!$response->successful()) {
+            Log::error('[MIDTRANS SNAP ERROR] createSnapTokenForPayment gagal: ' . $response->body());
+            throw new \RuntimeException('Gagal membuat Snap Token di Midtrans: ' . ($body['error_messages'][0] ?? $response->body()));
+        }
+
+        return [
+            'token' => $body['token'] ?? null,
+            'redirect_url' => $body['redirect_url'] ?? null,
+            'mock' => false,
+        ];
+    }
+
     public function verifyWebhookSignature(array $payload): bool
     {
         if (!$this->hasCredentials()) {
@@ -257,7 +345,8 @@ class MidtransGatewayService implements PaymentGatewayService
 
     private function hasCredentials(): bool
     {
-        return filled(config('services.midtrans.server_key'));
+        return filled(config('services.midtrans.server_key'))
+            && (config('services.midtrans.is_active', true) !== false);
     }
 
     private function baseUrl(): string

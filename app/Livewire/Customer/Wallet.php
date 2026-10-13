@@ -53,8 +53,8 @@ class Wallet extends Component
             
             $this->showTopupModal = false;
             
-            // Redirect ke halaman simulasi pembayaran atau show QRIS modal
-            session()->flash('success', 'Berhasil membuat tagihan Topup. Silakan selesaikan pembayaran.');
+            // Redirect ke halaman status pengajuan / pembayaran
+            session()->flash('success', 'Pengajuan Top Up berhasil dibuat! Menunggu peninjauan & persetujuan Admin.');
             return redirect()->route('customer.wallet.pay_topup', ['id' => $topup->id]);
 
         } catch (\Exception $e) {

@@ -121,6 +121,57 @@ class PaymentService
     }
 
     /**
+     * Dapatkan atau buat Snap Token untuk Payment order.
+     */
+    public function getOrCreateSnapToken(Payment $payment): string
+    {
+        if (!empty($payment->snap_token)) {
+            return $payment->snap_token;
+        }
+
+        try {
+            $snapResult = $this->gateway->createSnapTokenForPayment($payment);
+            $token = $snapResult['token'] ?? ('MOCK-SNAP-' . \Illuminate\Support\Str::random(20));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[SNAP TOKEN PAYMENT ERROR] ' . $e->getMessage());
+            $token = 'MOCK-SNAP-' . \Illuminate\Support\Str::random(20);
+        }
+
+        $payment->update(['snap_token' => $token]);
+        return $token;
+    }
+
+    /**
+     * Settle payment order secara otomatis saat Snap pembayaran selesai atau simulasi lunas.
+     */
+    public function settlePaymentAutomatically(Payment $payment, ?string $channel = null, ?string $transactionId = null): Payment
+    {
+        return DB::transaction(function () use ($payment, $channel, $transactionId) {
+            if ($payment->status === 'lunas') {
+                return $payment;
+            }
+
+            $payment->update([
+                'status' => 'lunas',
+                'channel' => $channel ?: ($payment->channel ?: 'midtrans_snap'),
+                'gateway_transaction_id' => $transactionId ?: $payment->gateway_transaction_id,
+                'verified_at' => now(),
+            ]);
+
+            $order = $payment->order()->lockForUpdate()->first();
+            if ($order && $order->status === 'menunggu_pembayaran') {
+                if ($order->is_catalog_order) {
+                    $order->update(['status' => 'menunggu_tawaran']);
+                } else {
+                    app(OrderDealService::class)->startProcessing($order);
+                }
+            }
+
+            return $payment->fresh();
+        });
+    }
+
+    /**
      * Debit langsung dari saldo wallet customer. Instan — tidak lewat gateway
      * sama sekali (brief §2.3). Kalau saldo cukup: debit wallet, catat
      * WalletTransaction, tandai Payment lunas, dan trigger

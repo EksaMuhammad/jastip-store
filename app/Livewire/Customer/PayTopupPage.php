@@ -31,12 +31,68 @@ class PayTopupPage extends Component
 
     public ?string $flashSuccess = null;
 
+    public ?string $snapToken = null;
+
+    public bool $showMockSnapModal = false;
+
     public function mount(int $topupId): void
     {
         $this->topupId = $topupId;
 
         $topup = $this->resolveOwnedTopup();
         abort_if(!$topup, 404, 'Topup tidak ditemukan atau bukan milik Anda.');
+
+        if ($topup->status === 'menunggu_pembayaran') {
+            $this->snapToken = app(WalletService::class)->getOrCreateSnapToken($topup);
+            // Langsung tampilkan modal Snap seketika saat halaman dibuka
+            if (!filled(config('services.midtrans.client_key')) || str_starts_with($this->snapToken, 'MOCK-')) {
+                $this->showMockSnapModal = true;
+            }
+        }
+    }
+
+    /**
+     * Buka pembayaran Midtrans Snap.
+     * Jika ada client_key Midtrans, buka Snap popup resmi.
+     * Jika mode mock / tanpa key, buka modal interaktif replika Midtrans.
+     */
+    public function openMidtransSnap(): void
+    {
+        $topup = $this->resolveOwnedTopup();
+        if (!$topup || $topup->status !== 'menunggu_pembayaran') {
+            $this->flashError = 'Topup belum disetujui admin atau sudah selesai.';
+            return;
+        }
+
+        $this->snapToken = app(WalletService::class)->getOrCreateSnapToken($topup);
+
+        if (filled(config('services.midtrans.client_key')) && !str_starts_with($this->snapToken, 'MOCK-')) {
+            $this->dispatch('open-midtrans-snap', ['token' => $this->snapToken]);
+        } else {
+            $this->showMockSnapModal = true;
+        }
+    }
+
+    public function closeMockSnapModal(): void
+    {
+        $this->showMockSnapModal = false;
+    }
+
+    /**
+     * Otomatis selesaikan pembayaran (dipanggil dari Snap success callback atau tombol simulasi).
+     */
+    public function markTopupSuccess(?string $channel = 'midtrans_snap', ?string $transactionId = null): void
+    {
+        $topup = $this->resolveOwnedTopup();
+        if (!$topup) {
+            return;
+        }
+
+        app(WalletService::class)->settleTopupAutomatically($topup, $channel, $transactionId);
+
+        $this->showMockSnapModal = false;
+        $this->flashSuccess = 'Pembayaran berhasil dikonfirmasi! Saldo telah masuk ke E-Wallet Anda.';
+        $this->dispatch('topup-berhasil');
     }
 
     /**
@@ -67,8 +123,8 @@ class PayTopupPage extends Component
 
         $topup = $this->resolveOwnedTopup();
 
-        if (!$topup || $topup->status !== 'menunggu') {
-            $this->flashError = 'Tidak ada topup yang menunggu pembayaran — mungkin sudah berhasil, gagal, atau kedaluwarsa.';
+        if (!$topup || !in_array($topup->status, ['menunggu', 'menunggu_pembayaran', 'menunggu_verifikasi_bukti'])) {
+            $this->flashError = 'Tidak ada topup yang siap menerima pembayaran — mungkin belum di-approve admin, sudah berhasil, atau kedaluwarsa.';
             return;
         }
 

@@ -47,6 +47,22 @@ interface PaymentGatewayService
     public function createQrisForTopup(\App\Models\Topup $topup): array;
 
     /**
+     * Buat Snap Token untuk sebuah Topup (Midtrans Snap Popup).
+     *
+     * @param \App\Models\Topup $topup
+     * @return array{token: string, redirect_url: ?string, mock: bool}
+     */
+    public function createSnapTokenForTopup(\App\Models\Topup $topup): array;
+
+    /**
+     * Buat Snap Token untuk sebuah Payment Order (Midtrans Snap Popup).
+     *
+     * @param Payment $payment
+     * @return array{token: string, redirect_url: ?string, mock: bool}
+     */
+    public function createSnapTokenForPayment(Payment $payment): array;
+
+    /**
      * Cek status transaksi langsung ke gateway. Dipakai untuk cross-check saat
      * admin approve bukti transfer manual (brief §0 keputusan #3), supaya admin
      * tidak asal klik "lunas" untuk bukti transfer palsu.

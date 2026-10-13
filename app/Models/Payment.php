@@ -22,6 +22,7 @@ class Payment extends Model
         'payment_deadline',
         'gateway_reference',
         'gateway_transaction_id',
+        'snap_token',
         'va_number',
         'qr_string',
         'raw_response',

@@ -56,6 +56,10 @@ class PaymentPage extends Component
 
     public bool $showCancelConfirm = false;
 
+    public ?string $snapToken = null;
+
+    public bool $showMockSnapModal = false;
+
     private const SUPPORTED_BANKS = ['bca', 'bni', 'bri', 'permata', 'mandiri'];
 
     public function mount(int $orderId): void
@@ -68,10 +72,55 @@ class PaymentPage extends Component
         $payment = Payment::where('order_id', $order->id)->latest('id')->first();
         $this->paymentId = $payment?->id;
 
-        if ($payment && in_array($payment->status, ['menunggu'], true) && $payment->channel) {
-            $this->step = $payment->channel === 'qris' ? 'tampil_qris' : 'tampil_va';
-            $this->selectedBank = $this->extractBankFromRaw($payment);
+        if ($payment && in_array($payment->status, ['menunggu'], true)) {
+            $this->snapToken = app(PaymentService::class)->getOrCreateSnapToken($payment);
+
+            if ($payment->channel) {
+                $this->step = $payment->channel === 'qris' ? 'tampil_qris' : 'tampil_va';
+                $this->selectedBank = $this->extractBankFromRaw($payment);
+            }
         }
+    }
+
+    /**
+     * Buka pembayaran Midtrans Snap.
+     */
+    public function openMidtransSnap(): void
+    {
+        $payment = $this->requirePendingPayment();
+        if (!$payment) {
+            return;
+        }
+
+        $this->snapToken = app(PaymentService::class)->getOrCreateSnapToken($payment);
+
+        if (filled(config('services.midtrans.client_key')) && !str_starts_with($this->snapToken, 'MOCK-')) {
+            $this->dispatch('open-midtrans-snap', ['token' => $this->snapToken]);
+        } else {
+            $this->showMockSnapModal = true;
+        }
+    }
+
+    public function closeMockSnapModal(): void
+    {
+        $this->showMockSnapModal = false;
+    }
+
+    /**
+     * Otomatis selesaikan pembayaran order (dipanggil dari Snap success callback atau simulasi).
+     */
+    public function markPaymentSuccess(?string $channel = 'midtrans_snap', ?string $transactionId = null): void
+    {
+        $payment = $this->requirePendingPayment();
+        if (!$payment) {
+            return;
+        }
+
+        app(PaymentService::class)->settlePaymentAutomatically($payment, $channel, $transactionId);
+
+        $this->showMockSnapModal = false;
+        $this->flashSuccess = 'Pembayaran berhasil dikonfirmasi! Pesanan Anda sedang diproses jastiper.';
+        $this->dispatch('order-diproses');
     }
 
     /**

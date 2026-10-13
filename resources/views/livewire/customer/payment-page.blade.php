@@ -53,14 +53,14 @@
         </div>
 
         <!-- Flash messages -->
-        @if($flashError)
+        @if(!empty($flashError) || session('error'))
             <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl px-4 py-3">
-                {{ $flashError }}
+                {{ $flashError ?: session('error') }}
             </div>
         @endif
-        @if($flashSuccess)
+        @if(!empty($flashSuccess) || session('success'))
             <div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold rounded-xl px-4 py-3">
-                {{ $flashSuccess }}
+                {{ $flashSuccess ?: session('success') }}
             </div>
         @endif
 
@@ -89,8 +89,40 @@
 
             <!-- ===== STEP: pilih metode ===== -->
             @if($step === 'pilih_metode')
+                <!-- Card Utama Midtrans Snap Pop-up -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white mb-4 shadow-lg relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[10px] font-black uppercase tracking-wider">
+                            💳 Rekomendasi Pembayaran
+                        </span>
+                        <span class="text-[10px] text-slate-400 font-bold">Midtrans Snap</span>
+                    </div>
+                    <h3 class="font-bold text-base text-white">Bayar via Pop-up Midtrans</h3>
+                    <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+                        Pilih GoPay QRIS, ShopeePay, atau Virtual Account Bank (BCA, BNI, BRI, Mandiri) langsung di satu pop-up interaktif.
+                    </p>
+                    <div class="mt-4 flex flex-col sm:flex-row gap-2">
+                        <button 
+                            wire:click="openMidtransSnap" 
+                            type="button"
+                            class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-sky-500/30 flex items-center justify-center gap-2"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            <span>Buka Pop-up Midtrans</span>
+                        </button>
+                        <button 
+                            wire:click="markPaymentSuccess('auto_instant')" 
+                            type="button"
+                            class="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-400 font-bold text-xs transition border border-white/10 flex items-center justify-center gap-1"
+                            title="Simulasi bayar lunas otomatis"
+                        >
+                            <span>⚡ Otomatis Lunas</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
-                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Pilih Metode Pembayaran</p>
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Atau Pilih Saldo / Transfer Manual</p>
 
                     <button wire:click="payWithWallet" wire:loading.attr="disabled" wire:target="payWithWallet"
                         class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 hover:border-rose-300 hover:bg-rose-50/40 transition text-left">
@@ -213,4 +245,44 @@
 
         @endif
     </div>
+
+    <!-- Modal Midtrans Mock Snap Popup -->
+    @if($showMockSnapModal && $payment)
+        @include('livewire.customer._mock-snap-modal', [
+            'amount' => $payment->amount,
+            'reference' => $payment->gateway_reference,
+            'vaNumber' => $payment->va_number,
+            'qrString' => $payment->qr_string,
+            'successAction' => 'markPaymentSuccess'
+        ])
+    @endif
+
+    @if(config('services.midtrans.client_key'))
+        <script src="{{ config('services.midtrans.is_production') ? 'https://app.midtrans.com/snap/snap.js' : 'https://app.sandbox.midtrans.com/snap/snap.js' }}" data-client-key="{{ config('services.midtrans.client_key') }}"></script>
+    @endif
+
+    <script>
+        document.addEventListener('livewire:initialized', () => {
+            window.addEventListener('open-midtrans-snap', (event) => {
+                const token = event.detail.token || (event.detail[0] && event.detail[0].token);
+                if (window.snap && token) {
+                    window.snap.pay(token, {
+                        onSuccess: function (result) {
+                            @this.call('markPaymentSuccess', result.payment_type || 'midtrans', result.transaction_id);
+                        },
+                        onPending: function (result) {
+                            console.log('Midtrans Snap Pending:', result);
+                        },
+                        onError: function (result) {
+                            console.error('Midtrans Snap Error:', result);
+                            alert('Pembayaran gagal atau dibatalkan.');
+                        },
+                        onClose: function () {
+                            console.log('Midtrans Snap closed by customer');
+                        }
+                    });
+                }
+            });
+        });
+    </script>
 </div>

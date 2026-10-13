@@ -208,4 +208,67 @@ class PaymentAdminVerificationTest extends TestCase
         $payment->refresh();
         $this->assertEquals('lunas', $payment->status);
     }
+
+    public function test_topup_selesai_via_midtrans_callback_menampilkan_keterangan_acc2_otomatis_di_admin()
+    {
+        $wallet = $this->customer->wallet()->firstOrCreate([], ['balance' => 0]);
+        $topup = app(\App\Services\WalletService::class)->initiateTopup($wallet, 50000);
+
+        // Tahap 1: Admin ACC pengajuan
+        app(\App\Services\WalletService::class)->approveTopupRequest($topup, $this->admin);
+
+        // Tahap 2: Customer bayar via Midtrans Callback (otomatis)
+        app(\App\Services\WalletService::class)->settleTopupAutomatically($topup, 'midtrans_snap_qris', 'TRX-MIDTRANS-TEST-123');
+
+        $topup->refresh();
+        $this->assertEquals('berhasil', $topup->status);
+        $this->assertNull($topup->verified_by_admin_id);
+        $this->assertTrue($topup->isSettledByGateway());
+
+        $this->actingAs($this->admin, 'admin');
+
+        Livewire::test('admin.payment-verification')
+            ->set('filter_status', 'lunas')
+            ->assertSee('Topup #' . $topup->id)
+            ->assertSee('Lunas (Midtrans Callback)')
+            ->assertSee('ACC 2: Callback Midtrans (Otomatis)')
+            ->call('selectTopup', $topup->id)
+            ->assertSee('ACC 2 Selesai Otomatis: Midtrans Callback')
+            ->assertSee('TRX-MIDTRANS-TEST-123')
+            ->assertSee('KETERANGAN ADMIN: TAHAP 2 SELESAI OTOMATIS (MIDTRANS CALLBACK)');
+    }
+
+    public function test_topup_selesai_manual_menampilkan_keterangan_acc2_admin()
+    {
+        $wallet = $this->customer->wallet()->firstOrCreate([], ['balance' => 0]);
+        $topup = app(\App\Services\WalletService::class)->initiateTopup($wallet, 50000);
+
+        // Tahap 1: Admin ACC pengajuan
+        app(\App\Services\WalletService::class)->approveTopupRequest($topup, $this->admin);
+
+        // Tahap 2: Customer upload bukti manual & Admin ACC manual
+        Storage::fake('public');
+        $topup = app(\App\Services\WalletService::class)->submitManualProof($topup, UploadedFile::fake()->image('bukti.jpg'));
+
+        $this->actingAs($this->admin, 'admin');
+
+        Livewire::test('admin.payment-verification')
+            ->call('selectTopup', $topup->id)
+            ->call('approveTopup', $topup->id)
+            ->assertHasNoErrors();
+
+        $topup->refresh();
+        $this->assertEquals('berhasil', $topup->status);
+        $this->assertEquals($this->admin->id, $topup->verified_by_admin_id);
+
+        Livewire::test('admin.payment-verification')
+            ->set('filter_status', 'lunas')
+            ->assertSee('Topup #' . $topup->id)
+            ->assertSee('Lunas (ACC Manual Admin)')
+            ->assertSee('ACC 2:')
+            ->assertSee($this->admin->name)
+            ->call('selectTopup', $topup->id)
+            ->assertSee('Top Up Disetujui Secara Manual oleh Admin')
+            ->assertSee($this->admin->name);
+    }
 }

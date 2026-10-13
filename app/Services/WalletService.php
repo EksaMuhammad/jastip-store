@@ -71,34 +71,47 @@ class WalletService
     }
 
     /**
-     * Inisiasi Topup saldo via gateway (Midtrans).
+     * Inisiasi Topup saldo tahap 1: Customer mengajukan permintaan topup (status: menunggu_approval).
+     * Pembayaran belum dibuka sebelum di-ACC oleh Admin.
      */
-    public function initiateTopup(Wallet $wallet, float $amount, string $channel, ?string $bank = null): Topup
+    public function initiateTopup(Wallet $wallet, float $amount, string $channel = 'qris', ?string $bank = null): Topup
     {
-        if (!in_array($channel, ['bank_transfer_va', 'qris'], true)) {
-            throw new \InvalidArgumentException("Channel topup tidak dikenal: {$channel}");
-        }
-
-        $deadlineMinutes = (int) config('jastip.payment.deadline_minutes', 15);
-
         $topup = Topup::create([
             'wallet_id' => $wallet->id,
             'amount' => $amount,
-            'status' => 'menunggu',
+            'status' => 'menunggu_approval',
             'method' => 'transfer',
             'channel' => $channel,
-            'payment_deadline' => now()->addMinutes($deadlineMinutes),
             'gateway_reference' => 'TOPUP-' . $wallet->id . '-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(4)),
         ]);
 
+        return $topup->fresh();
+    }
+
+    /**
+     * Tahap 1 Aksi Admin: ACC Pengajuan Top-Up customer.
+     * Mengaktifkan tagihan pembayaran (menunggu_pembayaran) dan generate QRIS / VA.
+     */
+    public function approveTopupRequest(Topup $topup, Admin $admin): Topup
+    {
+        if ($topup->status !== 'menunggu_approval') {
+            throw new \DomainException("Status topup saat ini bukan menunggu_approval.");
+        }
+
+        $deadlineMinutes = (int) config('jastip.payment.deadline_minutes', 60);
+
+        $topup->update([
+            'status' => 'menunggu_pembayaran',
+            'approved_at' => now(),
+            'approved_by_admin_id' => $admin->id,
+            'payment_deadline' => now()->addMinutes($deadlineMinutes),
+        ]);
+
+        $channel = $topup->channel ?: 'qris';
+
         if ($channel === 'bank_transfer_va') {
-            if (!$bank) {
-                throw new \InvalidArgumentException('Bank wajib diisi untuk channel bank_transfer_va.');
-            }
-
-            // Memanggil gateway, catatan: gateway saat ini butuh Payment, kita harus ubah interface
+            $bank = 'bca';
             $result = $this->gateway->createVirtualAccountForTopup($topup, $bank);
-
             $topup->update([
                 'va_number' => $result['va_number'],
                 'gateway_transaction_id' => $result['gateway_transaction_id'],
@@ -106,13 +119,90 @@ class WalletService
             ]);
         } else {
             $result = $this->gateway->createQrisForTopup($topup);
-
             $topup->update([
                 'qr_string' => $result['qr_string'],
                 'gateway_transaction_id' => $result['gateway_transaction_id'],
                 'raw_response' => $result['raw'],
             ]);
         }
+
+        try {
+            $snapResult = $this->gateway->createSnapTokenForTopup($topup);
+            if (!empty($snapResult['token'])) {
+                $topup->update(['snap_token' => $snapResult['token']]);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[SNAP TOKEN TOPUP ERROR] ' . $e->getMessage());
+        }
+
+        return $topup->fresh();
+    }
+
+    /**
+     * Dapatkan atau buat Snap Token untuk Topup.
+     */
+    public function getOrCreateSnapToken(Topup $topup): string
+    {
+        if (!empty($topup->snap_token)) {
+            return $topup->snap_token;
+        }
+
+        try {
+            $snapResult = $this->gateway->createSnapTokenForTopup($topup);
+            $token = $snapResult['token'] ?? ('MOCK-SNAP-' . \Illuminate\Support\Str::random(20));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[SNAP TOKEN ERROR] ' . $e->getMessage());
+            $token = 'MOCK-SNAP-' . \Illuminate\Support\Str::random(20);
+        }
+
+        $topup->update(['snap_token' => $token]);
+        return $token;
+    }
+
+    /**
+     * Settle Topup otomatis (dipanggil saat Snap payment sukses / simulasi otomatis bayar).
+     */
+    public function settleTopupAutomatically(Topup $topup, ?string $channel = null, ?string $transactionId = null): Topup
+    {
+        if ($topup->status === 'berhasil') {
+            return $topup;
+        }
+
+        $wallet = $topup->wallet;
+        $this->credit($wallet, (float) $topup->amount, 'topup', null, "Topup Berhasil via Midtrans Snap ({$topup->gateway_reference})");
+
+        $resolvedTransactionId = $transactionId ?: ($topup->gateway_transaction_id ?: 'TRX-MIDTRANS-' . strtoupper(Str::random(12)));
+        $resolvedChannel = $channel ?: ($topup->channel ?: 'midtrans_snap');
+
+        $topup->update([
+            'status' => 'berhasil',
+            'channel' => $resolvedChannel,
+            'gateway_transaction_id' => $resolvedTransactionId,
+            'verified_at' => now(),
+            'raw_response' => array_merge($topup->raw_response ?? [], [
+                'settled_by' => 'midtrans_callback',
+                'settlement_type' => 'automatic_callback',
+                'settled_at' => now()->toIso8601String(),
+                'channel' => $resolvedChannel,
+                'gateway_transaction_id' => $resolvedTransactionId,
+                'note' => 'ACC Tahap 2 diselesaikan otomatis oleh callback Midtrans gateway.',
+            ]),
+        ]);
+
+        return $topup->fresh();
+    }
+
+    /**
+     * Tahap 1 Aksi Admin: Tolak Pengajuan Top-Up customer.
+     */
+    public function rejectTopupRequest(Topup $topup, Admin $admin, ?string $reason = null): Topup
+    {
+        $topup->update([
+            'status' => 'ditolak_pengajuan',
+            'approved_at' => now(),
+            'approved_by_admin_id' => $admin->id,
+            'rejection_note' => $reason ?: 'Pengajuan top-up ditolak oleh admin.',
+        ]);
 
         return $topup->fresh();
     }
@@ -138,7 +228,7 @@ class WalletService
             return;
         }
 
-        if ($topup->status !== 'menunggu') {
+        if (!in_array($topup->status, ['menunggu', 'menunggu_pembayaran', 'menunggu_verifikasi_bukti'], true)) {
             $topup->update(['raw_webhook_payload' => $payload]);
             return;
         }
@@ -147,10 +237,23 @@ class WalletService
 
         if (in_array($status, ['settlement', 'capture'], true)) {
             DB::transaction(function () use ($topup, $payload) {
+                $resolvedTransactionId = $payload['transaction_id'] ?? ($topup->gateway_transaction_id ?: 'TRX-MIDTRANS-' . strtoupper(Str::random(12)));
+                $resolvedChannel = $payload['payment_type'] ?? ($topup->channel ?: 'midtrans_snap');
+
                 $topup->update([
                     'status' => 'berhasil',
                     'verified_at' => now(),
                     'raw_webhook_payload' => $payload,
+                    'gateway_transaction_id' => $resolvedTransactionId,
+                    'channel' => $resolvedChannel,
+                    'raw_response' => array_merge($topup->raw_response ?? [], [
+                        'settled_by' => 'midtrans_callback',
+                        'settlement_type' => 'webhook_callback',
+                        'settled_at' => now()->toIso8601String(),
+                        'channel' => $resolvedChannel,
+                        'gateway_transaction_id' => $resolvedTransactionId,
+                        'note' => 'ACC Tahap 2 diselesaikan otomatis oleh webhook Midtrans gateway.',
+                    ]),
                 ]);
 
                 $wallet = $topup->wallet()->lockForUpdate()->first();
@@ -167,15 +270,17 @@ class WalletService
     }
 
     /**
-     * BUGFIX: Customer upload bukti transfer manual untuk topup (fallback
-     * kalau VA/QRIS bermasalah). Sama seperti PaymentService::submitManualProof()
-     * untuk order — tidak langsung mengubah status Topup, menunggu admin approve.
+     * Customer upload bukti transfer manual untuk topup.
+     * Mengubah status ke menunggu_verifikasi_bukti.
      */
     public function submitManualProof(Topup $topup, UploadedFile $proof): Topup
     {
         $path = $proof->store('topup-proofs', 'public');
 
-        $topup->update(['proof_image' => $path]);
+        $topup->update([
+            'proof_image' => $path,
+            'status' => 'menunggu_verifikasi_bukti',
+        ]);
 
         return $topup->fresh();
     }

@@ -514,6 +514,113 @@
         </div>
         @endif
 
+        <!-- Minimarket Mitra (Mart / GoMart Pilihan) -->
+        @if(isset($martMerchants) && $martMerchants->isNotEmpty())
+        <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3.5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🏪 Minimarket Terdekat</span>
+                    </h3>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Pesan kebutuhan harian langsung dari toko mitra</p>
+                </div>
+                <a href="{{ route('customer.mart') }}" class="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline shrink-0">
+                    Lihat Semua →
+                </a>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+                @foreach($martMerchants as $m)
+                <a href="{{ route('customer.merchant.show', $m->id) }}" class="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-100 transition group flex flex-col justify-between">
+                    <div class="flex items-start gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base shrink-0 group-hover:scale-105 transition">
+                            🏪
+                        </div>
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-xs text-slate-900 group-hover:text-rose-600 transition truncate">{{ $m->name }}</h4>
+                            <p class="text-[10px] text-slate-400 truncate mt-0.5">{{ $m->address ?: 'Area Sekitar' }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
+                        <span class="text-slate-500 font-semibold">{{ $m->products_count }} Produk</span>
+                        <span class="text-rose-600 font-bold group-hover:translate-x-0.5 transition">Buka Toko →</span>
+                    </div>
+                </a>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        <!-- Produk Toko Kirim Pilihan (GoMart) -->
+        @if(isset($latestMartProducts) && $latestMartProducts->isNotEmpty())
+        <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3.5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🛍️ Produk Belanja Pilihan</span>
+                    </h3>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Produk dari Indomaret & Minimarket sekitar</p>
+                </div>
+                <a href="{{ route('customer.mart') }}" class="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline shrink-0">
+                    Katalog Lengkap →
+                </a>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                @foreach($latestMartProducts as $prod)
+                <div class="border border-slate-200 rounded-2xl p-2.5 relative flex flex-col hover:border-rose-400 transition bg-white shadow-xs">
+                    <a href="{{ route('customer.merchant.show', $prod->merchant_id) }}" class="w-full aspect-square bg-slate-50 rounded-xl mb-2 flex items-center justify-center relative overflow-hidden group">
+                        @if($prod->image)
+                            <img src="{{ $prod->image_url ?? $prod->image }}" alt="{{ $prod->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                        @else
+                            <img src="https://ui-avatars.com/api/?name={{ urlencode($prod->name) }}&background=e2e8f0&color=475569" class="w-full h-full object-contain mix-blend-multiply p-2">
+                        @endif
+                        @if($prod->has_discount)
+                            <span class="absolute top-1.5 left-1.5 bg-rose-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-xs">
+                                -{{ $prod->discount_percentage }}%
+                            </span>
+                        @endif
+                    </a>
+
+                    <div class="flex items-center gap-1 mb-1 flex-wrap">
+                        <span class="bg-slate-100 text-slate-600 text-[8px] font-bold px-1.5 py-0.5 rounded truncate max-w-full">
+                            {{ $prod->merchant->name }}
+                        </span>
+                        @if($prod->category)
+                            <span class="bg-rose-50 text-rose-600 text-[8px] font-bold px-1.5 py-0.5 rounded">
+                                {{ $prod->category->name }}
+                            </span>
+                        @endif
+                    </div>
+
+                    <a href="{{ route('customer.merchant.show', $prod->merchant_id) }}" class="font-bold text-slate-800 text-xs leading-snug line-clamp-2 hover:text-rose-600 transition mb-1">
+                        {{ $prod->name }}
+                    </a>
+
+                    <div class="mt-auto pt-2 flex items-center justify-between">
+                        <div>
+                            @if($prod->has_discount)
+                                <div class="font-black text-rose-600 text-xs">Rp{{ number_format($prod->discount_price, 0, ',', '.') }}</div>
+                                <div class="text-[9px] text-slate-400 line-through">Rp{{ number_format($prod->estimated_price, 0, ',', '.') }}</div>
+                            @else
+                                <div class="font-black text-slate-800 text-xs">Rp{{ number_format($prod->estimated_price, 0, ',', '.') }}</div>
+                            @endif
+                        </div>
+                        <button 
+                            type="button" 
+                            onclick="addToCart({{ $prod->id }})" 
+                            class="bg-slate-900 hover:bg-rose-600 text-white p-2 rounded-xl shadow-xs transition transform hover:scale-110 focus:outline-none"
+                            title="Tambah ke Keranjang"
+                        >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         <!-- Pelacakan Pesanan Aktif (Active Order Tracker + Bidding List) -->
         <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Pesanan Aktif Anda</h3>
@@ -852,4 +959,31 @@
     'chatSendUrlTemplate' => route('customer.orders.chat.send', ['id' => '__ID__']),
     'chatHistoryUrlTemplate' => route('customer.orders.chat.history', ['id' => '__ID__']),
 ])
+
+<script>
+    function addToCart(productId) {
+        fetch(`/customer/cart/add/${productId}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (typeof customerNotify === 'function') {
+                    customerNotify('Produk berhasil ditambahkan ke keranjang belanja!');
+                } else {
+                    alert('Produk berhasil ditambahkan ke keranjang!');
+                }
+            } else {
+                alert(data.error || 'Gagal menambahkan ke keranjang');
+            }
+        })
+        .catch(() => {
+            alert('Terjadi kesalahan saat menambahkan ke keranjang');
+        });
+    }
+</script>
 @endsection

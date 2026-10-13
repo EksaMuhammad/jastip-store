@@ -45,20 +45,86 @@
         </div>
     </div>
 
+    @php
+        $categories = $merchant->products->pluck('category')->filter()->unique('id')->values();
+    @endphp
+
     <!-- Product List -->
-    <div class="mt-4 px-4 pb-10">
-        <h2 class="font-black text-slate-800 text-lg mb-4">Daftar Menu</h2>
+    <div x-data="{ activeCategory: 'all' }" class="mt-4 px-4 pb-10">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="font-black text-slate-800 text-lg">Daftar Menu & Produk</h2>
+            <span class="text-xs font-semibold text-slate-400">{{ $merchant->products->count() }} item</span>
+        </div>
+
+        @if($categories->count() > 0)
+        <!-- Category Tabs -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-3 scrollbar-hide">
+            <button 
+                type="button" 
+                @click="activeCategory = 'all'" 
+                :class="activeCategory === 'all' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
+                class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition"
+            >
+                Semua ({{ $merchant->products->count() }})
+            </button>
+            @foreach($categories as $cat)
+            @php
+                $catCount = $merchant->products->where('category_id', $cat->id)->count();
+            @endphp
+            <button 
+                type="button" 
+                @click="activeCategory = '{{ $cat->id }}'" 
+                :class="activeCategory === '{{ $cat->id }}' ? 'bg-rose-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
+                class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition flex items-center gap-1.5"
+            >
+                <span>{{ $cat->name }}</span>
+                <span class="text-[10px] opacity-75">({{ $catCount }})</span>
+            </button>
+            @endforeach
+        </div>
+        @endif
         
         <div class="space-y-4">
             @forelse($merchant->products as $product)
-            <div class="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
-                <div class="w-20 h-20 bg-slate-100 rounded-xl overflow-hidden shrink-0">
-                    <img src="https://ui-avatars.com/api/?name={{ urlencode($product->name) }}&background=cbd5e1&color=475569" class="w-full h-full object-cover">
+            <div 
+                x-show="activeCategory === 'all' || activeCategory === '{{ $product->category_id }}'"
+                x-transition
+                class="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 {{ !$product->is_available ? 'opacity-60' : '' }}"
+            >
+                <div class="w-20 h-20 bg-slate-100 rounded-xl overflow-hidden shrink-0 relative">
+                    @if($product->image)
+                        <img src="{{ $product->image }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+                    @else
+                        <img src="https://ui-avatars.com/api/?name={{ urlencode($product->name) }}&background=cbd5e1&color=475569" class="w-full h-full object-cover">
+                    @endif
+                    @if(!$product->is_available)
+                        <div class="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
+                            <span class="text-[9px] font-black text-white uppercase tracking-wider">Habis</span>
+                        </div>
+                    @endif
                 </div>
                 <div class="flex-grow py-1">
-                    <h3 class="font-bold text-sm text-slate-800 mb-0.5">{{ $product->name }}</h3>
-                    <p class="text-[10px] text-slate-500 mb-2 line-clamp-2">{{ $product->description }}</p>
-                    <div class="font-black text-slate-800 text-sm">Rp{{ number_format($product->estimated_price, 0, ',', '.') }}</div>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        @if($product->category)
+                            <span class="bg-rose-50 text-rose-600 border border-rose-100 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">{{ $product->category->name }}</span>
+                        @endif
+                        <h3 class="font-bold text-sm text-slate-800 mb-0.5">{{ $product->name }}</h3>
+                        @if($product->is_flash_sale)
+                            <span class="bg-rose-100 text-rose-600 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">⚡ Flash Sale</span>
+                        @endif
+                        @if($product->has_discount)
+                            <span class="bg-rose-50 text-rose-600 border border-rose-200 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">-{{ $product->discount_percentage }}%</span>
+                        @endif
+                    </div>
+                    <p class="text-[10px] text-slate-500 mb-1.5 line-clamp-2">{{ $product->description }}</p>
+                    @if($product->has_discount)
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="font-black text-rose-600 text-sm">Rp{{ number_format($product->discount_price, 0, ',', '.') }}</span>
+                            <span class="text-[10px] text-slate-400 line-through">Rp{{ number_format($product->estimated_price, 0, ',', '.') }}</span>
+                        </div>
+                    @else
+                        <div class="font-black text-slate-800 text-sm">Rp{{ number_format($product->estimated_price, 0, ',', '.') }}</div>
+                    @endif
                 </div>
                 <div class="shrink-0 flex items-end justify-end self-stretch py-1 pr-1">
                     <!-- Add button -->

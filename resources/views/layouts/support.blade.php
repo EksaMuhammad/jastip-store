@@ -30,7 +30,7 @@
     <body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-rose-600 selection:text-white flex flex-col min-h-screen">
 
         <!-- Header -->
-        @if(!request()->is('admin/*', 'admin', 'login', 'register'))
+        @if(!request()->is('admin/*', 'admin', 'login', 'register', 'customer/cart', 'customer/cart/*'))
             @include('layouts.header')
         @endif
 

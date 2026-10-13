@@ -23,6 +23,15 @@ new class extends Component
     public string $recipient_name = '';
     public string $recipient_phone = '';
 
+    // Multi-Stop specific inputs
+    public array $stops = [
+        ['address' => '', 'notes' => '', 'lat' => null, 'lng' => null],
+        ['address' => '', 'notes' => '', 'lat' => null, 'lng' => null],
+    ];
+
+    // Ekspedisi Pihak Ketiga specific inputs
+    public string $courier_agency = 'JNE'; // JNE, J&T, SiCepat, Wahana, POS Indonesia, dll
+
     // Koordinat pin peta (diisi otomatis oleh JS Leaflet/Nominatim, jangan diisi manual lewat form)
     public ?float $origin_lat = null;
     public ?float $origin_lng = null;
@@ -41,18 +50,42 @@ new class extends Component
     public string $success_message = '';
     public string $error_message = '';
 
+    public function addStop()
+    {
+        if (count($this->stops) < 5) {
+            $this->stops[] = ['address' => '', 'notes' => '', 'lat' => null, 'lng' => null];
+            $this->calculateFare();
+        }
+    }
+
+    public function removeStop(int $index)
+    {
+        if (count($this->stops) > 2) {
+            unset($this->stops[$index]);
+            $this->stops = array_values($this->stops);
+            $this->calculateFare();
+        }
+    }
+
     protected function rules()
     {
-        return [
+        $rules = [
             'category' => ['required', 'in:beli-antar,ambil-antar,toko-kirim,dokumen,multi-stop,kirim-pihak-ketiga'],
             'weight_category' => ['required', 'in:ringan,sedang,berat'],
             'description' => ['required', 'string', 'min:5'],
-            'origin_address' => ['required_if:category,beli-antar,ambil-antar,toko-kirim'],
             'destination_address' => ['required', 'string', 'min:5'],
             'recipient_name' => ['required', 'string', 'min:2'],
             'recipient_phone' => ['required', 'string', 'min:9'],
             'reference_photo' => ['nullable', 'image', 'max:2048'], // Max 2MB
         ];
+
+        if (in_array($this->category, ['beli-antar', 'ambil-antar', 'toko-kirim'])) {
+            $rules['origin_address'] = ['required', 'string', 'min:3'];
+        } elseif ($this->category === 'multi-stop') {
+            $rules['stops.*.address'] = ['required', 'string', 'min:3'];
+        }
+
+        return $rules;
     }
 
     protected function messages()
@@ -60,7 +93,8 @@ new class extends Component
         return [
             'description.required' => 'Deskripsi pesanan wajib diisi.',
             'description.min' => 'Deskripsi minimal berisi 5 karakter.',
-            'origin_address.required_if' => 'Alamat asal/toko wajib diisi untuk kategori belanja ini.',
+            'origin_address.required' => 'Alamat asal/toko wajib diisi.',
+            'stops.*.address.required' => 'Semua titik alamat pemberhentian multi-stop wajib diisi.',
             'destination_address.required' => 'Alamat tujuan pengantaran wajib diisi.',
             'destination_address.min' => 'Alamat tujuan minimal berisi 5 karakter.',
             'recipient_name.required' => 'Nama penerima wajib diisi.',
@@ -159,7 +193,7 @@ new class extends Component
             'toko-kirim' => 2000.0,
             'dokumen' => 0.0,
             'multi-stop' => 15000.0,
-            'kirim-pihak-ketiga' => 5000.0,
+            'kirim-pihak-ketiga' => 7000.0,
         ];
 
         // Biaya tambahan berat
@@ -172,8 +206,14 @@ new class extends Component
         $baseAddition = $categoryAdditions[$this->category] ?? 0.0;
         $weightAddition = $weightAdditions[$this->weight_category] ?? 0.0;
 
-        // Formula: (Jarak * Tarif/KM) + Tambahan Kategori + Tambahan Berat
-        $fare = ($this->distance * $ratePerKm) + $baseAddition + $weightAddition;
+        // Tambahan per extra stop untuk multi-stop (titik ke-3 dst: +Rp 6.000 / titik)
+        $extraStopsFare = 0.0;
+        if ($this->category === 'multi-stop' && count($this->stops) > 2) {
+            $extraStopsFare = (count($this->stops) - 2) * 6000.0;
+        }
+
+        // Formula: (Jarak * Tarif/KM) + Tambahan Kategori + Tambahan Berat + Extra Stops
+        $fare = ($this->distance * $ratePerKm) + $baseAddition + $weightAddition + $extraStopsFare;
         
         // Minimal fare Rp 10.000
         $this->estimated_fare = max(10000.0, $fare);
@@ -201,6 +241,21 @@ new class extends Component
                 $photoPath = $this->reference_photo->store('orders/references', 'public');
             }
 
+            // Tentukan origin address
+            $originText = $this->origin_address;
+            $multiStopsPayload = null;
+
+            if ($this->category === 'multi-stop') {
+                $multiStopsPayload = $this->stops;
+                // Buat ringkasan titik di origin_address
+                $stopTitles = array_map(function($s, $idx) {
+                    return "Titik " . ($idx + 1) . ": " . ($s['address'] ?: 'Lokasi');
+                }, $this->stops, array_keys($this->stops));
+                $originText = implode(' ➔ ', $stopTitles);
+            } elseif ($this->category === 'kirim-pihak-ketiga') {
+                $originText = $this->origin_address ?: "Konter / Agen {$this->courier_agency}";
+            }
+
             // Buat record order baru
             $order = Order::create([
                 'customer_id' => $customer->id,
@@ -210,7 +265,7 @@ new class extends Component
                 'weight_category' => $this->weight_category,
                 'description' => $this->description,
                 'reference_photo' => $photoPath,
-                'origin_address' => $this->origin_address ?: 'Lokasi Pin Peta Asal',
+                'origin_address' => $originText ?: 'Lokasi Pin Peta Asal',
                 'origin_lat' => $this->origin_lat ?? -7.9839,
                 'origin_lng' => $this->origin_lng ?? 112.6214,
                 'destination_address' => $this->destination_address,
@@ -219,6 +274,8 @@ new class extends Component
                 'recipient_name' => $this->recipient_name,
                 'recipient_phone' => $this->recipient_phone,
                 'estimated_fare' => $this->estimated_fare,
+                'multi_stops' => $multiStopsPayload,
+                'courier_agency' => $this->category === 'kirim-pihak-ketiga' ? $this->courier_agency : null,
                 'status' => 'menunggu_tawaran',
             ]);
 
@@ -228,8 +285,8 @@ new class extends Component
                 'ambil-antar' => 'Jastip Ambil Barang (Ambil-Antar)',
                 'toko-kirim' => 'Jastip Toko',
                 'dokumen' => 'Jastip Dokumen Kecil',
-                'multi-stop' => 'Jastip Multi-Stop',
-                'kirim-pihak-ketiga' => 'Jastip Pihak Ketiga',
+                'multi-stop' => 'Jastip Multi-Stop (' . count($this->stops) . ' Titik)',
+                'kirim-pihak-ketiga' => 'Jastip Agen Ekspedisi (' . $this->courier_agency . ')',
             ];
             $catLabel = $categoryNames[$this->category] ?? 'Jastip';
 
@@ -299,10 +356,12 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'beli-antar')"
-                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'beli-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <img src="{{ asset('images/services/beli-antar.png') }}" alt="Beli-Antar" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
+                    <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Beli-Antar</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Jastip Kuliner / Makanan</span>
@@ -313,10 +372,12 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'ambil-antar')"
-                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'ambil-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Ambil-Antar" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
+                    <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100 shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                    </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Ambil & Antar</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Ambil barang / COD</span>
@@ -327,10 +388,12 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'toko-kirim')"
-                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'toko-kirim' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Toko Kirim" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                    </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Toko Kirim</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Belanja Minimarket/Pasar</span>
@@ -341,10 +404,12 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'dokumen')"
-                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'dokumen' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <img src="{{ asset('images/services/dokumen.png') }}" alt="Dokumen Kecil" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Dokumen Kecil</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Kirim surat / dokumen</span>
@@ -355,10 +420,12 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'multi-stop')"
-                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'multi-stop' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <img src="{{ asset('images/services/multi-stop.png') }}" alt="Multi-Stop" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Multi-Stop</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Banyak titik belanja/antar</span>
@@ -369,10 +436,12 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'kirim-pihak-ketiga')"
-                    class="p-4 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
+                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
                     style="{{ $category === 'kirim-pihak-ketiga' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <img src="{{ asset('images/services/kirim-pihak-ketiga.png') }}" alt="Pihak Ketiga" class="w-16 h-12 object-contain drop-shadow-sm rounded-lg">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"></path></svg>
+                    </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Pihak Ketiga</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5">Ekspedisi / Agen Kirim</span>
@@ -399,36 +468,103 @@ new class extends Component
                     @error('description') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                 </div>
 
-                <!-- Alamat Origin & Destination -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- Origin -->
-                    @if(in_array($category, ['beli-antar', 'ambil-antar', 'toko-kirim']))
-                        <div class="space-y-1.5">
-                            <label for="origin_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Asal / Toko Belanja</label>
-                            <div class="flex gap-2">
-                                <input 
-                                    type="text" 
-                                    id="origin_address" 
-                                    wire:model.live="origin_address"
-                                    placeholder="Tulis nama warung / lokasi belanja..."
-                                    class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
-                                >
-                                <button 
-                                    type="button"
-                                    onclick="searchOriginLocation()"
-                                    id="btn-search-origin"
-                                    class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    🔍 Cari Toko
-                                </button>
+                <!-- Alamat Origin & Destination / Multi-Stop -->
+                @if($category === 'multi-stop')
+                    <!-- KHUSUS MULTI-STOP: Titik Pemberhentian Dinamis -->
+                    <div class="bg-purple-50/50 border border-purple-100 rounded-3xl p-4 sm:p-5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-xs font-black text-purple-900 uppercase tracking-wide flex items-center gap-1.5">
+                                    <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                                    Titik Pemberhentian & Belanja Multi-Stop (Maks 5 Titik)
+                                </h4>
+                                <p class="text-[10px] text-purple-600 mt-0.5">Jastiper akan mampir berurutan ke toko-toko ini sebelum mengantar ke tujuan akhir Anda.</p>
                             </div>
-                            @error('origin_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700">
+                                {{ count($stops) }} Titik Singgah
+                            </span>
                         </div>
-                    @endif
+
+                        <div class="space-y-3">
+                            @foreach($stops as $idx => $stop)
+                                <div class="bg-white border border-purple-200/80 rounded-2xl p-3.5 shadow-2xs space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-5 h-5 rounded-full bg-purple-600 text-white font-black text-[10px] flex items-center justify-center">
+                                                {{ $idx + 1 }}
+                                            </span>
+                                            <span class="text-xs font-bold text-slate-800">Stop {{ $idx + 1 }}: Toko / Titik Jemput</span>
+                                        </div>
+                                        @if(count($stops) > 2)
+                                            <button type="button" wire:click="removeStop({{ $idx }})" class="text-[10px] font-bold text-rose-500 hover:text-rose-700 hover:underline">
+                                                ✕ Hapus Stop
+                                            </button>
+                                        @endif
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                                        <!-- Alamat / Nama Toko -->
+                                        <div class="sm:col-span-7 flex gap-1.5">
+                                            <input 
+                                                type="text" 
+                                                id="stop_address_{{ $idx }}"
+                                                wire:model.live="stops.{{ $idx }}.address"
+                                                placeholder="Nama toko / lokasi (mis: Kopi Kenangan Dinoyo)..."
+                                                class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-xl text-xs focus:bg-white focus:border-purple-500 outline-none"
+                                            >
+                                            <button 
+                                                type="button"
+                                                onclick="searchStopLocation({{ $idx }})"
+                                                id="btn_search_stop_{{ $idx }}"
+                                                class="shrink-0 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold px-2.5 rounded-xl transition whitespace-nowrap"
+                                            >
+                                                🔍 Cari
+                                            </button>
+                                        </div>
+                                        <!-- Catatan Belanja di Stop ini -->
+                                        <div class="sm:col-span-5">
+                                            <input 
+                                                type="text" 
+                                                wire:model.live="stops.{{ $idx }}.notes"
+                                                placeholder="Barang dibeli (mis: 1 Latte Ice)..."
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-xl text-xs focus:bg-white focus:border-purple-500 outline-none"
+                                            >
+                                        </div>
+                                    </div>
+                                    @error('stops.'.$idx.'.address') <span class="text-rose-600 text-[9px] font-semibold block">{{ $message }}</span> @enderror
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="flex items-center justify-between pt-1">
+                            @if(count($stops) < 5)
+                                <button type="button" wire:click="addStop" class="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-900 bg-white border border-purple-200 px-4 py-2 rounded-xl shadow-2xs hover:bg-purple-50 transition">
+                                    <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                    + Tambah Titik Pemberhentian (+Rp 6.000)
+                                </button>
+                            @else
+                                <span class="text-[10px] font-bold text-slate-400 italic">Maksimal 5 titik singgah telah tercapai.</span>
+                            @endif
+
+                            <span class="text-[10px] text-purple-700 font-medium">
+                                Biaya dasar multi-stop + tambahan titik ke-3 dst.
+                            </span>
+                        </div>
+                    </div>
 
                     <!-- Destination -->
                     <div class="space-y-1.5">
-                        <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Tujuan Pengantaran</label>
+                        <div class="flex items-center justify-between">
+                            <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Tujuan Pengantaran Akhir</label>
+                            <button 
+                                type="button" 
+                                id="btn-gps-dest-1"
+                                onclick="detectCustomerCurrentLocation()"
+                                class="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
+                            >
+                                📍 Pakai Lokasi Saya (GPS)
+                            </button>
+                        </div>
                         <div class="flex gap-2">
                             <input 
                                 type="text" 
@@ -448,7 +584,91 @@ new class extends Component
                         </div>
                         @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                     </div>
-                </div>
+                @else
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Origin (Untuk single store/pickup) -->
+                        @if(in_array($category, ['beli-antar', 'ambil-antar', 'toko-kirim']))
+                            <div class="space-y-1.5">
+                                <label for="origin_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Asal / Toko Belanja</label>
+                                <div class="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        id="origin_address" 
+                                        wire:model.live="origin_address"
+                                        placeholder="Tulis nama warung / lokasi belanja..."
+                                        class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                                    >
+                                    <button 
+                                        type="button"
+                                        onclick="searchOriginLocation()"
+                                        id="btn-search-origin"
+                                        class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                        🔍 Cari Toko
+                                    </button>
+                                </div>
+                                @error('origin_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+                            </div>
+                        @elseif($category === 'kirim-pihak-ketiga')
+                            <div class="space-y-1.5">
+                                <label for="courier_agency" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Pilih Ekspedisi / Kurir Tujuan</label>
+                                <select 
+                                    id="courier_agency" 
+                                    wire:model.live="courier_agency"
+                                    class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs font-semibold"
+                                >
+                                    <option value="JNE">JNE Express</option>
+                                    <option value="J&T">J&T Express</option>
+                                    <option value="SiCepat">SiCepat Ekspres</option>
+                                    <option value="Wahana">Wahana Express</option>
+                                    <option value="POS Indonesia">Kantor Pos Indonesia</option>
+                                    <option value="TIKI">TIKI</option>
+                                    <option value="Lion Parcel">Lion Parcel</option>
+                                    <option value="Anteraja">Anteraja</option>
+                                </select>
+                                <input 
+                                    type="text" 
+                                    wire:model.live="origin_address"
+                                    placeholder="Cabang / agen spesifik (opsional, mis: JNE Soekarno Hatta)..."
+                                    class="w-full mt-1.5 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-[11px]"
+                                >
+                            </div>
+                        @endif
+
+                        <!-- Destination -->
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Tujuan Pengantaran</label>
+                                <button 
+                                    type="button" 
+                                    id="btn-gps-dest-2"
+                                    onclick="detectCustomerCurrentLocation()"
+                                    class="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
+                                >
+                                    📍 Pakai Lokasi Saya
+                                </button>
+                            </div>
+                            <div class="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    id="destination_address" 
+                                    wire:model.live="destination_address"
+                                    placeholder="Alamat rumah / kos Anda..."
+                                    class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
+                                >
+                                <button 
+                                    type="button"
+                                    onclick="searchDestinationLocation()"
+                                    id="btn-search-destination"
+                                    class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    🔍 Cari Lokasi
+                                </button>
+                            </div>
+                            @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <!-- Upload Box & Weight Category -->
@@ -759,6 +979,79 @@ new class extends Component
         window.searchDestinationLocation = function () {
             const input = document.getElementById('destination_address');
             geocodeAndMove(input ? input.value : '', markerDest, 'btn-search-destination');
+        };
+
+        window.searchStopLocation = function (idx) {
+            const input = document.getElementById('stop_address_' + idx);
+            geocodeAndMove(input ? input.value : '', markerOrigin, 'btn_search_stop_' + idx);
+        };
+
+        window.detectCustomerCurrentLocation = function (isAutomatic = false) {
+            if (!navigator.geolocation) {
+                if (!isAutomatic) alert('Browser Anda tidak mendukung deteksi GPS.');
+                return;
+            }
+
+            const btns = [
+                document.getElementById('btn-gps-dest-1'),
+                document.getElementById('btn-gps-dest-2')
+            ].filter(Boolean);
+
+            btns.forEach(b => {
+                b.innerHTML = '⏳ Menyesuaikan GPS...';
+                b.disabled = true;
+            });
+
+            navigator.geolocation.getCurrentPosition(
+                async function (pos) {
+                    const userLat = pos.coords.latitude;
+                    const userLng = pos.coords.longitude;
+
+                    if (markerDest && map) {
+                        markerDest.setLatLng([userLat, userLng]);
+                        map.setView([userLat, userLng], 15);
+                        if (typeof updateDistanceAndRoute === 'function') {
+                            updateDistanceAndRoute();
+                        }
+                    }
+
+                    try {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}&zoom=18&addressdetails=1`, {
+                            headers: { 'Accept-Language': 'id' }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const addr = data.address || {};
+                            let cleanAddress = [
+                                addr.road || addr.amenity || addr.building || '',
+                                addr.neighbourhood || addr.suburb || addr.village || '',
+                                addr.city || addr.town || addr.county || 'Malang'
+                            ].filter(Boolean).join(', ');
+                            if (!cleanAddress) cleanAddress = data.display_name;
+
+                            // Update input and Livewire
+                            $wire.set('destination_address', cleanAddress);
+                        }
+                    } catch (e) {
+                        console.warn('Reverse geocode error:', e);
+                    } finally {
+                        btns.forEach(b => {
+                            b.innerHTML = '✓ Lokasi Saya Terpasang';
+                            b.disabled = false;
+                        });
+                    }
+                },
+                function (err) {
+                    btns.forEach(b => {
+                        b.innerHTML = '📍 Pakai Lokasi Saya (GPS)';
+                        b.disabled = false;
+                    });
+                    if (!isAutomatic && err.code === err.PERMISSION_DENIED) {
+                        alert('Izin akses lokasi ditolak di browser. Aktifkan izin lokasi untuk menggunakan fitur ini.');
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+            );
         };
 </script>
 @endscript

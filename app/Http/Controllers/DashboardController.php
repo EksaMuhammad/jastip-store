@@ -37,8 +37,23 @@ class DashboardController extends Controller
 
         $promos = Promo::where('is_active', true)->latest()->get();
 
+        // Rekomendasi Toko Minimarket (Mart) & Produk Terbaru untuk dashboard customer
+        $latestMartProducts = \App\Models\Product::where('is_available', true)
+            ->whereHas('merchant', function($q) { $q->where('type', 'mart'); })
+            ->with(['merchant', 'category'])
+            ->latest()
+            ->take(8)
+            ->get();
+
+        $martMerchants = \App\Models\Merchant::where('type', 'mart')
+            ->where('is_active', true)
+            ->withCount('products')
+            ->latest()
+            ->take(6)
+            ->get();
+
         $balance = $customer->wallet ? $customer->wallet->balance : 0;
-        return view('dashboard.customer', compact('customer', 'balance', 'unratedCompletedOrders', 'promos'));
+        return view('dashboard.customer', compact('customer', 'balance', 'unratedCompletedOrders', 'promos', 'latestMartProducts', 'martMerchants'));
     }
 
     /**
@@ -300,24 +315,191 @@ class DashboardController extends Controller
     /**
      * Halaman Utama Dashboard Admin.
      */
-    public function adminDashboard()
+    /**
+     * Halaman Utama Dashboard Analytics Admin.
+     */
+    public function adminDashboard(Request $request)
     {
-        $totalOrders = \App\Models\Order::count();
-        $totalCompletedOrders = \App\Models\Order::where('status', 'selesai')->count();
-        $totalNetRevenue = \App\Models\Komisi::sum('commission_amount');
-        $activeJastipers = \App\Models\Jastiper::where('verification_status', 'approved')->count();
-        $totalCustomers = \App\Models\Customer::count();
+        // 1. Date filter (default: today)
+        $dateFilter = $request->query('date_range', 'today'); // 'today', 'yesterday', 'this_week', 'this_month', 'all'
+        $startDate = null;
+        $endDate = null;
 
-        $latestOrders = \App\Models\Order::with(['customer', 'jastiper'])
-            ->latest()
-            ->paginate(10);
+        $now = now();
+        if ($dateFilter === 'yesterday') {
+            $startDate = now()->yesterday()->startOfDay();
+            $endDate = now()->yesterday()->endOfDay();
+        } elseif ($dateFilter === 'this_week') {
+            $startDate = now()->startOfWeek();
+            $endDate = now()->endOfWeek();
+        } elseif ($dateFilter === 'this_month') {
+            $startDate = now()->startOfMonth();
+            $endDate = now()->endOfMonth();
+        } elseif ($dateFilter === 'all') {
+            $startDate = null;
+            $endDate = null;
+        } else {
+            // Default 'today'
+            $dateFilter = 'today';
+            $startDate = now()->startOfDay();
+            $endDate = now()->endOfDay();
+        }
+
+        // Base order query with date filter
+        $orderQuery = \App\Models\Order::query();
+        if ($startDate && $endDate) {
+            $orderQuery->whereBetween('created_at', [$startDate, $endDate]);
+        }
+
+        // Summary Counts
+        $totalOrdersFiltered = (clone $orderQuery)->count();
+        $activeOrdersCount = \App\Models\Order::whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah'])->count();
+        $completedOrdersCount = (clone $orderQuery)->where('status', 'selesai')->count();
+        $cancelledOrdersCount = (clone $orderQuery)->whereIn('status', ['dibatalkan', 'bermasalah'])->count();
+
+        // All time stats for comparison
+        $totalOrdersAllTime = \App\Models\Order::count();
+        $totalCompletedAllTime = \App\Models\Order::where('status', 'selesai')->count();
+        $totalNetRevenueAllTime = \App\Models\Komisi::sum('commission_amount');
+
+        // 2. Active Driver / Jastiper Analytics
+        $activeDriversQuery = \App\Models\Jastiper::where('verification_status', 'approved')
+            ->where(function ($q) {
+                $q->where('is_available', true)
+                  ->orWhere('work_status', '!=', 'offline')
+                  ->orWhereNotNull('checkin_location');
+            })
+            ->with(['wilayah']);
+
+        $activeDriversList = (clone $activeDriversQuery)
+            ->withCount(['orders as current_orders_count' => function ($q) {
+                $q->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah']);
+            }])
+            ->latest('updated_at')
+            ->get();
+
+        $totalActiveDriversCount = $activeDriversList->count();
+        $totalOnlineTersedia = $activeDriversList->where('work_status', 'tersedia')->count();
+        $totalOnlineStandby = $activeDriversList->where('work_status', 'standby')->count();
+
+        // 3. Service / Category breakdown
+        $serviceBreakdownRaw = (clone $orderQuery)
+            ->select('category', DB::raw('count(*) as count'), DB::raw('SUM(COALESCE(agreed_fare, estimated_fare)) as total_val'))
+            ->groupBy('category')
+            ->orderByDesc('count')
+            ->get();
+
+        $allCategories = [
+            'beli-antar' => 'Beli & Antar (Belanja)',
+            'ambil-antar' => 'Ambil & Antar (Titip)',
+            'toko-kirim' => 'Toko / Katalog Partner',
+            'dokumen' => 'Dokumen Penting',
+            'multi-stop' => 'Multi-Stop (Beberapa Titik)',
+            'kirim-pihak-ketiga' => 'Ekspedisi Pihak Ketiga',
+        ];
+
+        $serviceBreakdown = [];
+        foreach ($allCategories as $catKey => $catLabel) {
+            $found = $serviceBreakdownRaw->firstWhere('category', $catKey);
+            $serviceBreakdown[] = [
+                'key' => $catKey,
+                'label' => $catLabel,
+                'count' => $found ? $found->count : 0,
+                'total_val' => $found ? (float)$found->total_val : 0,
+            ];
+        }
+
+        // Sort by count desc
+        usort($serviceBreakdown, fn($a, $b) => $b['count'] <=> $a['count']);
+        $topService = $serviceBreakdown[0] ?? null;
+
+        // 4. Financial Analytics (Cash In vs Cash Out)
+        // Cash In: payments verified/lunas in date range + topups verified
+        $paymentInQuery = \App\Models\Payment::where('status', 'lunas');
+        $topupInQuery = \App\Models\Topup::where('status', 'berhasil');
+        $withdrawOutQuery = \App\Models\WithdrawRequest::where('status', 'approved');
+        $komisiQuery = \App\Models\Komisi::query();
+
+        if ($startDate && $endDate) {
+            $paymentInQuery->whereBetween('created_at', [$startDate, $endDate]);
+            $topupInQuery->whereBetween('created_at', [$startDate, $endDate]);
+            $withdrawOutQuery->whereBetween('processed_at', [$startDate, $endDate]);
+            $komisiQuery->whereBetween('created_at', [$startDate, $endDate]);
+        }
+
+        $cashInPayments = (float) $paymentInQuery->sum('amount');
+        $cashInTopups = (float) $topupInQuery->sum('amount');
+        $totalCashIn = $cashInPayments + $cashInTopups;
+
+        $totalCashOut = (float) $withdrawOutQuery->sum('amount');
+        $platformCommissionEarned = (float) $komisiQuery->sum('commission_amount');
+        $netCashFlow = $totalCashIn - $totalCashOut;
+
+        // 5. Hourly Orders Distribution (for Today chart)
+        $hourlyDistribution = array_fill(0, 24, 0);
+        $hourlyQuery = (clone $orderQuery)->get();
+        foreach ($hourlyQuery as $ord) {
+            $hour = (int)$ord->created_at->format('G');
+            if (isset($hourlyDistribution[$hour])) {
+                $hourlyDistribution[$hour]++;
+            }
+        }
+
+        // 6. Interactive Orders Table with Search & Status Filter
+        $tableQuery = \App\Models\Order::with(['customer', 'jastiper', 'wilayah'])
+            ->latest();
+
+        if ($request->filled('status_filter') && $request->status_filter !== 'all') {
+            if ($request->status_filter === 'aktif') {
+                $tableQuery->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah']);
+            } else {
+                $tableQuery->where('status', $request->status_filter);
+            }
+        }
+
+        if ($request->filled('category_filter') && $request->category_filter !== 'all') {
+            $tableQuery->where('category', $request->category_filter);
+        }
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $tableQuery->where(function ($q) use ($search) {
+                $q->where('id', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('recipient_name', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%")->orWhere('phone_number', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('jastiper', function ($jq) use ($search) {
+                      $jq->where('name', 'like', "%{$search}%")->orWhere('phone_number', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $latestOrders = $tableQuery->paginate(15)->appends($request->query());
 
         return view('admin.dashboard', compact(
-            'totalOrders', 
-            'totalCompletedOrders', 
-            'totalNetRevenue', 
-            'activeJastipers', 
-            'totalCustomers',
+            'dateFilter',
+            'totalOrdersFiltered',
+            'activeOrdersCount',
+            'completedOrdersCount',
+            'cancelledOrdersCount',
+            'totalOrdersAllTime',
+            'totalCompletedAllTime',
+            'totalNetRevenueAllTime',
+            'activeDriversList',
+            'totalActiveDriversCount',
+            'totalOnlineTersedia',
+            'totalOnlineStandby',
+            'serviceBreakdown',
+            'topService',
+            'totalCashIn',
+            'cashInPayments',
+            'cashInTopups',
+            'totalCashOut',
+            'platformCommissionEarned',
+            'netCashFlow',
+            'hourlyDistribution',
             'latestOrders'
         ));
     }
@@ -681,6 +863,8 @@ class DashboardController extends Controller
                 'distance_km' => round((float) $order->distance_km, 2),
                 'customer_name' => $order->customer->name ?? '-',
                 'created_at' => $order->created_at->diffForHumans(),
+                'multi_stops' => $order->multi_stops,
+                'courier_agency' => $order->courier_agency,
                 'my_offer_price' => $myOffer ? (float) $myOffer->offered_price : null,
                 'my_offer_price_formatted' => $myOffer ? 'Rp ' . number_format((float) $myOffer->offered_price, 0, ',', '.') : null,
             ];

@@ -45,10 +45,27 @@
                     <div class="space-y-2">
                         @foreach($products as $product)
                         <a href="{{ route('customer.merchant.show', $product->merchant_id) }}" class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition">
+                            <div class="w-14 h-14 bg-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                                @if($product->image)
+                                    <img src="{{ $product->image_url ?? $product->image }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+                                @else
+                                    <span class="text-xs font-bold text-slate-500">{{ substr($product->name, 0, 2) }}</span>
+                                @endif
+                            </div>
                             <div class="flex-grow">
                                 <div class="font-bold text-sm text-slate-800">{{ $product->name }}</div>
                                 <div class="text-[10px] text-slate-500">{{ $product->merchant->name }}</div>
-                                <div class="text-xs font-bold text-slate-900 mt-1">Rp {{ number_format($product->estimated_price, 0, ',', '.') }}</div>
+                                <div class="text-xs font-bold mt-1">
+                                    @if($product->has_discount)
+                                        <div class="flex items-baseline gap-1.5">
+                                            <span class="text-rose-600 font-black">Rp {{ number_format($product->discount_price, 0, ',', '.') }}</span>
+                                            <span class="text-[10px] text-slate-400 line-through">Rp {{ number_format($product->estimated_price, 0, ',', '.') }}</span>
+                                            <span class="bg-rose-100 text-rose-600 text-[8px] font-bold px-1 py-0.2 rounded">-{{ $product->discount_percentage }}%</span>
+                                        </div>
+                                    @else
+                                        <span class="text-slate-900">Rp {{ number_format($product->estimated_price, 0, ',', '.') }}</span>
+                                    @endif
+                                </div>
                             </div>
                         </a>
                         @endforeach
@@ -82,16 +99,22 @@
             <!-- Layanan JastipKuy -->
             <h3 class="font-bold text-slate-800 mb-3 text-sm">Layanan JastipKuy</h3>
             <div class="grid grid-cols-3 gap-3 mb-6">
-                <a href="{{ route('customer.food') }}" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-2xl hover:border-rose-300 transition">
-                    <img src="{{ asset('images/services/beli-antar.png') }}" alt="Kuliner" class="w-10 h-10 mb-2 object-contain">
+                <a href="{{ route('customer.food') }}" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-2xl hover:border-rose-300 transition group">
+                    <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 mb-2 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
                     <span class="text-[10px] font-bold text-slate-700">Kuliner</span>
                 </a>
-                <a href="{{ route('customer.mart') }}" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-2xl hover:border-amber-300 transition">
-                    <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Belanja" class="w-10 h-10 mb-2 object-contain">
+                <a href="{{ route('customer.mart') }}" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-2xl hover:border-amber-300 transition group">
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 mb-2 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                    </div>
                     <span class="text-[10px] font-bold text-slate-700">Belanja</span>
                 </a>
-                <a href="{{ route('customer.orders.create') }}?cat=ambil-antar" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-2xl hover:border-sky-300 transition">
-                    <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Ambil Barang" class="w-10 h-10 mb-2 object-contain">
+                <a href="{{ route('customer.orders.create') }}?cat=ambil-antar" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-2xl hover:border-sky-300 transition group">
+                    <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100 mb-2 group-hover:scale-110 group-hover:bg-sky-600 group-hover:text-white transition shadow-2xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                    </div>
                     <span class="text-[10px] font-bold text-slate-700">Ambil Barang</span>
                 </a>
             </div>

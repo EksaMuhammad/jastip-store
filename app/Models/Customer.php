@@ -62,4 +62,9 @@ class Customer extends Authenticatable
     {
         return $this->belongsToMany(Jastiper::class, 'customer_favorites', 'customer_id', 'jastiper_id');
     }
+
+    public function cart()
+    {
+        return $this->hasOne(Cart::class);
+    }
 }

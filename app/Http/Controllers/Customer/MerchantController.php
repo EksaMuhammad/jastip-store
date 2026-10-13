@@ -23,12 +23,17 @@ class MerchantController extends Controller
         return view('customer.food.index', compact('categories', 'flashSales', 'merchants'));
     }
 
-    public function mart()
+    public function mart(Request $request)
     {
         $categories = Category::where('type', 'mart')->get();
-        $products = Product::whereHas('merchant', function($q) { $q->where('type', 'mart'); })
-            ->with('merchant')
-            ->paginate(12);
+        $query = Product::whereHas('merchant', function($q) { $q->where('type', 'mart'); })
+            ->with(['merchant', 'category']);
+
+        if ($request->filled('category')) {
+            $query->where('category_id', $request->category);
+        }
+
+        $products = $query->paginate(12)->withQueryString();
             
         return view('customer.mart.index', compact('categories', 'products'));
     }

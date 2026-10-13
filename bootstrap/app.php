@@ -32,6 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('admin') || $request->is('admin/*')) {
                 return route('admin.login');
             }
+            if ($request->is('merchant') || $request->is('merchant/*')) {
+                return route('merchant.login');
+            }
             return route('login');
         });
 

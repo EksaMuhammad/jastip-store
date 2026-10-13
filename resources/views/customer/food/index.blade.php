@@ -73,7 +73,11 @@
             <div class="flex gap-3 overflow-x-auto pb-2 snap-x -mx-4 px-4 scrollbar-hide">
                 @foreach($flashSales as $product)
                 <a href="{{ route('customer.merchant.show', $product->merchant_id) }}" class="snap-start shrink-0 w-36 bg-white rounded-xl overflow-hidden shadow-sm relative group">
-                    <div class="absolute top-2 left-2 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded z-10">-25%</div>
+                    @if($product->has_discount)
+                        <div class="absolute top-2 left-2 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded z-10 shadow">-{{ $product->discount_percentage }}%</div>
+                    @else
+                        <div class="absolute top-2 left-2 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded z-10 shadow">⚡ Flash</div>
+                    @endif
                     <div class="h-28 bg-slate-200 relative overflow-hidden">
                         @if($product->image)
                             <img src="{{ $product->image }}" class="w-full h-full object-cover">
@@ -89,8 +93,10 @@
                         <div class="text-[10px] text-slate-500 truncate">{{ $product->merchant->name }}</div>
                         <div class="font-bold text-slate-800 text-xs leading-tight h-8 mt-0.5 line-clamp-2">{{ $product->name }}</div>
                         <div class="mt-1 flex items-baseline gap-1">
-                            <span class="text-rose-600 font-black text-sm">Rp{{ number_format($product->estimated_price, 0, ',', '.') }}</span>
-                            <span class="text-[9px] text-slate-400 line-through">Rp{{ number_format($product->estimated_price * 1.33, 0, ',', '.') }}</span>
+                            <span class="text-rose-600 font-black text-sm">Rp{{ number_format($product->final_price, 0, ',', '.') }}</span>
+                            @if($product->has_discount)
+                                <span class="text-[9px] text-slate-400 line-through">Rp{{ number_format($product->estimated_price, 0, ',', '.') }}</span>
+                            @endif
                         </div>
                     </div>
                 </a>

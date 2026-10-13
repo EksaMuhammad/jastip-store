@@ -77,7 +77,7 @@
                 <div class="flex items-center">
                     <input 
                         id="remember" 
-                        name="remember" 
+                        name="remember"
                         type="checkbox" 
                         class="h-4 w-4 rounded border-slate-800 text-rose-600 focus:ring-rose-500 bg-slate-900"
                     >

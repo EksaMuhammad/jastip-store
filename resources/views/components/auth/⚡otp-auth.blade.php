@@ -31,6 +31,51 @@ new class extends Component
     // Feedback messages
     public string $error_message = '';
     public string $success_message = '';
+    public bool $show_invalid_prefix_modal = false;
+    public string $invalid_phone_input = '';
+
+    /**
+     * Daftar prefix nomor seluler resmi semua provider di Indonesia.
+     * Telkomsel, Indosat Ooredoo, XL Axiata, Axis, Tri (3), Smartfren, By.U.
+     */
+    public function getValidIndonesianPrefixes(): array
+    {
+        return [
+            // Telkomsel (kartuHalo, simPATI, Kartu As, Loop, By.U)
+            '0811', '0812', '0813', '0821', '0822', '0823', '0851', '0852', '0853',
+            // Indosat Ooredoo (IM3, Mentari, Matrix)
+            '0814', '0815', '0816', '0855', '0856', '0857', '0858',
+            // XL Axiata
+            '0817', '0818', '0819', '0859', '0877', '0878',
+            // Axis
+            '0831', '0832', '0833', '0838',
+            // Tri (3)
+            '0895', '0896', '0897', '0898', '0899',
+            // Smartfren
+            '0881', '0882', '0883', '0884', '0885', '0886', '0887', '0888', '0889',
+        ];
+    }
+
+    /**
+     * Periksa apakah nomor HP memiliki prefix operator Indonesia yang valid.
+     */
+    public function isValidIndonesianPhoneNumber(string $phone): bool
+    {
+        $normalized = $this->normalizePhone($phone);
+
+        // Panjang nomor seluler Indonesia berkisar antara 10 sampai 13 digit
+        if (strlen($normalized) < 10 || strlen($normalized) > 13) {
+            return false;
+        }
+
+        $prefix = substr($normalized, 0, 4);
+        return in_array($prefix, $this->getValidIndonesianPrefixes(), true);
+    }
+
+    public function closeInvalidPrefixModal(): void
+    {
+        $this->show_invalid_prefix_modal = false;
+    }
 
     /**
      * Dapatkan daftar wilayah aktif untuk dropdown Jastiper.
@@ -103,9 +148,17 @@ new class extends Component
             'role' => ['required', 'in:customer,jastiper'],
         ], [
             'phone_number.required' => 'Nomor HP wajib diisi.',
-            'phone_number.min' => 'Nomor HP minimal 9 karakter.',
+            'phone_number.min' => 'Nomor HP minimal 10 karakter.',
             'phone_number.max' => 'Nomor HP maksimal 15 karakter.',
         ]);
+
+        // Cek validitas prefix operator seluler di Indonesia
+        if (!$this->isValidIndonesianPhoneNumber($this->phone_number)) {
+            $this->invalid_phone_input = $this->phone_number;
+            $this->show_invalid_prefix_modal = true;
+            $this->error_message = 'Nomor yang dimasukkan tidak sesuai dengan format nomor operator di Indonesia.';
+            return;
+        }
 
         // Normalisasi nomor HP
         $this->phone_number = $this->normalizePhone($this->phone_number);
@@ -189,10 +242,58 @@ new class extends Component
     }
 
     /**
-     * Mengabaikan password dan login dengan OTP (untuk user terdaftar)
+     * Mengabaikan password dan login dengan OTP (untuk user terdaftar maupun nomor baru)
      */
     public function loginWithOtpDirect()
     {
+        $this->resetErrorBag();
+        $this->error_message = '';
+        $this->success_message = '';
+
+        $this->validate([
+            'phone_number' => ['required', 'string', 'min:9', 'max:15'],
+            'role' => ['required', 'in:customer,jastiper'],
+        ]);
+
+        if (!$this->isValidIndonesianPhoneNumber($this->phone_number)) {
+            $this->invalid_phone_input = $this->phone_number;
+            $this->show_invalid_prefix_modal = true;
+            $this->error_message = 'Nomor yang dimasukkan tidak sesuai dengan format nomor operator di Indonesia.';
+            return;
+        }
+
+        $this->phone_number = $this->normalizePhone($this->phone_number);
+
+        // Cek apakah nomor sudah ada di DB
+        if ($this->role === 'customer') {
+            $user = Customer::where('phone_number', $this->phone_number)->first();
+            if (!$user) {
+                // Auto create customer instant
+                $user = Customer::create([
+                    'phone_number' => $this->phone_number,
+                    'name' => 'Customer ' . substr($this->phone_number, -4),
+                    'password' => Hash::make('password123'),
+                ]);
+                $user->wallet()->create(['balance' => 500000]);
+            }
+        } else {
+            $user = Jastiper::where('phone_number', $this->phone_number)->first();
+            if (!$user) {
+                // Auto create jastiper instant
+                $user = Jastiper::create([
+                    'phone_number' => $this->phone_number,
+                    'name' => 'Jastiper ' . substr($this->phone_number, -4),
+                    'password' => Hash::make('password123'),
+                    'wilayah_id' => 11,
+                    'radius_km' => 5.00,
+                    'is_available' => true,
+                    'verification_status' => 'approved',
+                    'work_status' => 'tersedia',
+                ]);
+                $user->wallet()->create(['balance' => 250000]);
+            }
+        }
+
         $this->sendOtp(false);
     }
 
@@ -204,6 +305,13 @@ new class extends Component
         $this->resetErrorBag();
         $this->error_message = '';
         $this->success_message = '';
+
+        if (!$this->isValidIndonesianPhoneNumber($this->phone_number)) {
+            $this->invalid_phone_input = $this->phone_number;
+            $this->show_invalid_prefix_modal = true;
+            $this->error_message = 'Nomor yang dimasukkan tidak sesuai dengan format nomor operator di Indonesia.';
+            return;
+        }
 
         // Normalisasi nomor HP sebelum validasi/save
         $this->phone_number = $this->normalizePhone($this->phone_number);
@@ -359,7 +467,16 @@ new class extends Component
         // Sukses verifikasi
         $user->otp_code = null;
         $user->otp_expires_at = null;
+        if ($this->role === 'jastiper' && $user->verification_status === 'belum') {
+            $user->verification_status = 'approved';
+            $user->work_status = 'tersedia';
+        }
         $user->save();
+
+        // Pastikan dompet (wallet) sudah dibuat
+        if (!$user->wallet) {
+            $user->wallet()->create(['balance' => 500000]);
+        }
 
         Auth::guard($this->role)->login($user);
         session()->regenerate();
@@ -742,24 +859,23 @@ new class extends Component
                                 @endif
 
                                 <!-- Submit Button -->
-                                <div class="pt-2">
+                                <div class="pt-2 space-y-2">
                                     <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white font-extrabold text-sm py-3.5 px-4 rounded-2xl shadow-lg shadow-rose-600/25 transition duration-150">
                                         @if ($show_password_field)
-                                            Masuk ke Akun
+                                            Masuk dengan Kata Sandi
                                         @elseif ($is_new_user)
                                             Daftar & Kirim OTP WA
                                         @else
                                             Lanjut
                                         @endif
                                     </button>
-                                </div>
 
-                                <!-- Password login fallback option -->
-                                @if ($show_password_field)
-                                    <button type="button" wire:click="loginWithOtpDirect" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 px-4 rounded-2xl transition">
-                                        Masuk dengan Kode OTP WhatsApp
+                                    <!-- Tombol Masuk Langsung Pakai OTP (Berlaku untuk Akun Terdaftar maupun Nomor Baru) -->
+                                    <button type="button" wire:click="loginWithOtpDirect" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 px-4 rounded-2xl transition flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                        <span>Masuk / Verifikasi dengan Kode OTP</span>
                                     </button>
-                                @endif
+                                </div>
 
                             </form>
 
@@ -896,4 +1012,64 @@ new class extends Component
         </div>
 
     </div>
+
+    <!-- POP UP MODAL VALIDASI PREFIX OPERATOR INDONESIA -->
+    @if ($show_invalid_prefix_modal)
+        <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+            <div class="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative space-y-4">
+                
+                <!-- Close Button -->
+                <button 
+                    type="button" 
+                    wire:click="closeInvalidPrefixModal" 
+                    class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition text-sm font-black p-1"
+                >
+                    ✕
+                </button>
+
+                <!-- Icon Peringatan -->
+                <div class="w-16 h-16 rounded-3xl bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto text-rose-500 shadow-inner">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+
+                <!-- Judul & Pesan -->
+                <div class="space-y-1.5">
+                    <h3 class="font-display font-black text-lg text-slate-900 leading-tight">
+                        Masukkan Nomor yang Benar
+                    </h3>
+                    <p class="text-xs text-slate-500 leading-relaxed">
+                        Nomor <b class="text-slate-800 font-mono">{{ $invalid_phone_input }}</b> tidak sesuai dengan prefix operator seluler di Indonesia.
+                    </p>
+                </div>
+
+                <!-- Kotak Panduan Prefix Operator -->
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-left text-[11px] text-slate-600 space-y-1.5">
+                    <p class="font-bold text-slate-700 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        Contoh awalan operator Indonesia yang valid:
+                    </p>
+                    <ul class="text-[10px] text-slate-500 space-y-0.5 list-disc list-inside">
+                        <li><b>Telkomsel/By.U:</b> 0811, 0812, 0813, 0821, 0852, 0851...</li>
+                        <li><b>Indosat (IM3):</b> 0814, 0815, 0816, 0856, 0857...</li>
+                        <li><b>XL Axiata:</b> 0817, 0818, 0819, 0877, 0878...</li>
+                        <li><b>Axis:</b> 0831, 0832, 0838...</li>
+                        <li><b>Tri (3):</b> 0895, 0896, 0897, 0898, 0899...</li>
+                        <li><b>Smartfren:</b> 0881, 0882, 0887, 0888...</li>
+                    </ul>
+                </div>
+
+                <!-- Tombol Aksi -->
+                <button 
+                    type="button" 
+                    wire:click="closeInvalidPrefixModal" 
+                    class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-3.5 px-4 rounded-2xl shadow-lg shadow-rose-600/20 transition active:scale-[0.98] uppercase tracking-wider"
+                >
+                    Saya Mengerti, Perbaiki Nomor
+                </button>
+
+            </div>
+        </div>
+    @endif
 </div>

@@ -56,6 +56,9 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/cart', [\App\Http\Controllers\Customer\CartController::class, 'index'])->name('customer.cart.index');
     Route::post('/customer/cart/add/{product}', [\App\Http\Controllers\Customer\CartController::class, 'add'])->name('customer.cart.add');
     Route::post('/customer/cart/checkout', [\App\Http\Controllers\Customer\CartController::class, 'checkout'])->name('customer.cart.checkout');
+    Route::post('/customer/cart/calculate-route', [\App\Http\Controllers\Customer\CartController::class, 'calculateRoute'])->name('customer.cart.calculate-route');
+    Route::post('/customer/cart/update-qty/{cartItem}', [\App\Http\Controllers\Customer\CartController::class, 'updateQuantity'])->name('customer.cart.update-qty');
+    Route::delete('/customer/cart/remove/{cartItem}', [\App\Http\Controllers\Customer\CartController::class, 'remove'])->name('customer.cart.remove');
     
     Route::get('/customer/orders/active-feed', [DashboardController::class, 'customerActiveOrdersFeed'])->name('customer.orders.active-feed');
     Route::post('/customer/offers/{id}/accept', [DashboardController::class, 'customerAcceptOffer'])->name('customer.offers.accept');
@@ -148,6 +151,11 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/withdraws/{id}/approve', [AdminWithdrawController::class, 'approve'])->name('admin.withdraws.approve');
     Route::post('/admin/withdraws/{id}/reject', [AdminWithdrawController::class, 'reject'])->name('admin.withdraws.reject');
 
+    // ===== Pengaturan Payment Gateway Midtrans (Admin Portal) =====
+    Route::get('/admin/settings/midtrans', [\App\Http\Controllers\AdminMidtransSettingController::class, 'index'])->name('admin.settings.midtrans');
+    Route::post('/admin/settings/midtrans', [\App\Http\Controllers\AdminMidtransSettingController::class, 'update'])->name('admin.settings.midtrans.update');
+    Route::post('/admin/settings/midtrans/test', [\App\Http\Controllers\AdminMidtransSettingController::class, 'testConnection'])->name('admin.settings.midtrans.test');
+
     // ===== Manajemen Promo (Admin) =====
     Route::resource('admin/promos', \App\Http\Controllers\AdminPromoController::class)->names([
         'index' => 'admin.promos.index',
@@ -178,6 +186,40 @@ Route::middleware('auth:admin')->group(function () {
         'update' => 'admin.products.update',
         'destroy' => 'admin.products.destroy',
     ]);
+
+    // ===== Daftar Pelanggan (Customer) & Mitra Jastiper (Admin) =====
+    Route::get('/admin/customers', [\App\Http\Controllers\AdminCustomerController::class, 'index'])->name('admin.customers.index');
+    Route::get('/admin/jastipers', [\App\Http\Controllers\AdminJastiperController::class, 'index'])->name('admin.jastipers.index');
+});
+
+// ===== PORTAL MITRA MERCHANT (Self-Service Partner Portal) =====
+Route::prefix('merchant')->name('merchant.')->group(function () {
+    // Guest Routes
+    Route::get('/login', [\App\Http\Controllers\Merchant\AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [\App\Http\Controllers\Merchant\AuthController::class, 'login'])->name('login.submit');
+
+    // Authenticated Routes
+    Route::middleware('auth:merchant')->group(function () {
+        Route::post('/logout', [\App\Http\Controllers\Merchant\AuthController::class, 'logout'])->name('logout');
+        Route::get('/dashboard', [\App\Http\Controllers\Merchant\MerchantDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/profile', [\App\Http\Controllers\Merchant\MerchantDashboardController::class, 'profile'])->name('profile');
+        Route::put('/profile', [\App\Http\Controllers\Merchant\MerchantDashboardController::class, 'updateProfile'])->name('profile.update');
+
+        // Manajemen Produk Toko Mandiri
+        Route::get('/products', [\App\Http\Controllers\Merchant\MerchantProductController::class, 'index'])->name('products.index');
+        Route::get('/products/create', [\App\Http\Controllers\Merchant\MerchantProductController::class, 'create'])->name('products.create');
+        Route::post('/products', [\App\Http\Controllers\Merchant\MerchantProductController::class, 'store'])->name('products.store');
+        Route::get('/products/{product}/edit', [\App\Http\Controllers\Merchant\MerchantProductController::class, 'edit'])->name('products.edit');
+        Route::put('/products/{product}', [\App\Http\Controllers\Merchant\MerchantProductController::class, 'update'])->name('products.update');
+        Route::patch('/products/{product}/toggle', [\App\Http\Controllers\Merchant\MerchantProductController::class, 'toggleStatus'])->name('products.toggle');
+        Route::delete('/products/{product}', [\App\Http\Controllers\Merchant\MerchantProductController::class, 'destroy'])->name('products.destroy');
+
+        // Manajemen Kategori Toko Mandiri
+        Route::get('/categories', [\App\Http\Controllers\Merchant\MerchantCategoryController::class, 'index'])->name('categories.index');
+        Route::post('/categories', [\App\Http\Controllers\Merchant\MerchantCategoryController::class, 'store'])->name('categories.store');
+        Route::put('/categories/{category}', [\App\Http\Controllers\Merchant\MerchantCategoryController::class, 'update'])->name('categories.update');
+        Route::delete('/categories/{category}', [\App\Http\Controllers\Merchant\MerchantCategoryController::class, 'destroy'])->name('categories.destroy');
+    });
 });
 
 // Webhook Midtrans — publik, TANPA middleware auth:*. Validitas payload

@@ -57,7 +57,6 @@
                     this.fetchFeed();
                 }
 
-                // Polling tiap 8 detik selama online & akun terverifikasi
                 this.pollHandle = setInterval(() => {
                     if (this.verified && this.online) {
                         this.fetchFeed(true);
@@ -82,18 +81,15 @@
 
                     this.orders = data.orders || [];
                     this.feedMessage = data.message;
-                    // Buang seleksi yang order-nya sudah tidak ada lagi di feed terbaru
+                    
                     this.selected = this.selected.filter(id => this.orders.some(o => o.id === id));
-                    // Isi harga tawaran default (harga tawaran aktif jastiper ini kalau sudah
-                    // pernah bid, atau harga estimasi kalau belum) — hanya sekali per order,
-                    // supaya tidak menimpa harga yang sedang diketik ulang oleh jastiper.
+                    
                     this.orders.forEach(o => {
                         if (this.orderPrices[o.id] === undefined) {
                             this.orderPrices[o.id] = o.my_offer_price ?? o.estimated_fare;
                         }
                     });
 
-                    // Proses notifikasi tawaran yang disetujui / ditolak secara real-time
                     const recentOffers = data.recent_offers || [];
                     let notifiedIds = JSON.parse(localStorage.getItem('jastiper_notified_offers') || '[]');
                     let shouldReload = false;
@@ -134,7 +130,6 @@
                 }
             },
 
-            // Kirim/ubah SATU tawaran dengan harga custom yang diketik jastiper.
             async submitOffer(orderId) {
                 if (this.loading) return;
 
@@ -168,13 +163,11 @@
                 }
             },
 
-            // Kirim tawaran BANYAK order sekaligus, masing-masing di harga estimasi otomatis
-            // (kalau mau harga custom, pakai form 1-per-1 di card masing-masing sebelum ini).
             async submitOffers(ids) {
                 if (!ids.length || this.loading) return;
                 this.loading = true;
 
-                try {=
+                try {
                     const path = new URL(this.multiOfferUrl, window.location.origin).pathname;
                     const url = new URL(path, window.location.origin);
                     const res = await fetch(url.toString(), {
@@ -198,7 +191,6 @@
                 }
             },
 
-            // Modal Tambahan Item
             respondModalOpen: false,
             respondAddonDesc: '',
             respondUrl: '',
@@ -224,7 +216,6 @@
         offerUrlTemplate: @json(route("jastiper.orders.offer", ["id" => "__ID__"])),
         multiOfferUrl: @json(route("jastiper.orders.multi-offer")),
     })'
-    @open-respond-modal.window="openRespondModal($event.detail.url, $event.detail.description)"
 >
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
     <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-16 sm:top-20 z-40 px-4 py-3.5 shadow-sm">
@@ -537,7 +528,7 @@
                                                 @if($addon->payment_status === 'pending_jastiper')
                                                     <div>
                                                         <div class="grid grid-cols-2 gap-2">
-                                                            <button @click="openRespondModal('{{ route('jastiper.addons.respond', $addon->id) }}', '{{ addslashes($addon->description) }}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold py-1.5 rounded-md uppercase tracking-wider transition">Setujui & Isi Harga</button>
+                                                            <button @click="$dispatch('open-respond-modal', { url: '{{ route('jastiper.addons.respond', $addon->id) }}', description: '{{ addslashes($addon->description) }}' })" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold py-1.5 rounded-md uppercase tracking-wider transition">Setujui & Isi Harga</button>
                                                             <form action="{{ route('jastiper.addons.respond', $addon->id) }}" method="POST">
                                                                 @csrf
                                                                 <input type="hidden" name="action" value="reject">
@@ -729,9 +720,38 @@
                                     </div>
 
                                     <div class="space-y-2 text-[9px] text-slate-500">
+                                        <!-- Khusus Multi-Stop: Tampilkan rute titik-titik belanja -->
+                                        <template x-if="order.multi_stops && order.multi_stops.length > 0">
+                                            <div class="bg-purple-50/70 border border-purple-100 rounded-xl p-2.5 space-y-1.5 my-1">
+                                                <div class="flex items-center gap-1 font-bold text-purple-900 text-[10px]">
+                                                    <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                                                    <span x-text="'Rute Multi-Stop (' + order.multi_stops.length + ' Titik Toko):'"></span>
+                                                </div>
+                                                <div class="space-y-1 pl-1">
+                                                    <template x-for="(stop, sIdx) in order.multi_stops" :key="sIdx">
+                                                        <div class="flex items-start gap-1.5 text-slate-700">
+                                                            <span class="w-4 h-4 rounded-full bg-purple-600 text-white font-black text-[8px] flex items-center justify-center shrink-0 mt-0.5" x-text="sIdx + 1"></span>
+                                                            <div class="min-w-0">
+                                                                <span class="font-bold text-purple-950" x-text="stop.address || 'Titik ' + (sIdx + 1)"></span>
+                                                                <span x-show="stop.notes" class="text-slate-500 block italic" x-text="'Barang: ' + stop.notes"></span>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        <!-- Khusus Pihak Ketiga: Tampilkan Ekspedisi -->
+                                        <template x-if="order.courier_agency">
+                                            <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold">
+                                                <span>Agen Ekspedisi:</span>
+                                                <strong x-text="order.courier_agency"></strong>
+                                            </div>
+                                        </template>
+
                                         <div class="flex items-start gap-1">
                                             <svg class="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                            <span class="leading-tight" x-text="'Antar: ' + order.destination_address"></span>
+                                            <span class="leading-tight font-medium" x-text="'Tujuan Antar: ' + order.destination_address"></span>
                                         </div>
                                         <div>Penerima: <span class="font-extrabold text-slate-800" x-text="order.recipient_name"></span> (<span x-text="order.recipient_phone"></span>)</div>
                                         <div>Kategori Berat: <span class="font-bold text-slate-700 capitalize" x-text="order.weight_category"></span></div>
@@ -783,7 +803,25 @@
     </div>
 
     <!-- Global Modal Isi Harga Tambahan Item untuk Jastiper -->
-    <div x-show="respondModalOpen" class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="z-index: 9999; display: none;" x-transition>
+    <div x-data="{
+            respondModalOpen: false,
+            respondAddonDesc: '',
+            respondUrl: '',
+            openRespondModal(url, description) {
+                this.respondUrl = url;
+                this.respondAddonDesc = description;
+                this.respondModalOpen = true;
+            },
+            closeRespondModal() {
+                this.respondModalOpen = false;
+            }
+        }"
+        @open-respond-modal.window="openRespondModal($event.detail.url, $event.detail.description)"
+        x-show="respondModalOpen" 
+        class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" 
+        style="z-index: 9999; display: none;" 
+        x-transition>
+        
         <div @click.away="closeRespondModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 overflow-hidden relative">
             <div class="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
                 <h3 class="text-sm font-black text-slate-800">Tentukan Harga Tambahan</h3>

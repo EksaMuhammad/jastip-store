@@ -35,18 +35,23 @@ class Order extends Model
         'estimated_fare',
         'agreed_fare',
         'status',
+        'multi_stops',
+        'courier_agency',
+        'tracking_number',
         'cancelled_by_role',
         'cancelled_by_id',
         'cancellation_reason',
     ];
 
     protected $casts = [
+        'is_catalog_order' => 'boolean',
         'estimated_fare' => 'decimal:2',
         'agreed_fare' => 'decimal:2',
         'origin_lat' => 'decimal:8',
         'origin_lng' => 'decimal:8',
         'destination_lat' => 'decimal:8',
         'destination_lng' => 'decimal:8',
+        'multi_stops' => 'array',
     ];
 
     /**
@@ -105,6 +110,16 @@ class Order extends Model
     public function wilayah()
     {
         return $this->belongsTo(Wilayah::class, 'wilayah_id');
+    }
+
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class, 'order_id');
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class, 'order_id');
     }
 
     public function addons()

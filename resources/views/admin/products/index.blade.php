@@ -164,12 +164,15 @@
                                                 </div>
                                             @endif
                                             <div>
-                                                <p class="text-sm font-bold text-slate-800">
-                                                    {{ $p->name }}
-                                                    @if($p->is_flash_sale)
-                                                        <span class="ml-2 px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[8px] uppercase font-black">Promo</span>
+                                                <div class="flex items-center gap-1.5 flex-wrap">
+                                                    @if($p->category)
+                                                        <span class="px-2 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-100 text-[8px] uppercase font-black">{{ $p->category->name }}</span>
                                                     @endif
-                                                </p>
+                                                    <p class="text-sm font-bold text-slate-800">{{ $p->name }}</p>
+                                                    @if($p->is_flash_sale)
+                                                        <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[8px] uppercase font-black">Promo</span>
+                                                    @endif
+                                                </div>
                                                 <p class="text-[10px] text-slate-400 max-w-[200px] truncate">{{ $p->description }}</p>
                                             </div>
                                         </div>
@@ -227,6 +230,18 @@
         <form action="{{ route('admin.products.store', $merchant->id) }}" method="POST" class="space-y-4">
             @csrf
             <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Kategori Produk</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select name="category_id" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                        <option value="">-- Pilih Kategori --</option>
+                        @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                        @endforeach
+                    </select>
+                    <input type="text" name="new_category_name" placeholder="Atau ketik kategori baru..." class="w-full border border-rose-200 bg-rose-50/30 rounded-xl px-4 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-rose-500 focus:outline-none">
+                </div>
+            </div>
+            <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Nama Produk <span class="text-rose-500">*</span></label>
                 <input type="text" name="name" required class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none">
             </div>
@@ -277,6 +292,18 @@
             @csrf
             @method('PUT')
             <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Kategori Produk</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select name="category_id" id="edit_prod_category" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                        <option value="">-- Pilih Kategori --</option>
+                        @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                        @endforeach
+                    </select>
+                    <input type="text" name="new_category_name" placeholder="Atau ketik kategori baru..." class="w-full border border-rose-200 bg-rose-50/30 rounded-xl px-4 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-rose-500 focus:outline-none">
+                </div>
+            </div>
+            <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Nama Produk <span class="text-rose-500">*</span></label>
                 <input type="text" name="name" id="edit_prod_name" required class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none">
             </div>
@@ -315,6 +342,7 @@
 <script>
     function openEditProductModal(product) {
         document.getElementById('edit_prod_name').value = product.name;
+        document.getElementById('edit_prod_category').value = product.category_id || '';
         document.getElementById('edit_prod_price').value = parseInt(product.estimated_price);
         document.getElementById('edit_prod_image').value = product.image || '';
         document.getElementById('edit_prod_description').value = product.description || '';

@@ -72,6 +72,23 @@ class JastipWorkflowTest extends TestCase
             ->set('recipient_phone', '081234567890')
             ->set('distance', 3.5)
             ->call('submitOrder')
+            ->assertRedirect(route('customer.cart.index'));
+
+        // Cek item berhasil masuk ke keranjang belanja terpadu
+        $this->assertDatabaseHas('cart_items', [
+            'item_type' => 'custom_buy',
+            'category' => 'beli-antar',
+            'origin_address' => 'Warung Bu Sri',
+            'description' => 'Titip Nasi Goreng Spesial 1 Porsi Pedas',
+        ]);
+
+        // Customer checkout keranjang terpadu
+        $this->actingAs($this->customer, 'customer')
+            ->post(route('customer.cart.checkout'), [
+                'delivery_location' => 'Jl. Lowokwaru No. 12',
+                'destination_lat' => -7.9829,
+                'destination_lng' => 112.6308,
+            ])
             ->assertRedirect(route('customer.dashboard'));
 
         // Cek apakah order tersimpan di DB
@@ -79,7 +96,6 @@ class JastipWorkflowTest extends TestCase
             'customer_id' => $this->customer->id,
             'category' => 'beli-antar',
             'status' => 'menunggu_tawaran',
-            'description' => 'Titip Nasi Goreng Spesial 1 Porsi Pedas',
             'origin_address' => 'Warung Bu Sri',
             'destination_address' => 'Jl. Lowokwaru No. 12',
         ]);

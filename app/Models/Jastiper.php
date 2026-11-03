@@ -122,6 +122,23 @@ class Jastiper extends Authenticatable
         return $this->belongsTo(Wilayah::class, 'wilayah_id');
     }
 
+    /**
+     * Otomatis deteksi & sinkronkan wilayah_id berdasarkan koordinat latitude & longitude saat ini
+     */
+    public function syncWilayahFromCoordinates(): ?Wilayah
+    {
+        if ($this->current_lat && $this->current_lng) {
+            $nearest = Wilayah::findNearest((float) $this->current_lat, (float) $this->current_lng);
+            if ($nearest && $this->wilayah_id !== $nearest->id) {
+                $this->wilayah_id = $nearest->id;
+                $this->saveQuietly();
+                $this->setRelation('wilayah', $nearest);
+                return $nearest;
+            }
+        }
+        return $this->wilayah;
+    }
+
     public function verifications()
     {
         return $this->hasMany(JastiperVerification::class, 'jastiper_id');

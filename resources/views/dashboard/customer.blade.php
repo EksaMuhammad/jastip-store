@@ -58,7 +58,7 @@
                 }
                 this.searchLoading = true;
                 try {
-                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&viewbox=112.45,-8.20,112.85,-7.75&bounded=1`;
+                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=id`;
                     const res = await fetch(url, {
                         headers: {
                             'Accept-Language': 'id-ID,id;q=0.9'
@@ -301,20 +301,19 @@
     <div class="bg-white border-b border-slate-200/80 sticky top-16 sm:top-20 z-40 px-4 py-3.5 shadow-sm">
         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
             
-            <!-- Search Bar (Gojek Style) - Redirects to Search Page -->
-            <a href="{{ route('customer.search') }}" class="relative flex-grow block">
-                <div class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-400 pl-11 pr-4 py-2.5 rounded-full text-xs font-semibold hover:bg-slate-100 transition duration-150 flex items-center h-[38px]">
-                    Cari makanan khas Malang, minimarket...
-                </div>
-                <div class="absolute left-4 top-2.5 text-slate-400">
+            <!-- Search Bar (Gojek Style) - Bisa Cari Layanan, Toko, Makanan & Ekspedisi -->
+            <form action="{{ route('customer.search') }}" method="GET" class="relative flex-grow block">
+                <input type="text" name="q" placeholder="Cari layanan, makanan, toko, atau ekspedisi..." 
+                    class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-700 placeholder-slate-400 pl-11 pr-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150 h-[38px]">
+                <button type="submit" class="absolute left-4 top-2.5 text-slate-400 hover:text-slate-600">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </div>
-            </a>
+                </button>
+            </form>
 
             <!-- Profile Info (Gojek Circular Profile Icon) -->
             <div class="flex items-center gap-3">
                 <a href="{{ route('customer.profile') }}" class="relative group cursor-pointer flex items-center gap-2" title="Profil Saya">
-                    <div class="w-10 h-10 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center font-bold text-sm text-rose-500 shadow-md transition group-hover:scale-105 group-hover:border-rose-500">
+                    <div class="w-9 h-9 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center font-bold text-sm text-rose-500 shadow-md transition group-hover:scale-105 group-hover:border-rose-500">
                         {{ strtoupper(substr($customer->name, 0, 2)) }}
                     </div>
                 </a>
@@ -332,59 +331,99 @@
             <h2 class="font-display font-black text-xl text-slate-900 leading-none mt-1">{{ $customer->name }}</h2>
         </div>
 
-        <!-- Gopay Card Layout (JastipKuy Pay) -->
-        <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-4 shadow-lg border border-rose-500/20 relative overflow-hidden">
-            <!-- Background Banner from Mobile scaled to hide white margins -->
-            <img src="{{ asset('images/jkpay_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.3] origin-center pointer-events-none z-0">
-            
-            <div class="flex items-center justify-between relative z-10 gap-2">
-                <!-- Left Section: Balance & Brand -->
-                <div class="flex flex-col justify-center space-y-2 pr-3 border-r border-white/20 shrink-0">
-                    <div class="flex items-center gap-1.5">
-                        <!-- Tiny GoPay-style Logo -->
-                        <span class="text-[9px] font-black tracking-tighter bg-white text-rose-600 px-1.5 py-0.5 rounded-sm uppercase">JK PAY</span>
-                    </div>
-                    <div>
-                        <div class="text-xl font-black font-display tracking-tight leading-none">Rp{{ number_format($balance, 0, ',', '.') }}</div>
-                        <span class="text-[7px] text-rose-100 font-semibold block mt-1">Tap untuk riwayat</span>
-                    </div>
-                </div>
-
-                <!-- Right Section: Quick Action Buttons (Gojek Icon Row Style) -->
-                <div class="flex-grow flex justify-around items-center pl-1 text-center">
-                    
-                    <!-- Bayar (Pay) -->
-                    <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 11v3m5-13H7m0 10h10m-5-10v10"></path></svg>
+        <!-- Peringatan Mendesak: Konfirmasi Perubahan Harga Toko (Jika Ada) -->
+        @if(isset($pendingPriceAdjustments) && $pendingPriceAdjustments->isNotEmpty())
+            <div class="space-y-2">
+                @foreach($pendingPriceAdjustments as $adj)
+                    <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-2xl p-4 shadow-lg border border-amber-400/40 space-y-2.5 animate-pulse">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-start gap-2.5 min-w-0">
+                                <span class="text-2xl shrink-0">🏷️</span>
+                                <div class="min-w-0 text-left">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full backdrop-blur-xs">
+                                            Perlu Konfirmasi
+                                        </span>
+                                        <span class="text-[10px] font-bold text-amber-100">Pesanan #{{ $adj->order_id }}</span>
+                                    </div>
+                                    <h4 class="font-black text-sm text-white mt-1 leading-snug">
+                                        Harga Toko Berubah: {{ $adj->item_name }}
+                                    </h4>
+                                    <p class="text-xs text-amber-100 mt-0.5 font-medium leading-relaxed">
+                                        Harga asli toko: <strong>Rp {{ number_format($adj->proposed_price, 0, ',', '.') }}</strong> (<span class="font-extrabold text-white">+Rp {{ number_format($adj->difference, 0, ',', '.') }}</span>).
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                        <span class="text-[8px] font-bold text-white tracking-wide">Bayar</span>
-                    </button>
 
-                    <!-- Top Up -->
-                    <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        <div class="pt-2 border-t border-white/20 flex items-center justify-between gap-2">
+                            <span class="text-[10px] text-amber-100 font-medium text-left">Konfirmasi agar jastiper dapat melanjutkan belanja</span>
+                            <a href="{{ route('customer.orders.show', $adj->order_id) }}" 
+                               class="bg-white text-amber-900 hover:bg-amber-50 active:scale-95 font-black text-xs px-4 py-2 rounded-xl transition shadow-md shrink-0 flex items-center gap-1">
+                                <span>Tinjau</span>
+                                <span>→</span>
+                            </a>
                         </div>
-                        <span class="text-[8px] font-bold text-white tracking-wide">Top Up</span>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        <!-- Gopay Card Layout (JastipKuy Pay) - Sticky / Statis saat scroll -->
+        <div class="sticky top-[131px] sm:top-[147px] z-30 -mx-4 px-4 pt-1 pb-2.5 !mt-2 bg-[#F3F4F6]/95 backdrop-blur-md transition-all">
+            <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-4 shadow-lg border border-rose-500/20 relative overflow-hidden">
+                <!-- Background Banner from Mobile scaled to hide white margins -->
+                <img src="{{ asset('images/jkpay_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.3] origin-center pointer-events-none z-0">
+                
+                <div class="flex items-center justify-between relative z-10 gap-2">
+                    <!-- Left Section: Balance & Brand -->
+                    <a href="{{ route('customer.wallet') }}" class="group flex flex-col justify-center space-y-2 pr-3 border-r border-white/20 shrink-0 hover:opacity-90 transition">
+                        <div class="flex items-center gap-1.5">
+                            <!-- Tiny GoPay-style Logo -->
+                            <span class="text-[9px] font-black tracking-tighter bg-white text-rose-600 px-1.5 py-0.5 rounded-sm uppercase">JK PAY</span>
+                        </div>
+                        <div>
+                            <div class="text-xl font-black font-display tracking-tight leading-none">Rp {{ number_format($balance, 0, ',', '.') }}</div>
+                            <span class="text-[7px] text-rose-100 font-semibold block mt-1 group-hover:underline">Tap untuk riwayat</span>
+                        </div>
                     </a>
 
-                    <!-- Riwayat -->
-                    <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                        </div>
-                        <span class="text-[8px] font-bold text-white tracking-wide">Riwayat</span>
-                    </a>
+                    <!-- Right Section: Quick Action Buttons (Gojek Icon Row Style) -->
+                    <div class="flex-grow flex justify-around items-center pl-1 text-center">
+                        
+                        <!-- Bayar (Pay) -->
+                        <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
+                            <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 11v3m5-13H7m0 10h10m-5-10v10"></path></svg>
+                            </div>
+                            <span class="text-[8px] font-bold text-white tracking-wide">Bayar</span>
+                        </button>
 
-                    <!-- Eksplor -->
-                    <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                        <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                        </div>
-                        <span class="text-[8px] font-bold text-white tracking-wide">Lainnya</span>
-                    </button>
+                        <!-- Top Up -->
+                        <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
+                            <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            </div>
+                            <span class="text-[8px] font-bold text-white tracking-wide">Top Up</span>
+                        </a>
 
+                        <!-- Riwayat -->
+                        <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
+                            <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            </div>
+                            <span class="text-[8px] font-bold text-white tracking-wide">Riwayat</span>
+                        </a>
+
+                        <!-- Eksplor -->
+                        <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
+                            <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                            </div>
+                            <span class="text-[8px] font-bold text-white tracking-wide">Lainnya</span>
+                        </button>
+
+                    </div>
                 </div>
             </div>
         </div>
@@ -429,56 +468,86 @@
         </div>
         @endforeach
 
-        <!-- JastipKuy Services Horizontal Row (Menu Grid: 3 pilihan per baris x 2 baris) -->
+        <!-- JastipKuy Services Row (Menu Grid: 4 Layanan Utama) -->
         <div class="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-sm space-y-3.5">
             <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Layanan Belanja Jastip</h3>
             
-            <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
                 
                 <!-- 1. Beli-Antar (GoFood Style) -->
-                <a href="{{ route('customer.food') }}" class="group bg-white border border-slate-200 hover:border-rose-400 hover:shadow-md hover:shadow-rose-500/10 rounded-2xl p-2 sm:p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
+                <a href="{{ route('customer.food') }}" class="group bg-white border border-slate-200 hover:border-rose-400 hover:shadow-md hover:shadow-rose-500/10 rounded-2xl p-2.5 sm:p-3.5 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
                     <img src="{{ asset('images/services/beli-antar.png') }}" alt="Beli-Antar" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
-                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Beli-Antar</span>
-                    <span class="text-[7.5px] sm:text-[8px] text-slate-500 font-medium leading-tight">Jastip Kuliner</span>
+                    <span class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mb-0.5">Beli-Antar</span>
+                    <span class="text-[8px] sm:text-[9px] text-slate-500 font-medium leading-tight">Jastip Kuliner</span>
                 </a>
 
-                <!-- 2. Ambil & Antar -->
-                <a href="{{ route('customer.orders.create') }}?cat=ambil-antar" class="group bg-white border border-slate-200 hover:border-sky-400 hover:shadow-md hover:shadow-sky-500/10 rounded-2xl p-2 sm:p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
-                    <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Ambil & Antar" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
-                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Ambil & Antar</span>
-                    <span class="text-[7.5px] sm:text-[8px] text-slate-500 font-medium leading-tight">Ambil Barang/COD</span>
-                </a>
-
-                <!-- 3. Toko Kirim (GoMart Style) -->
-                <a href="{{ route('customer.mart') }}" class="group bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md hover:shadow-amber-500/10 rounded-2xl p-2 sm:p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
+                <!-- 2. Toko Kirim (GoMart Style) -->
+                <a href="{{ route('customer.mart') }}" class="group bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md hover:shadow-amber-500/10 rounded-2xl p-2.5 sm:p-3.5 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
                     <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Toko Kirim" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
-                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Toko Kirim</span>
-                    <span class="text-[7.5px] sm:text-[8px] text-slate-500 font-medium leading-tight">Minimarket/Pasar</span>
+                    <span class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mb-0.5">Toko Kirim</span>
+                    <span class="text-[8px] sm:text-[9px] text-slate-500 font-medium leading-tight">Minimarket/Pasar</span>
                 </a>
 
-                <!-- 4. Dokumen Kecil -->
-                <a href="{{ route('customer.orders.create') }}?cat=dokumen" class="group bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md hover:shadow-emerald-500/10 rounded-2xl p-2 sm:p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
-                    <img src="{{ asset('images/services/dokumen.png') }}" alt="Dokumen Kecil" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
-                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Dokumen</span>
-                    <span class="text-[7.5px] sm:text-[8px] text-slate-500 font-medium leading-tight">Surat & Berkas</span>
+                <!-- 3. Ambil & Antar (Barang & Dokumen) -->
+                <a href="{{ route('customer.orders.create') }}?cat=ambil-antar" class="group bg-white border border-slate-200 hover:border-sky-400 hover:shadow-md hover:shadow-sky-500/10 rounded-2xl p-2.5 sm:p-3.5 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
+                    <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Ambil & Antar" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
+                    <span class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mb-0.5">Ambil & Antar</span>
+                    <span class="text-[8px] sm:text-[9px] text-slate-500 font-medium leading-tight">Barang & Dokumen</span>
                 </a>
 
-                <!-- 5. Multi-Stop -->
-                <a href="{{ route('customer.orders.create') }}?cat=multi-stop" class="group bg-white border border-slate-200 hover:border-purple-400 hover:shadow-md hover:shadow-purple-500/10 rounded-2xl p-2 sm:p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
-                    <img src="{{ asset('images/services/multi-stop.png') }}" alt="Multi-Stop" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
-                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Multi-Stop</span>
-                    <span class="text-[7.5px] sm:text-[8px] text-slate-500 font-medium leading-tight">Banyak Titik</span>
-                </a>
-
-                <!-- 6. Pihak Ketiga -->
-                <a href="{{ route('customer.orders.create') }}?cat=kirim-pihak-ketiga" class="group bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md hover:shadow-indigo-500/10 rounded-2xl p-2 sm:p-3 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
+                <!-- 4. Pihak Ketiga -->
+                <a href="{{ route('customer.orders.create') }}?cat=kirim-pihak-ketiga" class="group bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md hover:shadow-indigo-500/10 rounded-2xl p-2.5 sm:p-3.5 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
                     <img src="{{ asset('images/services/kirim-pihak-ketiga.png') }}" alt="Pihak Ketiga" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
-                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight mb-0.5">Pihak Ketiga</span>
-                    <span class="text-[7.5px] sm:text-[8px] text-slate-500 font-medium leading-tight">Ekspedisi/Agen</span>
+                    <span class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mb-0.5">Pihak Ketiga</span>
+                    <span class="text-[8px] sm:text-[9px] text-slate-500 font-medium leading-tight">Ekspedisi/Agen</span>
                 </a>
 
             </div>
         </div>
+
+        <!-- Jastiper Check-in Siaga di Lokasi (Booking Langsung) -->
+        @if(isset($checkinJastipers) && $checkinJastipers->isNotEmpty())
+        <div class="bg-white border border-slate-200/80 p-4 sm:p-5 rounded-3xl shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Jastiper Sedang di Lokasi Belanja</h3>
+                </div>
+                <a href="{{ route('customer.booking') }}" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-0.5">
+                    <span>Lihat Semua</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                </a>
+            </div>
+
+            <p class="text-[10px] text-slate-500 leading-relaxed -mt-1">
+                Jastiper berikut sedang berada di lokasi belanja & siap membelikan titipan Anda langsung tanpa antre.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                @foreach($checkinJastipers->take(4) as $cj)
+                <div class="bg-slate-50 border border-slate-200/80 hover:border-rose-300 rounded-2xl p-3 flex items-center justify-between gap-3 transition">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-9 h-9 rounded-full bg-slate-900 text-rose-500 font-black text-xs flex items-center justify-center shrink-0 border border-slate-800 shadow-xs">
+                            {{ strtoupper(substr($cj->name, 0, 2)) }}
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-bold text-xs text-slate-800 truncate">{{ $cj->name }}</span>
+                                <span class="text-[9px] text-amber-500 font-bold shrink-0">⭐ {{ $cj->badge ? number_format($cj->badge->avg_rating, 1) : '5.0' }}</span>
+                            </div>
+                            <span class="text-[10px] text-emerald-700 font-bold flex items-center gap-1 truncate mt-0.5">
+                                📍 {{ $cj->checkin_location }}
+                            </span>
+                        </div>
+                    </div>
+                    <a href="{{ route('customer.orders.create') }}?jastiper_id={{ $cj->id }}&location={{ urlencode($cj->checkin_location) }}" class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-black text-[9px] px-3 py-2 rounded-xl uppercase tracking-wider shadow-xs transition">
+                        Titip Sini
+                    </a>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
 
         <!-- Promos Ads Banner Carousel -->
         @if($adsPromos->count() > 0)
@@ -511,113 +580,6 @@
                 </div>
             </div>
             @endforeach
-        </div>
-        @endif
-
-        <!-- Minimarket Mitra (Mart / GoMart Pilihan) -->
-        @if(isset($martMerchants) && $martMerchants->isNotEmpty())
-        <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3.5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🏪 Minimarket Terdekat</span>
-                    </h3>
-                    <p class="text-[10px] text-slate-400 mt-0.5">Pesan kebutuhan harian langsung dari toko mitra</p>
-                </div>
-                <a href="{{ route('customer.mart') }}" class="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline shrink-0">
-                    Lihat Semua →
-                </a>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2.5">
-                @foreach($martMerchants as $m)
-                <a href="{{ route('customer.merchant.show', $m->id) }}" class="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-100 transition group flex flex-col justify-between">
-                    <div class="flex items-start gap-2.5">
-                        <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base shrink-0 group-hover:scale-105 transition">
-                            🏪
-                        </div>
-                        <div class="min-w-0">
-                            <h4 class="font-bold text-xs text-slate-900 group-hover:text-rose-600 transition truncate">{{ $m->name }}</h4>
-                            <p class="text-[10px] text-slate-400 truncate mt-0.5">{{ $m->address ?: 'Area Sekitar' }}</p>
-                        </div>
-                    </div>
-                    <div class="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
-                        <span class="text-slate-500 font-semibold">{{ $m->products_count }} Produk</span>
-                        <span class="text-rose-600 font-bold group-hover:translate-x-0.5 transition">Buka Toko →</span>
-                    </div>
-                </a>
-                @endforeach
-            </div>
-        </div>
-        @endif
-
-        <!-- Produk Toko Kirim Pilihan (GoMart) -->
-        @if(isset($latestMartProducts) && $latestMartProducts->isNotEmpty())
-        <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-3.5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🛍️ Produk Belanja Pilihan</span>
-                    </h3>
-                    <p class="text-[10px] text-slate-400 mt-0.5">Produk dari Indomaret & Minimarket sekitar</p>
-                </div>
-                <a href="{{ route('customer.mart') }}" class="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline shrink-0">
-                    Katalog Lengkap →
-                </a>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-                @foreach($latestMartProducts as $prod)
-                <div class="border border-slate-200 rounded-2xl p-2.5 relative flex flex-col hover:border-rose-400 transition bg-white shadow-xs">
-                    <a href="{{ route('customer.merchant.show', $prod->merchant_id) }}" class="w-full aspect-square bg-slate-50 rounded-xl mb-2 flex items-center justify-center relative overflow-hidden group">
-                        @if($prod->image)
-                            <img src="{{ $prod->image_url ?? $prod->image }}" alt="{{ $prod->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-                        @else
-                            <img src="https://ui-avatars.com/api/?name={{ urlencode($prod->name) }}&background=e2e8f0&color=475569" class="w-full h-full object-contain mix-blend-multiply p-2">
-                        @endif
-                        @if($prod->has_discount)
-                            <span class="absolute top-1.5 left-1.5 bg-rose-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-xs">
-                                -{{ $prod->discount_percentage }}%
-                            </span>
-                        @endif
-                    </a>
-
-                    <div class="flex items-center gap-1 mb-1 flex-wrap">
-                        <span class="bg-slate-100 text-slate-600 text-[8px] font-bold px-1.5 py-0.5 rounded truncate max-w-full">
-                            {{ $prod->merchant->name }}
-                        </span>
-                        @if($prod->category)
-                            <span class="bg-rose-50 text-rose-600 text-[8px] font-bold px-1.5 py-0.5 rounded">
-                                {{ $prod->category->name }}
-                            </span>
-                        @endif
-                    </div>
-
-                    <a href="{{ route('customer.merchant.show', $prod->merchant_id) }}" class="font-bold text-slate-800 text-xs leading-snug line-clamp-2 hover:text-rose-600 transition mb-1">
-                        {{ $prod->name }}
-                    </a>
-
-                    <div class="mt-auto pt-2 flex items-center justify-between">
-                        <div>
-                            @if($prod->has_discount)
-                                <div class="font-black text-rose-600 text-xs">Rp{{ number_format($prod->discount_price, 0, ',', '.') }}</div>
-                                <div class="text-[9px] text-slate-400 line-through">Rp{{ number_format($prod->estimated_price, 0, ',', '.') }}</div>
-                            @else
-                                <div class="font-black text-slate-800 text-xs">Rp{{ number_format($prod->estimated_price, 0, ',', '.') }}</div>
-                            @endif
-                        </div>
-                        <button 
-                            type="button" 
-                            onclick="addToCart({{ $prod->id }})" 
-                            class="bg-slate-900 hover:bg-rose-600 text-white p-2 rounded-xl shadow-xs transition transform hover:scale-110 focus:outline-none"
-                            title="Tambah ke Keranjang"
-                        >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-                        </button>
-                    </div>
-                </div>
-                @endforeach
-            </div>
         </div>
         @endif
 
@@ -661,13 +623,31 @@
                                     <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
                                 </div>
                                 <div class="min-w-0">
-                                    <h4 class="font-bold text-[11px] text-slate-750 line-clamp-1" x-text="order.description"></h4>
-                                    <p class="text-[9px] text-slate-400 leading-normal mt-0.5">
-                                        Status:
-                                        <span class="font-extrabold uppercase"
-                                            :class="order.status === 'menunggu_pembayaran' ? 'text-rose-500' : (['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'].includes(order.status) ? 'text-emerald-500' : 'text-amber-500')"
-                                            x-text="getStatusLabel(order.status)"></span>
-                                    </p>
+                                    <a :href="'/customer/orders/' + order.id" class="group block">
+                                        <h4 class="font-bold text-[11px] text-slate-800 line-clamp-2 leading-tight group-hover:text-rose-600 transition-colors" x-text="order.description"></h4>
+                                    </a>
+                                    <!-- Preview Daftar Belanjaan / Makanan -->
+                                    <template x-if="order.items && order.items.length > 0">
+                                        <div class="flex flex-wrap gap-1 mt-1.5">
+                                            <template x-for="(item, idx) in order.items.slice(0, 3)" :key="idx">
+                                                <span class="inline-flex items-center gap-1 bg-white border border-slate-200 text-slate-750 text-[8px] font-bold px-2 py-0.5 rounded-md shadow-2xs">
+                                                    <span class="text-rose-600 font-extrabold" x-text="item.quantity + 'x'"></span>
+                                                    <span class="truncate max-w-[130px]" x-text="item.name_clean"></span>
+                                                </span>
+                                            </template>
+                                            <span x-show="order.items.length > 3" class="text-[8px] text-slate-400 font-bold self-center" x-text="'+' + (order.items.length - 3) + ' lagi'"></span>
+                                        </div>
+                                    </template>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <p class="text-[9px] text-slate-400 leading-normal">
+                                            Status:
+                                            <span class="font-extrabold uppercase"
+                                                :class="order.status === 'menunggu_pembayaran' ? 'text-rose-500' : (['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'].includes(order.status) ? 'text-emerald-500' : 'text-amber-500')"
+                                                x-text="getStatusLabel(order.status)"></span>
+                                        </p>
+                                        <span class="text-slate-300">•</span>
+                                        <a :href="'/customer/orders/' + order.id" class="text-[9px] font-bold text-rose-600 hover:underline">Rincian &rarr;</a>
+                                    </div>
                                     <p x-show="order.jastiper" x-cloak class="text-[8px] text-slate-500 mt-0.5">
                                         Mitra Jastiper: <b x-text="order.jastiper?.name"></b> (<span x-text="order.jastiper?.phone_number"></span>)
                                     </p>
@@ -678,6 +658,23 @@
                                 <span class="text-xs font-black text-rose-600" x-text="order.status === 'deal' ? order.agreed_fare_formatted : order.estimated_fare_formatted"></span>
                             </div>
                         </div>
+
+                        <!-- Banner Perlu Konfirmasi Perubahan Harga Toko (Realtime Polling) -->
+                        <template x-if="order.has_pending_adjustment">
+                            <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl p-3 flex items-center justify-between gap-2 shadow-xs animate-pulse text-left">
+                                <div class="min-w-0 flex items-center gap-2">
+                                    <span class="text-base shrink-0">🏷️</span>
+                                    <div class="min-w-0">
+                                        <p class="text-[9px] font-black uppercase tracking-wider leading-tight text-amber-100">Harga Toko Berubah</p>
+                                        <p class="text-[11px] font-bold text-white truncate mt-0.5" x-text="order.pending_adjustment?.item_name + ' (' + order.pending_adjustment?.difference_formatted + ')'"></p>
+                                    </div>
+                                </div>
+                                <a :href="'/customer/orders/' + order.id" 
+                                   class="bg-white text-amber-900 font-extrabold text-[10px] px-3 py-1.5 rounded-lg shrink-0 shadow-xs hover:bg-amber-50 cursor-pointer">
+                                    Konfirmasi →
+                                </a>
+                            </div>
+                        </template>
 
                         <!-- Banner Bayar Sekarang: muncul begitu order 'menunggu_pembayaran' -->
                         <template x-if="needsPayment(order)">
@@ -960,30 +957,4 @@
     'chatHistoryUrlTemplate' => route('customer.orders.chat.history', ['id' => '__ID__']),
 ])
 
-<script>
-    function addToCart(productId) {
-        fetch(`/customer/cart/add/${productId}`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                if (typeof customerNotify === 'function') {
-                    customerNotify('Produk berhasil ditambahkan ke keranjang belanja!');
-                } else {
-                    alert('Produk berhasil ditambahkan ke keranjang!');
-                }
-            } else {
-                alert(data.error || 'Gagal menambahkan ke keranjang');
-            }
-        })
-        .catch(() => {
-            alert('Terjadi kesalahan saat menambahkan ke keranjang');
-        });
-    }
-</script>
 @endsection

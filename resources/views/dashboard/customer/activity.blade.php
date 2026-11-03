@@ -161,12 +161,13 @@
                             <!-- Card Container for this Date's Transactions -->
                             <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100 shadow-sm">
                                 @foreach($orders as $order)
-                                    <div class="transaction-row flex items-center justify-between p-3.5 hover:bg-slate-50 transition duration-150"
-                                         x-show="(filterLayanan === 'semua' || '{{ $order->category }}' === filterLayanan || ('{{ $order->category }}' === 'kuliner' && filterLayanan === 'beli-antar')) && (filterMetode === 'semua' || filterMetode === 'jkpay')">
+                                    <a href="{{ route('customer.orders.show', $order->id) }}" 
+                                       class="transaction-row flex items-center justify-between p-3.5 hover:bg-slate-50 transition duration-150 block group cursor-pointer"
+                                       x-show="(filterLayanan === 'semua' || '{{ $order->category }}' === filterLayanan || ('{{ $order->category }}' === 'kuliner' && filterLayanan === 'beli-antar')) && (filterMetode === 'semua' || filterMetode === 'jkpay')">
                                         
                                         <!-- Left: Circular Icon & details -->
                                         <div class="flex items-center gap-3 min-w-0">
-                                            <div class="w-11 h-11 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center shrink-0">
+                                            <div class="w-11 h-11 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                                                 @if($order->category === 'beli-antar' || $order->category === 'kuliner')
                                                     <img src="{{ asset('images/services/beli-antar.png') }}" class="w-7 h-7 object-contain">
                                                 @elseif($order->category === 'ambil-antar')
@@ -183,7 +184,7 @@
                                             </div>
                                             
                                             <div class="min-w-0">
-                                                <h4 class="font-extrabold text-slate-800 text-xs truncate leading-tight">{{ $order->description }}</h4>
+                                                <h4 class="font-extrabold text-slate-800 text-xs truncate leading-tight group-hover:text-rose-600 transition-colors">{{ $order->description }}</h4>
                                                 <span class="text-[9px] text-slate-400 font-semibold mt-0.5 block truncate">
                                                     {{ $order->origin_address ?: 'Malang Raya' }}
                                                 </span>
@@ -205,7 +206,7 @@
                                             </div>
                                         </div>
                                         
-                                    </div>
+                                    </a>
                                 @endforeach
                             </div>
                         </div>
@@ -239,8 +240,26 @@
                         <!-- Header: Description & Fare -->
                         <div class="flex justify-between items-start gap-2">
                             <div class="min-w-0">
-                                <h4 class="font-extrabold text-slate-800 text-xs truncate" x-text="order.description"></h4>
-                                <p class="text-[9px] text-slate-450 mt-0.5">Status: <span class="font-extrabold text-rose-500 uppercase" x-text="getStatusLabel(order.status)"></span></p>
+                                <a :href="'/customer/orders/' + order.id" class="group block">
+                                    <h4 class="font-extrabold text-slate-800 text-xs line-clamp-2 leading-tight group-hover:text-rose-600 transition-colors" x-text="order.description"></h4>
+                                </a>
+                                <!-- Preview Daftar Belanjaan -->
+                                <template x-if="order.items && order.items.length > 0">
+                                    <div class="flex flex-wrap gap-1 mt-1.5">
+                                        <template x-for="(item, idx) in order.items.slice(0, 3)" :key="idx">
+                                            <span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 text-slate-750 text-[8px] font-bold px-2 py-0.5 rounded-md">
+                                                <span class="text-rose-600 font-extrabold" x-text="item.quantity + 'x'"></span>
+                                                <span class="truncate max-w-[130px]" x-text="item.name_clean"></span>
+                                            </span>
+                                        </template>
+                                        <span x-show="order.items.length > 3" class="text-[8px] text-slate-400 font-bold self-center" x-text="'+' + (order.items.length - 3) + ' lagi'"></span>
+                                    </div>
+                                </template>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <p class="text-[9px] text-slate-400">Status: <span class="font-extrabold text-rose-500 uppercase" x-text="getStatusLabel(order.status)"></span></p>
+                                    <span class="text-slate-300">•</span>
+                                    <a :href="'/customer/orders/' + order.id" class="text-[9px] font-bold text-rose-600 hover:underline">Rincian &rarr;</a>
+                                </div>
                             </div>
                             <div class="text-right shrink-0">
                                 <span class="text-[8px] uppercase font-bold text-slate-400 block tracking-wide">Ongkir</span>
@@ -295,12 +314,24 @@
                             </template>
                             
                             <template x-if="order.status === 'tiba_tujuan'">
-                                <form :action="'/customer/orders/' + order.id + '/confirm'" method="POST" class="w-full">
-                                    @csrf
-                                    <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[9px] py-2.5 rounded-xl uppercase tracking-wider shadow-sm">
-                                        Konfirmasi Diterima
-                                    </button>
-                                </form>
+                                <div class="flex gap-1.5 w-full">
+                                    <form :action="'/customer/orders/' + order.id + '/confirm'" method="POST" class="flex-1">
+                                        @csrf
+                                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[9px] py-2.5 rounded-xl uppercase tracking-wider shadow-sm text-center">
+                                            Konfirmasi
+                                        </button>
+                                    </form>
+                                    <a :href="'/customer/orders/' + order.id + '/report'" class="flex-1 bg-white border border-amber-500 hover:bg-amber-50 text-amber-600 font-extrabold text-[9px] py-2.5 rounded-xl uppercase tracking-wider shadow-sm text-center flex items-center justify-center">
+                                        Komplain
+                                    </a>
+                                </div>
+                            </template>
+
+                            <template x-if="order.status === 'bermasalah'">
+                                <a :href="'/customer/orders/' + order.id + '/report'" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-[9px] py-2.5 rounded-xl uppercase tracking-wider shadow-sm text-center block flex items-center justify-center gap-1">
+                                    <span>⚖️</span>
+                                    <span>Dalam Investigasi</span>
+                                </a>
                             </template>
                         </div>
                     </div>

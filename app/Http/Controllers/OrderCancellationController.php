@@ -49,21 +49,30 @@ class OrderCancellationController extends Controller
                     ->update(['status' => 'rejected']);
             } else {
                 // Determine stage for policy (active order, already paid)
-                $stageCategory = ($order->status === 'diproses') ? 'sebelum_diambil' : 'setelah_diambil';
-                
-                $policy = CancellationPolicy::where('stage', $stageCategory)->first();
-                if (!$policy) {
-                    // Default policy if not set: 100% refund before taken, 70% after
-                    $refundPercent = ($stageCategory === 'sebelum_diambil') ? 100 : 70;
-                    $jastiperPercent = 100 - $refundPercent;
-                } else {
-                    $refundPercent = $policy->refund_percentage;
-                    $jastiperPercent = $policy->jastiper_compensation_percentage;
-                }
+                // Jika pesanan dibatalkan saat barang_diambil / sedang_diantar atau karena penyesuaian harga toko, jastiper sudah berada di lokasi belanja
+                $isAtLocation = in_array($order->status, ['barang_diambil', 'sedang_diantar', 'tiba_tujuan']) 
+                    || $order->priceAdjustments()->whereIn('status', ['pending', 'rejected', 'cancelled'])->exists()
+                    || str_contains(strtolower($request->reason ?? ''), 'harga');
 
-                $totalPaid = $order->agreed_fare; // Paid amount
-                $totalRefund = ($totalPaid * $refundPercent) / 100;
-                $jastiperCompensation = ($totalPaid * $jastiperPercent) / 100;
+                $stageCategory = $isAtLocation ? 'setelah_diambil' : 'sebelum_diambil';
+                
+                // Ambil total dana riil yang sudah dibayarkan customer (Payment lunas/verified atau downpayment_amount)
+                $paidPayments = (float) $order->payments()->whereIn('status', ['lunas', 'verified'])->sum('amount');
+                $totalPaid = $paidPayments > 0 ? $paidPayments : (float) ($order->downpayment_amount > 0 ? $order->downpayment_amount : $order->agreed_fare);
+                $deliveryFare = (float) ($order->agreed_fare ?: $order->estimated_fare);
+
+                if ($isAtLocation) {
+                    // Jastiper sudah berada di lokasi belanja / toko:
+                    // Ongkir kurir masuk ke dompet jastiper sebagai kompensasi perjalanan
+                    // Sisa pembayaran (yaitu uang belanja barang) dikembalikan penuh ke dompet customer
+                    $jastiperCompensation = min($totalPaid, $deliveryFare);
+                    $totalRefund = max(0, $totalPaid - $jastiperCompensation);
+                } else {
+                    // Sebelum jastiper ke lokasi / belum berangkat:
+                    // Refund 100% ke customer, 0 kompensasi jastiper
+                    $totalRefund = $totalPaid;
+                    $jastiperCompensation = 0;
+                }
             }
 
             // Update Order
@@ -85,37 +94,47 @@ class OrderCancellationController extends Controller
                 'jastiper_compensation' => $jastiperCompensation,
             ]);
 
+            // Catat ke Audit Log Aktivitas Terpadu
+            \App\Services\ActivityLogger::logOrder(
+                $order,
+                'order_cancelled',
+                "Pesanan #{$order->id} Dibatalkan",
+                "Customer {$customer->name} membatalkan pesanan #{$order->id} (Tahap: {$stageCategory}). Alasan: \"" . ($request->reason ?? 'Dibatalkan oleh customer') . "\". Refund: Rp " . number_format($totalRefund, 0, ',', '.') . ", Kompensasi Jastiper: Rp " . number_format($jastiperCompensation, 0, ',', '.'),
+                $customer,
+                'pesanan',
+                ['stage' => $stageCategory, 'total_refund' => $totalRefund, 'jastiper_compensation' => $jastiperCompensation]
+            );
+
             // Credit Refund to Customer Wallet
             if ($totalRefund > 0) {
-                $customerWallet = $customer->wallet;
-                if ($customerWallet) {
-                    $customerWallet->increment('balance', $totalRefund);
-                    
-                    WalletTransaction::create([
-                        'wallet_id' => $customerWallet->id,
-                        'type' => 'credit',
-                        'amount' => $totalRefund,
-                        'description' => 'Refund pembatalan pesanan #' . $order->id,
-                        'reference_id' => $order->id,
-                        'status' => 'success'
-                    ]);
-                }
+                $customerWallet = $customer->wallet ?: \App\Models\Wallet::firstOrCreate(
+                    ['owner_role' => 'customer', 'owner_id' => $customer->id],
+                    ['balance' => 0]
+                );
+                app(\App\Services\WalletService::class)->credit(
+                    $customerWallet,
+                    $totalRefund,
+                    'refund_pembatalan',
+                    $order->id,
+                    'Refund pembatalan pesanan #' . $order->id
+                );
             }
 
             // Credit Compensation to Jastiper Wallet
             if ($jastiperCompensation > 0) {
                 $jastiper = $order->jastiper;
-                if ($jastiper && $jastiper->wallet) {
-                    $jastiper->wallet->increment('balance', $jastiperCompensation);
-                    
-                    WalletTransaction::create([
-                        'wallet_id' => $jastiper->wallet->id,
-                        'type' => 'credit',
-                        'amount' => $jastiperCompensation,
-                        'description' => 'Kompensasi pembatalan pesanan #' . $order->id,
-                        'reference_id' => $order->id,
-                        'status' => 'success'
-                    ]);
+                if ($jastiper) {
+                    $jastiperWallet = $jastiper->wallet ?: \App\Models\Wallet::firstOrCreate(
+                        ['owner_role' => 'jastiper', 'owner_id' => $jastiper->id],
+                        ['balance' => 0]
+                    );
+                    app(\App\Services\WalletService::class)->credit(
+                        $jastiperWallet,
+                        $jastiperCompensation,
+                        'kompensasi_pembatalan',
+                        $order->id,
+                        'Kompensasi pembatalan pesanan #' . $order->id
+                    );
                 }
             }
 

@@ -141,7 +141,8 @@ new class extends Component
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <span class="text-gray-500 text-sm">Rp</span>
                                     </div>
-                                    <input type="number" x-model="additionalFare" class="w-full pl-10 border-gray-300 rounded-lg py-2 text-sm focus:ring-primary-500 focus:border-primary-500 bg-white" placeholder="Biaya (Misal: 15000)">
+                                    <input type="number" x-model="additionalFare" class="w-full pl-10 border-gray-300 rounded-lg py-2 text-sm focus:ring-primary-500 focus:border-primary-500 bg-white" placeholder="Biaya (Misal: 15.000)">
+                                    <span x-show="additionalFare > 0" class="text-xs font-bold text-primary-600 block mt-1" x-text="'Biaya: Rp ' + Number(additionalFare || 0).toLocaleString('id-ID')"></span>
                                 </div>
                                 <div class="flex gap-2 w-full sm:w-auto">
                                     <button @click="respond('accept')" :disabled="loading" class="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors">Terima</button>

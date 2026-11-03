@@ -16,6 +16,8 @@ new class extends Component
     public string $category = 'beli-antar'; // beli-antar, ambil-antar, toko-kirim, dokumen, multi-stop, kirim-pihak-ketiga
     public string $weight_category = 'ringan'; // ringan, sedang, berat
     public string $description = '';
+    public string $store_name = ''; // Nama warung / toko yang di-request customer
+    public float $estimated_item_price = 0.0; // Estimasi harga barang untuk beli-antar/toko-kirim
     public $reference_photo;
     
     public string $origin_address = '';
@@ -23,10 +25,22 @@ new class extends Component
     public string $recipient_name = '';
     public string $recipient_phone = '';
 
+    // Toko rujukan dari keranjang saat ini (misal Indomaret jika ada belanjaan katalog)
+    public ?int $cart_reference_merchant_id = null;
+    public ?string $cart_reference_merchant_name = null;
+    public ?string $cart_reference_merchant_address = null;
+    public ?float $cart_reference_merchant_lat = null;
+    public ?float $cart_reference_merchant_lng = null;
+
+    // Alamat tujuan dari item pertama di keranjang (Single Drop-off Terpadu)
+    public bool $has_cart_destination = false;
+    public ?string $cart_first_item_name = null;
+
     // Multi-Stop specific inputs
+    // Multi-Stop specific inputs (mendukung multi-pickup dan multi-dropoff ke tempat berbeda)
     public array $stops = [
-        ['address' => '', 'notes' => '', 'lat' => null, 'lng' => null],
-        ['address' => '', 'notes' => '', 'lat' => null, 'lng' => null],
+        ['action' => 'pickup', 'address' => '', 'notes' => '', 'lat' => null, 'lng' => null, 'recipient_name' => '', 'recipient_phone' => ''],
+        ['action' => 'pickup', 'address' => '', 'notes' => '', 'lat' => null, 'lng' => null, 'recipient_name' => '', 'recipient_phone' => ''],
     ];
 
     // Ekspedisi Pihak Ketiga specific inputs
@@ -53,7 +67,7 @@ new class extends Component
     public function addStop()
     {
         if (count($this->stops) < 5) {
-            $this->stops[] = ['address' => '', 'notes' => '', 'lat' => null, 'lng' => null];
+            $this->stops[] = ['action' => 'pickup', 'address' => '', 'notes' => '', 'lat' => null, 'lng' => null, 'recipient_name' => '', 'recipient_phone' => ''];
             $this->calculateFare();
         }
     }
@@ -67,12 +81,21 @@ new class extends Component
         }
     }
 
+    public function setStopAction(int $index, string $action)
+    {
+        if (isset($this->stops[$index])) {
+            $this->stops[$index]['action'] = in_array($action, ['pickup', 'dropoff']) ? $action : 'pickup';
+            $this->calculateFare();
+        }
+    }
+
     protected function rules()
     {
         $rules = [
             'category' => ['required', 'in:beli-antar,ambil-antar,toko-kirim,dokumen,multi-stop,kirim-pihak-ketiga'],
             'weight_category' => ['required', 'in:ringan,sedang,berat'],
             'description' => ['required', 'string', 'min:5'],
+            'estimated_item_price' => ['nullable', 'numeric', 'min:0'],
             'destination_address' => ['required', 'string', 'min:5'],
             'recipient_name' => ['required', 'string', 'min:2'],
             'recipient_phone' => ['required', 'string', 'min:9'],
@@ -103,8 +126,13 @@ new class extends Component
         ];
     }
 
-    public function mount()
+    public function mount($jastiper_id = null, $direct_jastiper_name = null)
     {
+        if ($jastiper_id) {
+            $this->jastiper_id = (int) $jastiper_id;
+            $this->direct_jastiper_name = $direct_jastiper_name ?? '';
+        }
+
         // Auto fill recipient details with customer's own details as default
         $customer = Auth::guard('customer')->user();
         if ($customer) {
@@ -114,6 +142,9 @@ new class extends Component
 
         // Tangkap parameter query kategori
         $cat = request()->query('cat');
+        if ($cat === 'dokumen') {
+            $cat = 'ambil-antar';
+        }
         if ($cat && in_array($cat, ['beli-antar', 'ambil-antar', 'toko-kirim', 'dokumen', 'multi-stop', 'kirim-pihak-ketiga'])) {
             $this->category = $cat;
         }
@@ -148,8 +179,52 @@ new class extends Component
             }
         }
 
+        // Cek apakah customer sudah memiliki belanjaan di keranjang belanja
+        if ($customer) {
+            $cart = \App\Models\Cart::with(['cartItems.product.merchant'])->where('customer_id', $customer->id)->first();
+            if ($cart && $cart->cartItems->isNotEmpty()) {
+                // 1. Ambil rujukan toko katalog jika ada
+                $catalogItem = $cart->catalogItems->first();
+                if ($catalogItem && $catalogItem->product && $catalogItem->product->merchant) {
+                    $m = $catalogItem->product->merchant;
+                    $this->cart_reference_merchant_id = $m->id;
+                    $this->cart_reference_merchant_name = $m->name;
+                    $this->cart_reference_merchant_address = $m->address;
+                    $coords = $m->getCoordinates();
+                    $this->cart_reference_merchant_lat = (float) $coords['lat'];
+                    $this->cart_reference_merchant_lng = (float) $coords['lng'];
+                }
+
+                // 2. OTOMATIS: Ambil alamat tujuan dari item pertama di keranjang (Single Drop-off)
+                $firstWithDest = $cart->cartItems->first(fn($it) => !empty($it->destination_address));
+                if ($firstWithDest) {
+                    $this->destination_address = $firstWithDest->destination_address;
+                    $this->destination_lat = (float) $firstWithDest->destination_lat;
+                    $this->destination_lng = (float) $firstWithDest->destination_lng;
+                    if (!empty($firstWithDest->recipient_name)) {
+                        $this->recipient_name = $firstWithDest->recipient_name;
+                    }
+                    if (!empty($firstWithDest->recipient_phone)) {
+                        $this->recipient_phone = $firstWithDest->recipient_phone;
+                    }
+                    $this->has_cart_destination = true;
+                    $this->cart_first_item_name = $firstWithDest->name;
+                }
+            }
+        }
+
         // Calculate initial fare
         $this->calculateFare();
+    }
+
+    public function useNearCartStore()
+    {
+        if ($this->cart_reference_merchant_name) {
+            $this->origin_address = "Area sekitar {$this->cart_reference_merchant_name}, {$this->cart_reference_merchant_address}";
+            $this->origin_lat = $this->cart_reference_merchant_lat;
+            $this->origin_lng = $this->cart_reference_merchant_lng;
+            $this->calculateFare();
+        }
     }
 
     public function updated($propertyName)
@@ -178,61 +253,41 @@ new class extends Component
         }
     }
 
-    /**
-     * Hitung tarif estimasi jastip secara real-time
-     */
-    public function calculateFare()
+    public function updateStopCoordinates(int $index, float $lat, float $lng)
     {
-        // Tarif dasar per KM
-        $ratePerKm = 5000.0;
-        
-        // Biaya tambahan kategori barang
-        $categoryAdditions = [
-            'beli-antar' => 5000.0,
-            'ambil-antar' => 3000.0,
-            'toko-kirim' => 2000.0,
-            'dokumen' => 0.0,
-            'multi-stop' => 15000.0,
-            'kirim-pihak-ketiga' => 7000.0,
-        ];
-
-        // Biaya tambahan berat
-        $weightAdditions = [
-            'ringan' => 0.0,
-            'sedang' => 10000.0,
-            'berat' => 25000.0,
-        ];
-
-        $baseAddition = $categoryAdditions[$this->category] ?? 0.0;
-        $weightAddition = $weightAdditions[$this->weight_category] ?? 0.0;
-
-        // Tambahan per extra stop untuk multi-stop (titik ke-3 dst: +Rp 6.000 / titik)
-        $extraStopsFare = 0.0;
-        if ($this->category === 'multi-stop' && count($this->stops) > 2) {
-            $extraStopsFare = (count($this->stops) - 2) * 6000.0;
+        if (isset($this->stops[$index])) {
+            $this->stops[$index]['lat'] = $lat;
+            $this->stops[$index]['lng'] = $lng;
+            if ($index === 0) {
+                $this->origin_lat = $lat;
+                $this->origin_lng = $lng;
+            }
         }
-
-        // Formula: (Jarak * Tarif/KM) + Tambahan Kategori + Tambahan Berat + Extra Stops
-        $fare = ($this->distance * $ratePerKm) + $baseAddition + $weightAddition + $extraStopsFare;
-        
-        // Minimal fare Rp 10.000
-        $this->estimated_fare = max(10000.0, $fare);
     }
 
     /**
-     * Simpan request order baru ke database
+     * Hitung tarif estimasi jastip secara real-time berdasarkan pengaturan dinamis Admin
+     */
+    public function calculateFare()
+    {
+        $this->estimated_fare = app(\App\Services\TariffService::class)->calculateFare(
+            (float) $this->distance,
+            (string) $this->category,
+            (string) $this->weight_category,
+            is_array($this->stops) ? count($this->stops) : 2
+        );
+    }
+
+    /**
+     * Simpan request order / layanan baru ke dalam keranjang belanja
      */
     public function submitOrder()
     {
         $this->validate();
 
         $customer = Auth::guard('customer')->user();
-        
-        // Gunakan wilayah operasional default pertama (Malang Kota)
-        $wilayah = Wilayah::first();
-        if (!$wilayah) {
-            $this->error_message = 'Wilayah operasional tidak aktif. Hubungi Admin.';
-            return;
+        if (!$customer) {
+            return redirect()->route('login');
         }
 
         try {
@@ -252,58 +307,167 @@ new class extends Component
                     return "Titik " . ($idx + 1) . ": " . ($s['address'] ?: 'Lokasi');
                 }, $this->stops, array_keys($this->stops));
                 $originText = implode(' ➔ ', $stopTitles);
+                if (!empty($this->stops[0]['lat'])) {
+                    $this->origin_lat = (float) $this->stops[0]['lat'];
+                    $this->origin_lng = (float) $this->stops[0]['lng'];
+                }
             } elseif ($this->category === 'kirim-pihak-ketiga') {
                 $originText = $this->origin_address ?: "Konter / Agen {$this->courier_agency}";
             }
 
-            // Buat record order baru
-            $order = Order::create([
-                'customer_id' => $customer->id,
-                'jastiper_id' => $this->jastiper_id, // Direct booking jika terisi
-                'wilayah_id' => $wilayah->id,
+            // Jika ini adalah Direct Booking khusus ke satu Jastiper tertentu (dari halaman booking)
+            if ($this->jastiper_id) {
+                $destStr = strtolower(($this->destination_address ?? '') . ' ' . ($originText ?? ''));
+                $targetWilayah = null;
+                if (str_contains($destStr, 'surabaya')) {
+                    $targetWilayah = Wilayah::where('name', 'like', '%Surabaya%')->first();
+                } elseif (str_contains($destStr, 'sidoarjo')) {
+                    $targetWilayah = Wilayah::where('name', 'like', '%Sidoarjo%')->first();
+                } elseif (str_contains($destStr, 'gresik')) {
+                    $targetWilayah = Wilayah::where('name', 'like', '%Gresik%')->first();
+                } elseif (str_contains($destStr, 'malang') || str_contains($destStr, 'batu')) {
+                    $targetWilayah = Wilayah::where('name', 'like', '%Malang%')->first();
+                } else {
+                    $targetWilayah = Wilayah::where('name', 'like', '%Jawa Timur%')->first()
+                        ?? Wilayah::where('name', 'like', '%Malang%')->first()
+                        ?? Wilayah::where('is_active', true)->first();
+                }
+                $wilayahId = $targetWilayah?->id ?? 11;
+
+                $order = Order::create([
+                    'customer_id' => $customer->id,
+                    'jastiper_id' => $this->jastiper_id,
+                    'wilayah_id' => $wilayahId,
+                    'category' => $this->category,
+                    'weight_category' => $this->weight_category,
+                    'description' => $this->description,
+                    'reference_photo' => $photoPath,
+                    'origin_address' => $originText,
+                    'origin_lat' => $this->origin_lat,
+                    'origin_lng' => $this->origin_lng,
+                    'destination_address' => $this->destination_address,
+                    'destination_lat' => $this->destination_lat,
+                    'destination_lng' => $this->destination_lng,
+                    'recipient_name' => $this->recipient_name,
+                    'recipient_phone' => $this->recipient_phone,
+                    'estimated_fare' => $this->estimated_fare,
+                    'status' => 'menunggu_tawaran',
+                    'courier_agency' => $this->category === 'kirim-pihak-ketiga' ? $this->courier_agency : null,
+                    'multi_stops' => $multiStopsPayload,
+                ]);
+
+                $targetJastiper = \App\Models\Jastiper::find($this->jastiper_id);
+                if ($targetJastiper && $targetJastiper->phone_number) {
+                    WhatsAppService::sendMessage(
+                        $targetJastiper->phone_number,
+                        "Halo {$targetJastiper->name}, ada pesanan Direct Booking baru (#{$order->id}) dari {$customer->name}!"
+                    );
+                }
+
+                session()->flash('success', "Pesanan berhasil dibuat khusus untuk Jastiper {$this->direct_jastiper_name}! Menunggu konfirmasi.");
+                return redirect()->route('customer.dashboard');
+            }
+
+            // Dapatkan atau buat Cart aktif untuk customer (Unified Multi-Service Cart)
+            $cart = \App\Models\Cart::firstOrCreate(
+                ['customer_id' => $customer->id]
+            );
+
+            $itemType = in_array($this->category, ['beli-antar', 'toko-kirim']) ? 'custom_buy' : 'delivery_service';
+
+            $categoryTitles = [
+                'beli-antar' => 'Titip Beli: ' . \Illuminate\Support\Str::limit($this->description, 35),
+                'ambil-antar' => 'Ambil & Antar: ' . \Illuminate\Support\Str::limit($this->description, 35),
+                'toko-kirim' => 'Toko Kirim: ' . ($this->origin_address ?: \Illuminate\Support\Str::limit($this->description, 30)),
+                'dokumen' => 'Antar Dokumen: ' . \Illuminate\Support\Str::limit($this->description, 35),
+                'multi-stop' => 'Multi-Stop: ' . count($this->stops) . ' Titik',
+                'kirim-pihak-ketiga' => 'Ekspedisi ' . $this->courier_agency . ': ' . \Illuminate\Support\Str::limit($this->description, 30),
+            ];
+            $titleName = $categoryTitles[$this->category] ?? 'Layanan Jastip';
+
+            // Auto-register toko/warung baru ke tabel merchants jika belum ada di database
+            $createdMerchantId = null;
+            $createdStoreName = null;
+            if (in_array($this->category, ['beli-antar', 'toko-kirim'])) {
+                $rawStoreName = trim($this->store_name);
+                if (empty($rawStoreName) && !empty($this->origin_address)) {
+                    $parts = explode(',', $this->origin_address);
+                    $firstPart = trim($parts[0]);
+                    if (!str_starts_with(strtolower($firstPart), 'area sekitar')) {
+                        $rawStoreName = $firstPart;
+                    }
+                }
+
+                if (!empty($rawStoreName) && strlen($rawStoreName) >= 2) {
+                    $mType = ($this->category === 'beli-antar') ? 'food' : 'mart';
+                    $storeAddr = trim($this->origin_address) ?: (str_contains(strtolower($this->origin_address), 'surabaya') ? 'Kota Surabaya' : 'Area Jawa Timur');
+
+                    $matchedMerchant = \App\Models\Merchant::where('name', $rawStoreName)->first();
+                    if (!$matchedMerchant) {
+                        $defaultLat = str_contains(strtolower($storeAddr), 'surabaya') ? -7.2575 : -7.9839;
+                        $defaultLng = str_contains(strtolower($storeAddr), 'surabaya') ? 112.7521 : 112.6214;
+                        $matchedMerchant = \App\Models\Merchant::create([
+                            'name' => $rawStoreName,
+                            'address' => $storeAddr,
+                            'type' => $mType,
+                            'latitude' => $this->origin_lat ?: $defaultLat,
+                            'longitude' => $this->origin_lng ?: $defaultLng,
+                            'description' => 'Warung/Toko ditambahkan otomatis dari permintaan belanja pelanggan',
+                            'is_active' => true,
+                        ]);
+                    } elseif ($this->origin_lat && $this->origin_lng && (!$matchedMerchant->latitude || !$matchedMerchant->longitude)) {
+                        $matchedMerchant->update([
+                            'latitude' => $this->origin_lat,
+                            'longitude' => $this->origin_lng,
+                        ]);
+                    }
+                    $createdMerchantId = $matchedMerchant->id;
+                    $createdStoreName = $matchedMerchant->name;
+                }
+            }
+
+            \App\Models\CartItem::create([
+                'cart_id' => $cart->id,
+                'product_id' => null,
+                'merchant_id' => $createdMerchantId,
+                'item_type' => $itemType,
                 'category' => $this->category,
-                'weight_category' => $this->weight_category,
+                'name' => $titleName,
                 'description' => $this->description,
-                'reference_photo' => $photoPath,
-                'origin_address' => $originText ?: 'Lokasi Pin Peta Asal',
-                'origin_lat' => $this->origin_lat ?? -7.9839,
-                'origin_lng' => $this->origin_lng ?? 112.6214,
+                'estimated_price' => $this->estimated_item_price ?? 0.0,
+                'origin_address' => $originText ?: 'Lokasi Jemput / Belanja',
+                'origin_lat' => $this->origin_lat,
+                'origin_lng' => $this->origin_lng,
                 'destination_address' => $this->destination_address,
-                'destination_lat' => $this->destination_lat ?? -7.9839,
-                'destination_lng' => $this->destination_lng ?? 112.6214,
+                'destination_lat' => $this->destination_lat,
+                'destination_lng' => $this->destination_lng,
                 'recipient_name' => $this->recipient_name,
                 'recipient_phone' => $this->recipient_phone,
-                'estimated_fare' => $this->estimated_fare,
-                'multi_stops' => $multiStopsPayload,
+                'reference_photo' => $photoPath,
+                'weight_category' => $this->weight_category,
                 'courier_agency' => $this->category === 'kirim-pihak-ketiga' ? $this->courier_agency : null,
-                'status' => 'menunggu_tawaran',
+                'stops_data' => $multiStopsPayload,
+                'quantity' => 1,
             ]);
 
-            // Kirim notifikasi WhatsApp simulasi ke customer
-            $categoryNames = [
-                'beli-antar' => 'Jastip Kuliner (Beli-Antar)',
-                'ambil-antar' => 'Jastip Ambil Barang (Ambil-Antar)',
-                'toko-kirim' => 'Jastip Toko',
-                'dokumen' => 'Jastip Dokumen Kecil',
-                'multi-stop' => 'Jastip Multi-Stop (' . count($this->stops) . ' Titik)',
-                'kirim-pihak-ketiga' => 'Jastip Agen Ekspedisi (' . $this->courier_agency . ')',
-            ];
-            $catLabel = $categoryNames[$this->category] ?? 'Jastip';
+            // Isi alamat tujuan hanya pada item yang belum memiliki alamat pengantaran/drop-off khusus
+            $cart->cartItems()->where(function($q) {
+                $q->whereNull('destination_address')->orWhere('destination_address', '');
+            })->update([
+                'destination_address' => $this->destination_address,
+                'destination_lat' => $this->destination_lat,
+                'destination_lng' => $this->destination_lng,
+                'recipient_name' => $this->recipient_name,
+                'recipient_phone' => $this->recipient_phone,
+            ]);
 
-            if ($this->jastiper_id) {
-                $msg = "Halo *{$customer->name}*!\n\nBooking langsung Anda untuk Jastiper *{$this->direct_jastiper_name}* (*{$this->description}*) telah dikirim.\n\nSistem sedang meneruskan pesanan ini eksklusif ke Jastiper bersangkutan. Mohon tunggu konfirmasi! 🚀";
-                session()->flash('success', "Booking langsung ke {$this->direct_jastiper_name} berhasil dikirim! Menunggu persetujuan Jastiper.");
-            } else {
-                $msg = "Halo *{$customer->name}*!\n\nPermintaan Jastip baru Anda telah berhasil dikirim ke sistem:\n\n📦 *Layanan*: {$catLabel}\n📝 *Deskripsi*: {$this->description}\n🎯 *Radius/Jarak*: {$this->distance} KM\n💰 *Estimasi Ongkir*: Rp " . number_format($this->estimated_fare, 0, ',', '.') . "\n\nSistem sedang mencarikan Jastiper terdekat di area Malang. Mohon tunggu tawaran masuk! 🚀";
-                session()->flash('success', 'Request Jastip Baru Berhasil Dibuat! Mohon tunggu tawaran dari Jastiper.');
-            }
-            WhatsAppService::sendMessage($customer->phone_number, $msg);
-
-            return redirect()->route('customer.dashboard');
+            $storeMsg = $createdStoreName ? " Toko '{$createdStoreName}' juga otomatis tersimpan ke direktori toko sistem!" : "";
+            session()->flash('success', "Layanan '{$titleName}' berhasil dimasukkan ke keranjang belanja!{$storeMsg}");
+            return redirect()->route('customer.cart.index');
 
         } catch (\Exception $e) {
-            Log::error("Error Customer Submit Order: " . $e->getMessage());
-            $this->error_message = 'Gagal menyimpan pesanan. Silakan coba lagi.';
+            Log::error("Error Customer Add Service to Cart: " . $e->getMessage());
+            $this->error_message = 'Gagal menyimpan ke keranjang. Silakan coba lagi.';
         }
     }
 };
@@ -347,40 +511,40 @@ new class extends Component
 
     <form wire:submit.prevent="submitOrder" class="space-y-6">
         
-        <!-- 1. PILIH KATEGORI (6 Kategori JastipKuy) -->
+        <!-- 1. PILIH KATEGORI (4 Layanan Utama JastipKuy) -->
         <div class="space-y-3">
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Pilih Layanan Jastip</label>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 
                 <!-- Beli-Antar -->
                 <button 
                     type="button" 
                     wire:click="$set('category', 'beli-antar')"
-                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
-                    style="{{ $category === 'beli-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                    class="group p-3 sm:p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 sm:h-32 focus:outline-none relative overflow-hidden"
+                    style="{{ $category === 'beli-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.08);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shadow-2xs">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    <div class="flex items-center justify-start">
+                        <img src="{{ asset('images/services/beli-antar.png') }}" alt="Beli-Antar" class="w-12 h-10 sm:w-14 sm:h-12 object-contain group-hover:scale-105 transition-transform drop-shadow-xs">
                     </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Beli-Antar</h5>
-                        <span class="text-[9px] text-slate-400 block mt-0.5">Jastip Kuliner / Makanan</span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5 leading-tight">Jastip Kuliner / Makanan</span>
                     </div>
                 </button>
 
-                <!-- Ambil-Antar -->
+                <!-- Ambil & Antar -->
                 <button 
                     type="button" 
                     wire:click="$set('category', 'ambil-antar')"
-                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
-                    style="{{ $category === 'ambil-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                    class="group p-3 sm:p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 sm:h-32 focus:outline-none relative overflow-hidden"
+                    style="{{ $category === 'ambil-antar' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.08);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100 shadow-2xs">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                    <div class="flex items-center justify-start">
+                        <img src="{{ asset('images/services/ambil-antar.png') }}" alt="Ambil & Antar" class="w-12 h-10 sm:w-14 sm:h-12 object-contain group-hover:scale-105 transition-transform drop-shadow-xs">
                     </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Ambil & Antar</h5>
-                        <span class="text-[9px] text-slate-400 block mt-0.5">Ambil barang / COD</span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5 leading-tight">Barang & Dokumen / COD</span>
                     </div>
                 </button>
 
@@ -388,47 +552,15 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'toko-kirim')"
-                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
-                    style="{{ $category === 'toko-kirim' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                    class="group p-3 sm:p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 sm:h-32 focus:outline-none relative overflow-hidden"
+                    style="{{ $category === 'toko-kirim' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.08);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shadow-2xs">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                    <div class="flex items-center justify-start">
+                        <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Toko Kirim" class="w-12 h-10 sm:w-14 sm:h-12 object-contain group-hover:scale-105 transition-transform drop-shadow-xs">
                     </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Toko Kirim</h5>
-                        <span class="text-[9px] text-slate-400 block mt-0.5">Belanja Minimarket/Pasar</span>
-                    </div>
-                </button>
-
-                <!-- Dokumen -->
-                <button 
-                    type="button" 
-                    wire:click="$set('category', 'dokumen')"
-                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
-                    style="{{ $category === 'dokumen' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
-                >
-                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-2xs">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    </div>
-                    <div>
-                        <h5 class="text-xs font-bold text-slate-800">Dokumen Kecil</h5>
-                        <span class="text-[9px] text-slate-400 block mt-0.5">Kirim surat / dokumen</span>
-                    </div>
-                </button>
-
-                <!-- Multi-stop -->
-                <button 
-                    type="button" 
-                    wire:click="$set('category', 'multi-stop')"
-                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
-                    style="{{ $category === 'multi-stop' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
-                >
-                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shadow-2xs">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    </div>
-                    <div>
-                        <h5 class="text-xs font-bold text-slate-800">Multi-Stop</h5>
-                        <span class="text-[9px] text-slate-400 block mt-0.5">Banyak titik belanja/antar</span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5 leading-tight">Belanja Minimarket / Pasar</span>
                     </div>
                 </button>
 
@@ -436,15 +568,15 @@ new class extends Component
                 <button 
                     type="button" 
                     wire:click="$set('category', 'kirim-pihak-ketiga')"
-                    class="p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 focus:outline-none"
-                    style="{{ $category === 'kirim-pihak-ketiga' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.05);' : 'border-color: #e2e8f0; background-color: white;' }}"
+                    class="group p-3 sm:p-3.5 rounded-2xl border text-left transition duration-150 flex flex-col justify-between h-28 sm:h-32 focus:outline-none relative overflow-hidden"
+                    style="{{ $category === 'kirim-pihak-ketiga' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.08);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
-                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-2xs">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"></path></svg>
+                    <div class="flex items-center justify-start">
+                        <img src="{{ asset('images/services/kirim-pihak-ketiga.png') }}" alt="Pihak Ketiga" class="w-12 h-10 sm:w-14 sm:h-12 object-contain group-hover:scale-105 transition-transform drop-shadow-xs">
                     </div>
                     <div>
                         <h5 class="text-xs font-bold text-slate-800">Pihak Ketiga</h5>
-                        <span class="text-[9px] text-slate-400 block mt-0.5">Ekspedisi / Agen Kirim</span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5 leading-tight">Ekspedisi / Agen Kirim</span>
                     </div>
                 </button>
 
@@ -468,6 +600,29 @@ new class extends Component
                     @error('description') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                 </div>
 
+                @if(in_array($category, ['beli-antar', 'toko-kirim']))
+                    <div class="space-y-1.5 bg-amber-50/60 border border-amber-200/60 p-3.5 rounded-2xl">
+                        <label for="estimated_item_price" class="block text-xs font-bold text-amber-900 uppercase tracking-wider">
+                            Perkiraan Total Harga Barang Belanjaan (Rp, Opsional)
+                        </label>
+                        <div class="relative">
+                            <span class="absolute left-3.5 top-2.5 text-xs font-bold text-amber-700">Rp</span>
+                            <input 
+                                type="number" 
+                                id="estimated_item_price" 
+                                wire:model.live="estimated_item_price"
+                                min="0"
+                                placeholder="35.000 (tulis kisaran total harga barang jika sudah tahu)"
+                                class="w-full bg-white border border-amber-200 text-slate-800 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:border-amber-500 transition duration-150 text-xs font-bold"
+                            >
+                            @if(!empty($estimated_item_price) && (float)$estimated_item_price > 0)
+                                <span class="text-[10px] font-bold text-amber-800 block mt-1">Estimasi Barang: Rp {{ number_format((float) $estimated_item_price, 0, ',', '.') }}</span>
+                            @endif
+                        </div>
+                        <p class="text-[10px] text-amber-700/80 mt-0.5">Estimasi ini akan dihitung pada subtotal belanjaan di keranjang Anda dan dapat disesuaikan bukti nota nanti.</p>
+                    </div>
+                @endif
+
                 <!-- Alamat Origin & Destination / Multi-Stop -->
                 @if($category === 'multi-stop')
                     <!-- KHUSUS MULTI-STOP: Titik Pemberhentian Dinamis -->
@@ -487,50 +642,112 @@ new class extends Component
 
                         <div class="space-y-3">
                             @foreach($stops as $idx => $stop)
-                                <div class="bg-white border border-purple-200/80 rounded-2xl p-3.5 shadow-2xs space-y-2">
-                                    <div class="flex items-center justify-between">
+                            @php
+                                $isDropoff = ($stop['action'] ?? 'pickup') === 'dropoff';
+                            @endphp
+                                <div class="bg-white border {{ $isDropoff ? 'border-indigo-200/90 bg-indigo-50/20' : 'border-purple-200/80' }} rounded-2xl p-3.5 shadow-2xs space-y-2.5">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
                                         <div class="flex items-center gap-2">
-                                            <span class="w-5 h-5 rounded-full bg-purple-600 text-white font-black text-[10px] flex items-center justify-center">
+                                            <span class="w-5 h-5 rounded-full {{ $isDropoff ? 'bg-indigo-600' : 'bg-purple-600' }} text-white font-black text-[10px] flex items-center justify-center">
                                                 {{ $idx + 1 }}
                                             </span>
-                                            <span class="text-xs font-bold text-slate-800">Stop {{ $idx + 1 }}: Toko / Titik Jemput</span>
+                                            <span class="text-xs font-bold text-slate-800">
+                                                Stop {{ $idx + 1 }}: {{ $isDropoff ? 'Drop-off / Antar Penerima' : 'Toko / Titik Jemput' }}
+                                            </span>
                                         </div>
-                                        @if(count($stops) > 2)
-                                            <button type="button" wire:click="removeStop({{ $idx }})" class="text-[10px] font-bold text-rose-500 hover:text-rose-700 hover:underline">
-                                                ✕ Hapus Stop
-                                            </button>
-                                        @endif
+
+                                        <div class="flex items-center gap-2">
+                                            <!-- Action Selector: Pickup vs Dropoff -->
+                                            <div class="inline-flex p-0.5 bg-slate-100 rounded-lg border border-slate-200/60">
+                                                <button 
+                                                    type="button" 
+                                                    wire:click="setStopAction({{ $idx }}, 'pickup')" 
+                                                    class="px-2 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 {{ !$isDropoff ? 'bg-white text-emerald-700 shadow-2xs border border-slate-200/80' : 'text-slate-500 hover:text-slate-800' }}"
+                                                >
+                                                    <span>🟢 Jemput / Beli</span>
+                                                </button>
+                                                <button 
+                                                    type="button" 
+                                                    wire:click="setStopAction({{ $idx }}, 'dropoff')" 
+                                                    class="px-2 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 {{ $isDropoff ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800' }}"
+                                                >
+                                                    <span>🔵 Antar Penerima</span>
+                                                </button>
+                                            </div>
+
+                                            @if(count($stops) > 2)
+                                                <button type="button" wire:click="removeStop({{ $idx }})" class="text-[10px] font-bold text-rose-500 hover:text-rose-700 hover:underline">
+                                                    ✕ Hapus Stop
+                                                </button>
+                                            @endif
+                                        </div>
                                     </div>
 
                                     <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                                        <!-- Alamat / Nama Toko -->
+                                        <!-- Alamat / Nama Toko atau Alamat Drop-off -->
                                         <div class="sm:col-span-7 flex gap-1.5">
                                             <input 
                                                 type="text" 
                                                 id="stop_address_{{ $idx }}"
                                                 wire:model.live="stops.{{ $idx }}.address"
-                                                placeholder="Nama toko / lokasi (mis: Kopi Kenangan Dinoyo)..."
-                                                class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-xl text-xs focus:bg-white focus:border-purple-500 outline-none"
+                                                placeholder="{{ $isDropoff ? 'Alamat tujuan drop-off (mis: Kantor BCA Jl. Basuki Rahmat, Rumah Teman)...' : 'Nama toko / lokasi jemput (mis: Jokopi Surabaya, Kopi Kenangan Dinoyo)...' }}"
+                                                class="flex-1 min-w-0 bg-slate-50 border {{ $isDropoff ? 'border-indigo-200 focus:border-indigo-500' : 'border-slate-200 focus:border-purple-500' }} text-slate-800 px-3 py-2 rounded-xl text-xs focus:bg-white outline-none"
                                             >
                                             <button 
                                                 type="button"
                                                 onclick="searchStopLocation({{ $idx }})"
                                                 id="btn_search_stop_{{ $idx }}"
-                                                class="shrink-0 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold px-2.5 rounded-xl transition whitespace-nowrap"
+                                                class="shrink-0 {{ $isDropoff ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-purple-600 hover:bg-purple-700' }} text-white text-[10px] font-bold px-2.5 rounded-xl transition whitespace-nowrap"
                                             >
                                                 🔍 Cari
                                             </button>
                                         </div>
-                                        <!-- Catatan Belanja di Stop ini -->
+                                        <!-- Catatan Belanja atau Catatan Antar di Stop ini -->
                                         <div class="sm:col-span-5">
                                             <input 
                                                 type="text" 
                                                 wire:model.live="stops.{{ $idx }}.notes"
-                                                placeholder="Barang dibeli (mis: 1 Latte Ice)..."
-                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-xl text-xs focus:bg-white focus:border-purple-500 outline-none"
+                                                placeholder="{{ $isDropoff ? 'Catatan antar (mis: titip di pos satpam / lobi)...' : 'Barang dibeli/dijemput (mis: 1 Latte Ice)...' }}"
+                                                class="w-full bg-slate-50 border {{ $isDropoff ? 'border-indigo-200 focus:border-indigo-500' : 'border-slate-200 focus:border-purple-500' }} text-slate-800 px-3 py-2 rounded-xl text-xs focus:bg-white outline-none"
                                             >
                                         </div>
                                     </div>
+
+                                    @if($isDropoff)
+                                    <!-- Informasi Penerima khusus untuk titik Drop-off -->
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-indigo-50/70 border border-indigo-200/70 rounded-xl">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-indigo-900 mb-0.5">Nama Penerima di Titik Ini</label>
+                                            <input 
+                                                type="text" 
+                                                wire:model.live="stops.{{ $idx }}.recipient_name"
+                                                placeholder="Contoh: Pak Budi / Resepsionis"
+                                                class="w-full bg-white border border-indigo-200 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            >
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-indigo-900 mb-0.5">No. WhatsApp Penerima</label>
+                                            <input 
+                                                type="text" 
+                                                wire:model.live="stops.{{ $idx }}.recipient_phone"
+                                                placeholder="Contoh: 08123456789"
+                                                class="w-full bg-white border border-indigo-200 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            >
+                                        </div>
+                                    </div>
+                                    @endif
+
+                                    <!-- Indikator Koordinat Stop -->
+                                    <div class="flex items-center justify-between text-[10px] {{ $isDropoff ? 'bg-indigo-50/80 border-indigo-200/60 text-indigo-800' : 'bg-purple-50/80 border-purple-200/60 text-purple-800' }} border rounded-xl px-2.5 py-1 font-mono">
+                                        <span class="flex items-center gap-1">
+                                            <span class="{{ $isDropoff ? 'text-indigo-600' : 'text-purple-600' }} font-bold">📍 Koordinat Stop {{ $idx + 1 }}:</span>
+                                            <span id="disp-stop-coords-{{ $idx }}">Lat: {{ $stop['lat'] ? number_format($stop['lat'], 5) : '-' }}, Lng: {{ $stop['lng'] ? number_format($stop['lng'], 5) : '-' }}</span>
+                                        </span>
+                                        <button type="button" onclick="copyStopCoords({{ $idx }})" class="text-[10px] {{ $isDropoff ? 'text-indigo-700 hover:text-indigo-900' : 'text-purple-700 hover:text-purple-900' }} font-bold underline cursor-pointer">
+                                            Salin
+                                        </button>
+                                    </div>
+
                                     @error('stops.'.$idx.'.address') <span class="text-rose-600 text-[9px] font-semibold block">{{ $message }}</span> @enderror
                                 </div>
                             @endforeach
@@ -570,7 +787,7 @@ new class extends Component
                                 type="text" 
                                 id="destination_address" 
                                 wire:model.live="destination_address"
-                                placeholder="Alamat rumah / kos Anda..."
+                                placeholder="Alamat rumah / kos Anda se-Jawa/Indonesia (mis: Rungkut Surabaya, Jl. Ijen Malang)..."
                                 class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
                             >
                             <button 
@@ -582,32 +799,117 @@ new class extends Component
                                 🔍 Cari Lokasi
                             </button>
                         </div>
+
+                        <!-- Indikator Koordinat Tujuan -->
+                        <div class="flex items-center justify-between text-[10px] bg-blue-50/80 border border-blue-200/60 rounded-xl px-2.5 py-1 font-mono text-blue-800">
+                            <span class="flex items-center gap-1">
+                                <span class="text-blue-600 font-bold">📍 Koordinat Tujuan:</span>
+                                <span id="disp-dest-coords-1">Lat: {{ $destination_lat ? number_format($destination_lat, 5) : '-' }}, Lng: {{ $destination_lng ? number_format($destination_lng, 5) : '-' }}</span>
+                            </span>
+                            <button type="button" onclick="copyDestCoords()" class="text-[10px] text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer">
+                                Salin
+                            </button>
+                        </div>
+
                         @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                     </div>
                 @else
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Origin (Untuk single store/pickup) -->
                         @if(in_array($category, ['beli-antar', 'ambil-antar', 'toko-kirim']))
-                            <div class="space-y-1.5">
-                                <label for="origin_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Asal / Toko Belanja</label>
-                                <div class="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        id="origin_address" 
-                                        wire:model.live="origin_address"
-                                        placeholder="Tulis nama warung / lokasi belanja..."
-                                        class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
-                                    >
-                                    <button 
-                                        type="button"
-                                        onclick="searchOriginLocation()"
-                                        id="btn-search-origin"
-                                        class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-                                    >
-                                        🔍 Cari Toko
-                                    </button>
+                            <div class="space-y-3">
+                                @if(in_array($category, ['beli-antar', 'toko-kirim']))
+                                    <div class="space-y-1 relative" id="store-name-wrapper">
+                                        <div class="flex items-center justify-between">
+                                            <label for="store_name" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Nama Warung / Toko</label>
+                                            <span class="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">✨ Auto Masuk Data Toko Baru</span>
+                                        </div>
+                                        <div class="relative">
+                                            <input 
+                                                type="text" 
+                                                id="store_name" 
+                                                wire:model="store_name"
+                                                placeholder="Contoh: Starbucks Surabaya, Indomaret, Hokben, Warung Nasgor..."
+                                                autocomplete="off"
+                                                oninput="handlePlaceSearch(this.value, 'store_name')"
+                                                onfocus="if(this.value && this.value.length >= 2 && (!window.lastSelectedPlaces || window.lastSelectedPlaces['store_name'] !== this.value.trim())) handlePlaceSearch(this.value, 'store_name')"
+                                                class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-800 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs font-medium pr-10"
+                                            >
+                                            <div id="store-search-spinner" class="hidden absolute right-3.5 top-3 pointer-events-none">
+                                                <svg class="animate-spin h-3.5 w-3.5 text-rose-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                            </div>
+                                        </div>
+                                        <!-- Live Autocomplete Suggestions Dropdown -->
+                                        <div wire:ignore id="dropdown-store_name" class="hidden absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-72 overflow-y-auto divide-y divide-slate-100"></div>
+                                    </div>
+
+                                    @if($cart_reference_merchant_name)
+                                        <div class="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-2xs">
+                                            <div class="flex items-center gap-2 min-w-0">
+                                                <span class="text-base shrink-0">🏪</span>
+                                                <div class="min-w-0">
+                                                    <span class="text-[9px] text-blue-600 font-bold uppercase tracking-wider block">Ada Belanjaan di Toko:</span>
+                                                    <span class="text-xs font-extrabold text-blue-900 truncate block">{{ $cart_reference_merchant_name }}</span>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                type="button" 
+                                                wire:click="useNearCartStore"
+                                                class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-xs transition"
+                                                title="Gunakan lokasi dekat toko ini untuk rute yang searah"
+                                            >
+                                                📍 Beli Dekat Sini
+                                            </button>
+                                        </div>
+                                    @endif
+                                @endif
+
+                                <div class="space-y-1.5 relative" id="origin-address-wrapper">
+                                    <label for="origin_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                        {{ in_array($category, ['beli-antar', 'toko-kirim']) ? 'Alamat / Patokan Warung' : 'Alamat Asal / Penjemputan' }}
+                                    </label>
+                                    <div class="flex gap-2 relative">
+                                        <div class="flex-1 relative">
+                                            <input 
+                                                type="text" 
+                                                id="origin_address" 
+                                                wire:model="origin_address"
+                                                placeholder="{{ in_array($category, ['beli-antar', 'toko-kirim']) ? 'Nama/patokan warung (mis: Starbucks Surabaya, Jokopi, Indomaret)...' : 'Alamat asal/penjemputan se-Indonesia...' }}"
+                                                autocomplete="off"
+                                                oninput="handlePlaceSearch(this.value, 'origin_address')"
+                                                onfocus="if(this.value && this.value.length >= 2 && (!window.lastSelectedPlaces || window.lastSelectedPlaces['origin_address'] !== this.value.trim())) handlePlaceSearch(this.value, 'origin_address')"
+                                                class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs pr-10"
+                                            >
+                                            <div id="origin-search-spinner" class="hidden absolute right-3.5 top-3 pointer-events-none">
+                                                <svg class="animate-spin h-3.5 w-3.5 text-rose-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onclick="searchOriginLocation()"
+                                            id="btn-search-origin"
+                                            class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed shadow-xs"
+                                        >
+                                            🔍 Cari Toko
+                                        </button>
+                                    </div>
+
+                                    <!-- Live Autocomplete Suggestions Dropdown -->
+                                    <div wire:ignore id="dropdown-origin_address" class="hidden absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-72 overflow-y-auto divide-y divide-slate-100"></div>
+
+                                    <!-- Indikator Koordinat Asal -->
+                                    <div class="flex items-center justify-between text-[10px] bg-rose-50/80 border border-rose-200/60 rounded-xl px-2.5 py-1 font-mono text-rose-800">
+                                        <span class="flex items-center gap-1">
+                                            <span class="text-rose-600 font-bold">📍 Koordinat Asal:</span>
+                                            <span id="disp-origin-coords">Lat: {{ $origin_lat ? number_format($origin_lat, 5) : '-' }}, Lng: {{ $origin_lng ? number_format($origin_lng, 5) : '-' }}</span>
+                                        </span>
+                                        <button type="button" onclick="copyOriginCoords()" class="text-[10px] text-rose-700 hover:text-rose-900 font-bold underline cursor-pointer">
+                                            Salin
+                                        </button>
+                                    </div>
+
+                                    @error('origin_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                                 </div>
-                                @error('origin_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                             </div>
                         @elseif($category === 'kirim-pihak-ketiga')
                             <div class="space-y-1.5">
@@ -629,16 +931,34 @@ new class extends Component
                                 <input 
                                     type="text" 
                                     wire:model.live="origin_address"
-                                    placeholder="Cabang / agen spesifik (opsional, mis: JNE Soekarno Hatta)..."
+                                    placeholder="Cabang / agen spesifik (opsional, mis: JNE Diponegoro Surabaya)..."
                                     class="w-full mt-1.5 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-[11px]"
                                 >
                             </div>
                         @endif
 
                         <!-- Destination -->
-                        <div class="space-y-1.5">
+                        <div class="space-y-1.5 relative" id="destination-address-wrapper">
+                            @if($has_cart_destination)
+                                <div class="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-2xs mb-1">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="text-base shrink-0">🎯</span>
+                                        <div class="min-w-0">
+                                            <span class="text-[9px] text-amber-700 font-bold uppercase tracking-wider block">Tujuan Pengantaran Terpadu:</span>
+                                            <span class="text-xs font-extrabold text-amber-950 truncate block">{{ $destination_address }}</span>
+                                            <span class="text-[9px] text-amber-700 block">Otomatis mengikuti pesanan pertama di keranjang ({{ $cart_first_item_name }})</span>
+                                        </div>
+                                    </div>
+                                    <span class="shrink-0 bg-amber-200/80 text-amber-900 text-[9px] font-extrabold px-2 py-1 rounded-lg">
+                                        ✓ Single Drop-off
+                                    </span>
+                                </div>
+                            @endif
+
                             <div class="flex items-center justify-between">
-                                <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Tujuan Pengantaran</label>
+                                <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    {{ $has_cart_destination ? 'Alamat Tujuan Pengantaran (Terpadu)' : 'Alamat Tujuan Pengantaran' }}
+                                </label>
                                 <button 
                                     type="button" 
                                     id="btn-gps-dest-2"
@@ -648,23 +968,46 @@ new class extends Component
                                     📍 Pakai Lokasi Saya
                                 </button>
                             </div>
-                            <div class="flex gap-2">
-                                <input 
-                                    type="text" 
-                                    id="destination_address" 
-                                    wire:model.live="destination_address"
-                                    placeholder="Alamat rumah / kos Anda..."
-                                    class="flex-1 min-w-0 bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs"
-                                >
+                            <div class="flex gap-2 relative">
+                                <div class="flex-1 relative">
+                                    <input 
+                                        type="text" 
+                                        id="destination_address" 
+                                        wire:model="destination_address"
+                                        placeholder="Alamat rumah / kos Anda se-Jawa/Indonesia..."
+                                        autocomplete="off"
+                                        oninput="handlePlaceSearch(this.value, 'destination_address')"
+                                        onfocus="if(this.value && this.value.length >= 2 && (!window.lastSelectedPlaces || window.lastSelectedPlaces['destination_address'] !== this.value.trim())) handlePlaceSearch(this.value, 'destination_address')"
+                                        class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-4 py-2.5 rounded-2xl outline-none focus:bg-white focus:border-rose-500 transition duration-150 text-xs pr-10"
+                                    >
+                                    <div id="dest-search-spinner" class="hidden absolute right-3.5 top-3 pointer-events-none">
+                                        <svg class="animate-spin h-3.5 w-3.5 text-rose-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                    </div>
+                                </div>
                                 <button 
                                     type="button"
                                     onclick="searchDestinationLocation()"
                                     id="btn-search-destination"
-                                    class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                                    class="shrink-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 rounded-2xl transition duration-150 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed shadow-xs"
                                 >
                                     🔍 Cari Lokasi
                                 </button>
                             </div>
+
+                            <!-- Live Autocomplete Suggestions Dropdown -->
+                            <div wire:ignore id="dropdown-destination_address" class="hidden absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-72 overflow-y-auto divide-y divide-slate-100"></div>
+
+                            <!-- Indikator Koordinat Tujuan -->
+                            <div class="flex items-center justify-between text-[10px] bg-blue-50/80 border border-blue-200/60 rounded-xl px-2.5 py-1 font-mono text-blue-800">
+                                <span class="flex items-center gap-1">
+                                    <span class="text-blue-600 font-bold">📍 Koordinat Tujuan:</span>
+                                    <span id="disp-dest-coords-2">Lat: {{ $destination_lat ? number_format($destination_lat, 5) : '-' }}, Lng: {{ $destination_lng ? number_format($destination_lng, 5) : '-' }}</span>
+                                </span>
+                                <button type="button" onclick="copyDestCoords()" class="text-[10px] text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer">
+                                    Salin
+                                </button>
+                            </div>
+
                             @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -681,9 +1024,9 @@ new class extends Component
                         wire:model.live="weight_category"
                         class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-3 rounded-2xl text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150"
                     >
-                        <option value="ringan">Ringan (Baju, Makanan, Dokumen) - +Rp0</option>
-                        <option value="sedang">Sedang (Dus Sedang, Helm) - +Rp10.000</option>
-                        <option value="berat">Berat (Kardus Besar, Galon) - +Rp25.000</option>
+                        <option value="ringan">Ringan (Baju, Makanan, Dokumen) - +Rp 0</option>
+                        <option value="sedang">Sedang (Dus Sedang, Helm) - +Rp 10.000</option>
+                        <option value="berat">Berat (Kardus Besar, Galon) - +Rp 25.000</option>
                     </select>
                 </div>
 
@@ -711,21 +1054,55 @@ new class extends Component
 
         <!-- 3. INTERACTIVE MAP SECTION -->
         <div class="space-y-3">
-            <div class="flex justify-between items-center">
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Tentukan Titik di Peta (Geser Pin)</label>
-                <span class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full">
-                    Jarak: <span id="disp-distance">{{ number_format($distance, 2) }}</span> KM
-                </span>
+            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                        Peta Rute & Titik Koordinat (Jawa & Indonesia)
+                    </label>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Mendukung rute dalam kota maupun antar-kota (Surabaya, Sidoarjo, Malang, dll).</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span id="disp-route-type" class="text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                        Rute Lokal
+                    </span>
+                    <span class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-1 rounded-full shadow-2xs">
+                        Jarak: <span id="disp-distance">{{ number_format($distance, 2) }}</span> KM
+                    </span>
+                </div>
+            </div>
+
+            <!-- Quick Jump Area Chips -->
+            <div class="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mr-1">Fokus Cepat:</span>
+                <button type="button" onclick="jumpToArea('surabaya')" class="text-[10px] font-bold py-1 px-2.5 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 border border-slate-200 transition shadow-2xs">
+                    🏙️ Surabaya
+                </button>
+                <button type="button" onclick="jumpToArea('sidoarjo')" class="text-[10px] font-bold py-1 px-2.5 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 border border-slate-200 transition shadow-2xs">
+                    ✈️ Sidoarjo
+                </button>
+                <button type="button" onclick="jumpToArea('malang')" class="text-[10px] font-bold py-1 px-2.5 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 border border-slate-200 transition shadow-2xs">
+                    🏛️ Malang
+                </button>
+                <button type="button" onclick="jumpToArea('pasuruan')" class="text-[10px] font-bold py-1 px-2.5 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 border border-slate-200 transition shadow-2xs">
+                    🏭 Pasuruan
+                </button>
+                <button type="button" onclick="jumpToArea('jawa_timur')" class="text-[10px] font-bold py-1 px-2.5 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 border border-slate-200 transition shadow-2xs">
+                    🗺️ Jawa Timur
+                </button>
+                <button type="button" onclick="fitFullRoute()" class="text-[10px] font-bold py-1 px-2.5 rounded-xl bg-rose-600 text-white hover:bg-rose-700 transition ml-auto shadow-2xs">
+                    🔍 Rute Lengkap
+                </button>
             </div>
 
             <!-- Leaflet Container -->
             <div 
                 wire:ignore
                 id="leaflet-order-map" 
-                class="h-64 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10 shadow-inner"
+                class="h-72 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10 shadow-inner"
             ></div>
             <p class="text-[10px] text-slate-400 leading-normal">
-                💡 Gunakan tombol <strong>🔍 Cari Toko</strong> / <strong>🔍 Cari Lokasi</strong> di atas untuk langsung menemukan titik di peta berdasarkan nama, atau geser manual **Pin Merah (Asal Belanja)** dan **Pin Biru (Tujuan Pengantaran)**. Tarif ongkir akan otomatis dikalkulasi berdasarkan jarak kedua titik.
+                💡 Cari nama toko / alamat se-Indonesia (misal: "Jokopi Surabaya", "Grand Indonesia Jakarta", "Bakso Malang"), atau geser pin langsung di peta. Koordinat Latitude/Longitude dan jarak otomatis terupdate dan tersimpan.
             </p>
         </div>
 
@@ -759,16 +1136,17 @@ new class extends Component
         <!-- 5. FARE ESTIMATION BOX & SUBMIT -->
         <div class="bg-rose-50 border border-rose-100 p-5 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 shadow-sm">
             <div>
-                <span class="text-[9px] uppercase font-bold text-rose-500 tracking-wider block">Total Estimasi Ongkos Kirim</span>
+                <span class="text-[9px] uppercase font-bold text-rose-500 tracking-wider block">Estimasi Ongkir Jasa</span>
                 <span class="text-2xl font-black text-rose-600 font-display">Rp {{ number_format($estimated_fare, 0, ',', '.') }}</span>
-                <span class="text-[9px] text-slate-400 block mt-0.5">*(Ongkir disesuaikan berdasarkan jarak {{ number_format($distance, 1) }} KM & kategori berat)</span>
+                <span class="text-[9px] text-slate-400 block mt-0.5">*(Akan digabungkan di keranjang bersama rute belanja lainnya)</span>
             </div>
 
             <button 
                 type="submit" 
-                class="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs px-8 py-3.5 rounded-full transition shadow-md shadow-rose-600/10 uppercase tracking-wider shrink-0"
+                class="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs px-8 py-3.5 rounded-full transition shadow-md shadow-rose-600/20 uppercase tracking-wider shrink-0 flex items-center justify-center gap-2"
             >
-                Kirim Request Jastip
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                <span>+ Masukkan ke Keranjang</span>
             </button>
         </div>
 
@@ -778,280 +1156,708 @@ new class extends Component
 
 @script
 <script>
-        let map;
-        let markerOrigin;
-        let markerDest;
-        let polyline;
-        let updateDistanceAndRoute; // di-hoist ke scope luar agar bisa dipanggil dari fungsi geocoding
+    let map;
+    let markerOrigin = null;
+    let markerDest = null;
+    let stopMarkers = [];
+    let polyline = null;
+    let updateDistanceAndRoute;
+    let fitFullRoute;
 
-        // Default: Malang Kota center
-        let lat = -7.9839;
-        let lng = 112.6214;
+    // Helper functions for copying coordinates
+    window.copyCoordinatesText = function (text, btn) {
+        if (!navigator.clipboard) {
+            prompt('Salin koordinat:', text);
+            return;
+        }
+        navigator.clipboard.writeText(text).then(() => {
+            const original = btn ? btn.innerText : '';
+            if (btn) btn.innerText = '✓ Tersalin!';
+            setTimeout(() => { if (btn) btn.innerText = original || 'Salin'; }, 1500);
+        }).catch(() => {
+            prompt('Salin koordinat:', text);
+        });
+    };
 
-        function initOrderMap() {
-            if (typeof L === 'undefined') return;
+    window.copyOriginCoords = function () {
+        const lat = $wire.origin_lat;
+        const lng = $wire.origin_lng;
+        if (lat && lng) {
+            window.copyCoordinatesText(`${lat}, ${lng}`, event?.target);
+        } else {
+            alert('Koordinat asal belum ditentukan.');
+        }
+    };
 
-            let container = L.DomUtil.get('leaflet-order-map');
-            if (container !== null && container._leaflet_id !== undefined && container._leaflet_id !== null) {
-                return;
-            }
+    window.copyDestCoords = function () {
+        const lat = $wire.destination_lat;
+        const lng = $wire.destination_lng;
+        if (lat && lng) {
+            window.copyCoordinatesText(`${lat}, ${lng}`, event?.target);
+        } else {
+            alert('Koordinat tujuan belum ditentukan.');
+        }
+    };
 
-            map = L.map('leaflet-order-map', {
-                zoomControl: true,
-                attributionControl: false
-            }).setView([lat, lng], 13);
+    window.copyStopCoords = function (idx) {
+        const stops = $wire.stops || [];
+        const stop = stops[idx];
+        if (stop && stop.lat && stop.lng) {
+            window.copyCoordinatesText(`${stop.lat}, ${stop.lng}`, event?.target);
+        } else {
+            alert(`Koordinat Stop ${idx + 1} belum ditentukan.`);
+        }
+    };
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 18
-            }).addTo(map);
+    window.jumpToArea = function (area) {
+        if (!map) return;
+        const areas = {
+            'surabaya': [-7.2575, 112.7521, 13],
+            'sidoarjo': [-7.4478, 112.7183, 13],
+            'malang': [-7.9839, 112.6214, 13],
+            'pasuruan': [-7.6453, 112.9075, 13],
+            'jawa_timur': [-7.5360, 112.6000, 9]
+        };
+        const target = areas[area];
+        if (target) {
+            map.flyTo([target[0], target[1]], target[2], { duration: 1.2 });
+        }
+    };
 
-            // Merah untuk Asal Belanja
-            const redIcon = L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-            });
+    function initOrderMap() {
+        if (typeof L === 'undefined') return;
 
-            // Biru untuk Tujuan Antar
-            const blueIcon = L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-            });
-
-            // Tambahkan markers
-            markerOrigin = L.marker([lat + 0.005, lng - 0.005], {
-                icon: redIcon,
-                draggable: true
-            }).bindTooltip("Toko Belanja (Asal)", {permanent: true, direction: "top"}).addTo(map);
-
-            markerDest = L.marker([lat - 0.005, lng + 0.005], {
-                icon: blueIcon,
-                draggable: true
-            }).bindTooltip("Alamat Pengantaran (Tujuan)", {permanent: true, direction: "top"}).addTo(map);
-
-            // Tambahkan garis pembantu
-            polyline = L.polyline([markerOrigin.getLatLng(), markerDest.getLatLng()], {
-                color: '#e11d48',
-                dashArray: '5, 5',
-                weight: 3
-            }).addTo(map);
-
-            updateDistanceAndRoute = function() {
-                const originLatLng = markerOrigin.getLatLng();
-                const destLatLng = markerDest.getLatLng();
-                
-                polyline.setLatLngs([originLatLng, destLatLng]);
-
-                const distanceMeters = originLatLng.distanceTo(destLatLng);
-                const distanceKM = Math.max(0.5, parseFloat((distanceMeters / 1000).toFixed(2)));
-
-                // Update UI display
-                document.getElementById('disp-distance').innerText = distanceKM.toFixed(2);
-
-                // Kirim jarak ke Livewire component
-                $wire.set('distance', distanceKM);
-
-                // Kirim koordinat pin Asal & Tujuan ke Livewire supaya tersimpan ke database
-                // (dipakai nanti untuk filter radius di sisi jastiper)
-                $wire.updateCoordinates('origin', originLatLng.lat, originLatLng.lng);
-                $wire.updateCoordinates('destination', destLatLng.lat, destLatLng.lng);
-            };
-
-            // Bind drag events
-            markerOrigin.on('dragend', updateDistanceAndRoute);
-            markerDest.on('dragend', updateDistanceAndRoute);
-
-            // Update distance initial
-            updateDistanceAndRoute();
-
-            setTimeout(() => {
-                if (map) {
-                    map.invalidateSize();
-                }
-            }, 300);
+        let container = L.DomUtil.get('leaflet-order-map');
+        if (container !== null && container._leaflet_id !== undefined && container._leaflet_id !== null) {
+            return;
         }
 
-        let initAttempts = 0;
-        function tryInitMap() {
-            if (typeof L !== 'undefined') {
-                initOrderMap();
-            } else if (initAttempts < 50) {
-                initAttempts++;
-                setTimeout(tryInitMap, 100);
-            }
+        // Tentukan initial center berdasarkan koordinat yang ada atau Jawa Timur
+        let initialLat = $wire.origin_lat || -7.3260; // Surabaya default jika kosong
+        let initialLng = $wire.origin_lng || 112.7808;
+        let initialZoom = ($wire.origin_lat) ? 13 : 11;
+
+        map = L.map('leaflet-order-map', {
+            zoomControl: true,
+            attributionControl: false
+        }).setView([initialLat, initialLng], initialZoom);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        const redIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const blueIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        function createNumberIcon(number) {
+            return L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="background-color:#7e22ce; color:white; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; border:2px solid white; box-shadow:0 3px 6px rgba(0,0,0,0.3);">${number}</div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+                popupAnchor: [0, -14]
+            });
         }
 
-        tryInitMap();
+        // Render markers berdasarkan kategori saat ini
+        const isMultiStop = ($wire.category === 'multi-stop');
 
-        // ================= NOMINATIM GEOCODING (Cari Toko / Cari Lokasi) =================
+        // Destination Marker (selalu ada)
+        let destLat = $wire.destination_lat || ($wire.origin_lat ? $wire.origin_lat - 0.02 : -7.9829);
+        let destLng = $wire.destination_lng || ($wire.origin_lng ? $wire.origin_lng + 0.02 : 112.6308);
 
-        // Sederhana throttle biar tidak spam request Nominatim (max ~1 req/detik)
-        let lastGeocodeRequestAt = 0;
-        const GEOCODE_MIN_INTERVAL_MS = 1100;
+        markerDest = L.marker([destLat, destLng], {
+            icon: blueIcon,
+            draggable: true
+        }).bindTooltip("Tujuan Pengantaran (Geser Pin)", { permanent: true, direction: "top" }).addTo(map);
 
-        async function geocodeAndMove(query, marker, btnId) {
-            const btn = document.getElementById(btnId);
-            const originalText = btn ? btn.innerText : '';
+        if (isMultiStop) {
+            const stopsData = $wire.stops || [];
+            stopMarkers = [];
 
-            if (!query || query.trim().length < 3) {
-                alert('Ketik nama toko / alamat minimal 3 karakter dulu ya.');
-                return;
-            }
+            stopsData.forEach((st, idx) => {
+                let sLat = st.lat || (initialLat + (idx * 0.01));
+                let sLng = st.lng || (initialLng - (idx * 0.01));
 
-            if (!map || !marker) {
-                alert('Peta belum siap, coba tunggu sebentar lalu ulangi.');
-                return;
-            }
+                const sm = L.marker([sLat, sLng], {
+                    icon: createNumberIcon(idx + 1),
+                    draggable: true
+                }).bindTooltip(`Stop ${idx + 1} (Geser Pin)`, { permanent: true, direction: "top" }).addTo(map);
 
-            const now = Date.now();
-            const waitTime = Math.max(0, GEOCODE_MIN_INTERVAL_MS - (now - lastGeocodeRequestAt));
-            lastGeocodeRequestAt = now + waitTime;
-
-            if (btn) {
-                btn.innerText = '⏳ Mencari...';
-                btn.disabled = true;
-            }
-
-            try {
-                if (waitTime > 0) {
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
-                }
-
-                // Filter area Malang otomatis ditambahkan ke query secara terprogram
-                const searchQuery = `${query.trim()} Malang`;
-                const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1&countrycodes=id`;
-
-                const response = await fetch(url, {
-                    headers: {
-                        'Accept-Language': 'id'
-                    }
+                sm.on('dragend', function() {
+                    const pos = sm.getLatLng();
+                    $wire.updateStopCoordinates(idx, pos.lat, pos.lng);
+                    updateDistanceAndRoute();
                 });
 
-                if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
-                }
+                stopMarkers.push(sm);
+            });
+        } else {
+            let origLat = $wire.origin_lat || -7.3260;
+            let origLng = $wire.origin_lng || 112.7808;
 
-                const results = await response.json();
+            markerOrigin = L.marker([origLat, origLng], {
+                icon: redIcon,
+                draggable: true
+            }).bindTooltip("Toko Belanja / Asal (Geser Pin)", { permanent: true, direction: "top" }).addTo(map);
 
-                if (!results || results.length === 0) {
-                    alert('Lokasi "' + query + '" tidak ditemukan di area Malang. Coba nama lain, atau geser pin secara manual di peta.');
-                    return;
-                }
-
-                const foundLat = parseFloat(results[0].lat);
-                const foundLng = parseFloat(results[0].lon);
-
-                // Pindahkan marker bersangkutan ke koordinat baru
-                marker.setLatLng([foundLat, foundLng]);
-
-                // Geser titik tengah peta ke lokasi tersebut
-                map.setView([foundLat, foundLng], 16);
-
-                // Hitung kembali jarak, polyline, dan estimasi fare via Livewire
-                if (typeof updateDistanceAndRoute === 'function') {
-                    updateDistanceAndRoute();
-                }
-
-            } catch (error) {
-                console.error('Geocoding error:', error);
-                alert('Gagal menghubungi layanan pencarian lokasi (Nominatim). Coba lagi sebentar.');
-            } finally {
-                if (btn) {
-                    btn.innerText = originalText;
-                    btn.disabled = false;
-                }
-            }
+            markerOrigin.on('dragend', function() {
+                const pos = markerOrigin.getLatLng();
+                $wire.updateCoordinates('origin', pos.lat, pos.lng);
+                updateDistanceAndRoute();
+            });
         }
 
-        // Expose ke window supaya bisa dipanggil dari atribut onclick di HTML
-        window.searchOriginLocation = function () {
-            const input = document.getElementById('origin_address');
-            geocodeAndMove(input ? input.value : '', markerOrigin, 'btn-search-origin');
+        markerDest.on('dragend', function() {
+            const pos = markerDest.getLatLng();
+            $wire.updateCoordinates('destination', pos.lat, pos.lng);
+            updateDistanceAndRoute();
+        });
+
+        polyline = L.polyline([], {
+            color: isMultiStop ? '#9333ea' : '#e11d48',
+            weight: 3.5,
+            dashArray: '6, 6'
+        }).addTo(map);
+
+        updateDistanceAndRoute = function() {
+            const isMulti = ($wire.category === 'multi-stop');
+            let latlngs = [];
+            let totalMeters = 0;
+
+            if (isMulti && stopMarkers.length > 0) {
+                for (let i = 0; i < stopMarkers.length; i++) {
+                    const curPos = stopMarkers[i].getLatLng();
+                    latlngs.push(curPos);
+
+                    // Update DOM text untuk Stop
+                    const stopText = document.getElementById(`disp-stop-coords-${i}`);
+                    if (stopText) {
+                        stopText.innerText = `Lat: ${curPos.lat.toFixed(5)}, Lng: ${curPos.lng.toFixed(5)}`;
+                    }
+
+                    if (i > 0) {
+                        totalMeters += latlngs[i - 1].distanceTo(curPos);
+                    }
+                }
+                const destPos = markerDest.getLatLng();
+                latlngs.push(destPos);
+                totalMeters += latlngs[latlngs.length - 2].distanceTo(destPos);
+
+            } else if (markerOrigin && markerDest) {
+                const oPos = markerOrigin.getLatLng();
+                const dPos = markerDest.getLatLng();
+                latlngs = [oPos, dPos];
+                totalMeters = oPos.distanceTo(dPos);
+
+                const originText = document.getElementById('disp-origin-coords');
+                if (originText) originText.innerText = `Lat: ${oPos.lat.toFixed(5)}, Lng: ${oPos.lng.toFixed(5)}`;
+            }
+
+            const destPos = markerDest.getLatLng();
+            const destText1 = document.getElementById('disp-dest-coords-1');
+            const destText2 = document.getElementById('disp-dest-coords-2');
+            if (destText1) destText1.innerText = `Lat: ${destPos.lat.toFixed(5)}, Lng: ${destPos.lng.toFixed(5)}`;
+            if (destText2) destText2.innerText = `Lat: ${destPos.lat.toFixed(5)}, Lng: ${destPos.lng.toFixed(5)}`;
+
+            polyline.setLatLngs(latlngs);
+
+            const distanceKM = Math.max(0.5, parseFloat((totalMeters / 1000).toFixed(2)));
+            const dispDist = document.getElementById('disp-distance');
+            if (dispDist) dispDist.innerText = distanceKM.toFixed(2);
+
+            const routeType = document.getElementById('disp-route-type');
+            if (routeType) {
+                if (distanceKM > 30) {
+                    routeType.innerText = '🚀 Antar-Kota (Jawa Timur)';
+                    routeType.className = 'text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200';
+                } else {
+                    routeType.innerText = '📍 Rute Lokal';
+                    routeType.className = 'text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200';
+                }
+            }
+
+            $wire.set('distance', distanceKM);
         };
 
-        window.searchDestinationLocation = function () {
-            const input = document.getElementById('destination_address');
-            geocodeAndMove(input ? input.value : '', markerDest, 'btn-search-destination');
+        fitFullRoute = function() {
+            if (!map || !polyline) return;
+            const pts = polyline.getLatLngs();
+            if (pts && pts.length > 0) {
+                map.fitBounds(L.latLngBounds(pts), { padding: [50, 50], maxZoom: 16 });
+            }
         };
 
-        window.searchStopLocation = function (idx) {
-            const input = document.getElementById('stop_address_' + idx);
-            geocodeAndMove(input ? input.value : '', markerOrigin, 'btn_search_stop_' + idx);
-        };
+        window.fitFullRoute = fitFullRoute;
 
-        window.detectCustomerCurrentLocation = function (isAutomatic = false) {
-            if (!navigator.geolocation) {
-                if (!isAutomatic) alert('Browser Anda tidak mendukung deteksi GPS.');
+        updateDistanceAndRoute();
+        fitFullRoute();
+
+        setTimeout(() => {
+            if (map) map.invalidateSize();
+        }, 300);
+    }
+
+    let initAttempts = 0;
+    function tryInitMap() {
+        if (typeof L !== 'undefined') {
+            initOrderMap();
+        } else if (initAttempts < 50) {
+            initAttempts++;
+            setTimeout(tryInitMap, 100);
+        }
+    }
+
+    tryInitMap();
+
+    // ================= NOMINATIM GEOCODING (SE-JAWA & INDONESIA) =================
+    let lastGeocodeRequestAt = 0;
+    const GEOCODE_MIN_INTERVAL_MS = 1000;
+
+    async function geocodeAndMove(query, targetType, btnId, stopIdx = null) {
+        const btn = document.getElementById(btnId);
+        const originalText = btn ? btn.innerText : '';
+
+        if (!query || query.trim().length < 3) {
+            alert('Ketik nama toko / jalan minimal 3 karakter ya.');
+            return;
+        }
+
+        if (!map) {
+            alert('Peta sedang dimuat, tunggu sebentar lalu ulangi.');
+            return;
+        }
+
+        const now = Date.now();
+        const waitTime = Math.max(0, GEOCODE_MIN_INTERVAL_MS - (now - lastGeocodeRequestAt));
+        lastGeocodeRequestAt = now + waitTime;
+
+        if (btn) {
+            btn.innerText = '⏳ Mencari...';
+            btn.disabled = true;
+        }
+
+        try {
+            if (waitTime > 0) {
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+
+            const cleanQuery = query.trim();
+            // Pencarian langsung se-Indonesia dengan countrycodes=id
+            let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=5&countrycodes=id`;
+            let response = await fetch(url, { headers: { 'Accept-Language': 'id-ID,id;q=0.9' } });
+            
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            let results = await response.json();
+
+            // Fallback: jika tidak ketemu dan tidak menyebut provinsi, coba query + Jawa Timur
+            if (!results || results.length === 0) {
+                if (!cleanQuery.toLowerCase().includes('jawa') && !cleanQuery.toLowerCase().includes('indonesia')) {
+                    const fallbackUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery + ' Jawa Timur')}&format=json&limit=3&countrycodes=id`;
+                    const fallbackRes = await fetch(fallbackUrl, { headers: { 'Accept-Language': 'id-ID,id;q=0.9' } });
+                    if (fallbackRes.ok) {
+                        results = await fallbackRes.json();
+                    }
+                }
+            }
+
+            if (!results || results.length === 0) {
+                alert(`Lokasi "${query}" tidak ditemukan di peta. Coba tambahkan nama kota/jalan (misal: "${query} Surabaya" atau "${query} Jawa Timur"), atau geser pin langsung pada peta.`);
                 return;
             }
 
-            const btns = [
-                document.getElementById('btn-gps-dest-1'),
-                document.getElementById('btn-gps-dest-2')
-            ].filter(Boolean);
+            const foundLat = parseFloat(results[0].lat);
+            const foundLng = parseFloat(results[0].lon);
 
-            btns.forEach(b => {
-                b.innerHTML = '⏳ Menyesuaikan GPS...';
-                b.disabled = true;
-            });
+            if (targetType === 'stop' && stopIdx !== null && stopMarkers[stopIdx]) {
+                stopMarkers[stopIdx].setLatLng([foundLat, foundLng]);
+                $wire.updateStopCoordinates(stopIdx, foundLat, foundLng);
+            } else if (targetType === 'origin' && markerOrigin) {
+                markerOrigin.setLatLng([foundLat, foundLng]);
+                $wire.updateCoordinates('origin', foundLat, foundLng);
+            } else if (targetType === 'dest' && markerDest) {
+                markerDest.setLatLng([foundLat, foundLng]);
+                $wire.updateCoordinates('destination', foundLat, foundLng);
+            }
 
-            navigator.geolocation.getCurrentPosition(
-                async function (pos) {
-                    const userLat = pos.coords.latitude;
-                    const userLng = pos.coords.longitude;
+            if (typeof updateDistanceAndRoute === 'function') {
+                updateDistanceAndRoute();
+            }
 
-                    if (markerDest && map) {
-                        markerDest.setLatLng([userLat, userLng]);
-                        map.setView([userLat, userLng], 15);
-                        if (typeof updateDistanceAndRoute === 'function') {
-                            updateDistanceAndRoute();
-                        }
+            if (typeof fitFullRoute === 'function') {
+                fitFullRoute();
+            }
+
+        } catch (error) {
+            console.error('Geocoding error:', error);
+            alert('Gagal menghubungi layanan pencarian lokasi. Coba lagi sebentar atau posisikan pin manual.');
+        } finally {
+            if (btn) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    }
+
+    window.searchOriginLocation = function () {
+        const input = document.getElementById('origin_address');
+        geocodeAndMove(input ? input.value : '', 'origin', 'btn-search-origin');
+    };
+
+    window.searchDestinationLocation = function () {
+        const input = document.getElementById('destination_address');
+        geocodeAndMove(input ? input.value : '', 'dest', 'btn-search-destination');
+    };
+
+    window.searchStopLocation = function (idx) {
+        const input = document.getElementById('stop_address_' + idx);
+        geocodeAndMove(input ? input.value : '', 'stop', 'btn_search_stop_' + idx, idx);
+    };
+
+    window.detectCustomerCurrentLocation = function (isAutomatic = false) {
+        if (!navigator.geolocation) {
+            if (!isAutomatic) alert('Browser Anda tidak mendukung deteksi GPS.');
+            return;
+        }
+
+        const btns = [
+            document.getElementById('btn-gps-dest-1'),
+            document.getElementById('btn-gps-dest-2')
+        ].filter(Boolean);
+
+        btns.forEach(b => {
+            b.innerHTML = '⏳ Menyesuaikan GPS...';
+            b.disabled = true;
+        });
+
+        navigator.geolocation.getCurrentPosition(
+            async function (pos) {
+                const userLat = pos.coords.latitude;
+                const userLng = pos.coords.longitude;
+
+                if (markerDest && map) {
+                    markerDest.setLatLng([userLat, userLng]);
+                    $wire.updateCoordinates('destination', userLat, userLng);
+                    if (typeof updateDistanceAndRoute === 'function') {
+                        updateDistanceAndRoute();
                     }
-
-                    try {
-                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}&zoom=18&addressdetails=1`, {
-                            headers: { 'Accept-Language': 'id' }
-                        });
-                        if (res.ok) {
-                            const data = await res.json();
-                            const addr = data.address || {};
-                            let cleanAddress = [
-                                addr.road || addr.amenity || addr.building || '',
-                                addr.neighbourhood || addr.suburb || addr.village || '',
-                                addr.city || addr.town || addr.county || 'Malang'
-                            ].filter(Boolean).join(', ');
-                            if (!cleanAddress) cleanAddress = data.display_name;
-
-                            // Update input and Livewire
-                            $wire.set('destination_address', cleanAddress);
-                        }
-                    } catch (e) {
-                        console.warn('Reverse geocode error:', e);
-                    } finally {
-                        btns.forEach(b => {
-                            b.innerHTML = '✓ Lokasi Saya Terpasang';
-                            b.disabled = false;
-                        });
+                    if (typeof fitFullRoute === 'function') {
+                        fitFullRoute();
                     }
-                },
-                function (err) {
+                }
+
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}&zoom=18&addressdetails=1`, {
+                        headers: { 'Accept-Language': 'id' }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const addr = data.address || {};
+                        let cleanAddress = [
+                            addr.road || addr.amenity || addr.building || '',
+                            addr.neighbourhood || addr.suburb || addr.village || '',
+                            addr.city || addr.town || addr.county || 'Surabaya'
+                        ].filter(Boolean).join(', ');
+                        if (!cleanAddress) cleanAddress = data.display_name;
+
+                        window.isSelectingPlace = true;
+                        clearTimeout(searchPlaceTimer);
+                        if (activePlaceController) activePlaceController.abort();
+                        window.closeAllPlaceDropdowns();
+
+                        window.lastSelectedPlaces = window.lastSelectedPlaces || {};
+                        window.lastSelectedPlaces['destination_address'] = cleanAddress.trim();
+
+                        const destInputs = document.querySelectorAll('#destination_address');
+                        destInputs.forEach(inp => { inp.value = cleanAddress; });
+
+                        $wire.set('destination_address', cleanAddress);
+
+                        setTimeout(() => {
+                            window.isSelectingPlace = false;
+                        }, 500);
+                    }
+                } catch (e) {
+                    console.warn('Reverse geocode error:', e);
+                } finally {
                     btns.forEach(b => {
-                        b.innerHTML = '📍 Pakai Lokasi Saya (GPS)';
+                        b.innerHTML = '✓ Lokasi Saya Terpasang';
                         b.disabled = false;
                     });
-                    if (!isAutomatic && err.code === err.PERMISSION_DENIED) {
-                        alert('Izin akses lokasi ditolak di browser. Aktifkan izin lokasi untuk menggunakan fitur ini.');
-                    }
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-            );
-        };
+                    window.closeAllPlaceDropdowns();
+                }
+            },
+            function (err) {
+                btns.forEach(b => {
+                    b.innerHTML = '📍 Pakai Lokasi Saya (GPS)';
+                    b.disabled = false;
+                });
+                if (!isAutomatic && err.code === err.PERMISSION_DENIED) {
+                    alert('Izin akses lokasi ditolak di browser. Aktifkan izin lokasi untuk menggunakan fitur ini.');
+                }
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        );
+    };
+
+    // ================= LIVE AUTOCOMPLETE DROPDOWN UNTUK CARI TOKO & LOKASI =================
+    let searchPlaceTimer = null;
+    let activePlaceController = null;
+    window.isSelectingPlace = false;
+    window.lastSelectedPlaces = window.lastSelectedPlaces || {};
+    window.currentSearchPlaces = window.currentSearchPlaces || {};
+
+    window.handlePlaceSearch = function (query, fieldType) {
+        if (window.isSelectingPlace) return;
+
+        // Jangan cari ulang jika nilai input sama persis dengan yang baru saja dipilih
+        if (window.lastSelectedPlaces && window.lastSelectedPlaces[fieldType] && window.lastSelectedPlaces[fieldType] === (query || '').trim()) {
+            return;
+        }
+
+        clearTimeout(searchPlaceTimer);
+
+        const dropdown = document.getElementById('dropdown-' + fieldType);
+        const spinner = getSpinnerForField(fieldType);
+
+        if (!query || query.trim().length < 2) {
+            if (dropdown) dropdown.classList.add('hidden');
+            if (spinner) spinner.classList.add('hidden');
+            return;
+        }
+
+        if (spinner) spinner.classList.remove('hidden');
+
+        searchPlaceTimer = setTimeout(async () => {
+            if (window.isSelectingPlace) return;
+
+            if (activePlaceController) {
+                activePlaceController.abort();
+            }
+            activePlaceController = new AbortController();
+
+            try {
+                const res = await fetch(`/api/search-places?q=${encodeURIComponent(query.trim())}`, {
+                    signal: activePlaceController.signal,
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!res.ok) throw new Error('Search failed');
+                const places = await res.json();
+                if (window.isSelectingPlace) return;
+                window.currentSearchPlaces[fieldType] = places;
+                renderPlaceDropdown(places, fieldType, query);
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('Place search error:', err);
+                }
+            } finally {
+                if (spinner) spinner.classList.add('hidden');
+            }
+        }, 250);
+    };
+
+    function getSpinnerForField(fieldType) {
+        if (fieldType === 'store_name') return document.getElementById('store-search-spinner');
+        if (fieldType === 'origin_address') return document.getElementById('origin-search-spinner');
+        if (fieldType === 'destination_address') return document.getElementById('dest-search-spinner');
+        return null;
+    }
+
+    window.renderPlaceDropdown = function (places, fieldType, query) {
+        const dropdown = document.getElementById('dropdown-' + fieldType);
+        if (!dropdown) return;
+
+        if (!places || places.length === 0) {
+            dropdown.innerHTML = `
+                <div class="p-4 text-center text-slate-500 text-xs">
+                    <span class="block text-xl mb-1">🔍</span>
+                    <span class="font-bold text-slate-700">Tidak ada lokasi untuk "${escapeHtml(query)}"</span>
+                    <span class="block text-[10px] text-slate-400 mt-1">Coba kata kunci lain atau gunakan tombol "Cari Toko"</span>
+                </div>
+            `;
+            dropdown.classList.remove('hidden');
+            return;
+        }
+
+        let html = `
+            <div class="px-3.5 py-2 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-xs">
+                <span>Pilihan Toko & Lokasi (${places.length})</span>
+                <span class="text-rose-600 font-semibold">Klik untuk pasang pin 📍</span>
+            </div>
+            <div class="py-1">
+        `;
+
+        places.forEach((p, index) => {
+            const isMerchant = p.source === 'merchant';
+            const badgeClass = isMerchant 
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                : 'bg-blue-50 text-blue-700 border-blue-200';
+
+            html += `
+                <div 
+                    data-index="${index}"
+                    onmousedown="event.preventDefault(); window.selectPlaceByIndex(${index}, '${fieldType}');"
+                    class="px-3.5 py-2.5 hover:bg-rose-50/80 transition duration-150 cursor-pointer flex items-start gap-2.5 group select-none border-b border-slate-50 last:border-b-0"
+                >
+                    <div class="w-8 h-8 rounded-xl ${isMerchant ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'} flex items-center justify-center shrink-0 text-sm mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
+                        ${p.icon || '📍'}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-extrabold text-xs text-slate-800 group-hover:text-rose-600 truncate transition-colors">${escapeHtml(p.name)}</span>
+                            <span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border ${badgeClass} shrink-0">${p.badge}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 truncate mt-0.5 leading-tight">${escapeHtml(p.address)}</p>
+                        <div class="flex items-center gap-2 mt-1 text-[10px] text-slate-400 font-mono">
+                            <span>Lat: ${Number(p.lat).toFixed(4)}, Lng: ${Number(p.lng).toFixed(4)}</span>
+                            <span class="text-rose-600 font-sans font-bold group-hover:translate-x-0.5 transition-transform">➔ Pasang Lokasi</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        dropdown.innerHTML = html;
+        dropdown.classList.remove('hidden');
+    };
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    window.selectPlaceByIndex = function (index, fieldType) {
+        const list = window.currentSearchPlaces ? window.currentSearchPlaces[fieldType] : null;
+        if (!list || !list[index]) return;
+        const place = list[index];
+        window.selectPlaceSuggestion(place, fieldType);
+    };
+
+    window.selectPlaceSuggestion = function (place, fieldType) {
+        if (!place) return;
+
+        window.isSelectingPlace = true;
+        clearTimeout(searchPlaceTimer);
+        if (activePlaceController) {
+            activePlaceController.abort();
+        }
+        window.closeAllPlaceDropdowns();
+
+        window.lastSelectedPlaces = window.lastSelectedPlaces || {};
+
+        if (fieldType === 'store_name' || fieldType === 'origin_address') {
+            window.lastSelectedPlaces['store_name'] = (place.name || '').trim();
+            window.lastSelectedPlaces['origin_address'] = (place.address || place.display_name || '').trim();
+
+            const storeInput = document.getElementById('store_name');
+            if (storeInput) {
+                storeInput.value = place.name;
+            }
+
+            const addrInput = document.getElementById('origin_address');
+            if (addrInput) {
+                addrInput.value = place.address || place.display_name;
+            }
+
+            // Sync to Livewire
+            try {
+                $wire.set('store_name', place.name, false);
+                $wire.set('origin_address', place.address || place.display_name, false);
+                $wire.updateCoordinates('origin', parseFloat(place.lat), parseFloat(place.lng));
+            } catch (e) {
+                console.warn('Livewire sync notice:', e);
+            }
+
+            if (markerOrigin) {
+                markerOrigin.setLatLng([parseFloat(place.lat), parseFloat(place.lng)]);
+            }
+            if (map) {
+                map.flyTo([parseFloat(place.lat), parseFloat(place.lng)], 15, { duration: 0.8 });
+            }
+
+            const dispCoords = document.getElementById('disp-origin-coords');
+            if (dispCoords) {
+                dispCoords.innerHTML = `<span class="text-emerald-700 font-extrabold">✓ Lat: ${Number(place.lat).toFixed(5)}, Lng: ${Number(place.lng).toFixed(5)}</span>`;
+            }
+
+        } else if (fieldType === 'destination_address') {
+            window.lastSelectedPlaces['destination_address'] = (place.address || place.display_name || '').trim();
+
+            const destInputs = document.querySelectorAll('#destination_address');
+            destInputs.forEach(inp => {
+                inp.value = place.address || place.display_name;
+            });
+
+            try {
+                $wire.set('destination_address', place.address || place.display_name, false);
+                $wire.updateCoordinates('destination', parseFloat(place.lat), parseFloat(place.lng));
+            } catch (e) {
+                console.warn('Livewire sync notice:', e);
+            }
+
+            if (markerDest) {
+                markerDest.setLatLng([parseFloat(place.lat), parseFloat(place.lng)]);
+            }
+            if (map) {
+                map.flyTo([parseFloat(place.lat), parseFloat(place.lng)], 15, { duration: 0.8 });
+            }
+
+            const dispDest1 = document.getElementById('disp-dest-coords-1');
+            const dispDest2 = document.getElementById('disp-dest-coords-2');
+            if (dispDest1) dispDest1.innerHTML = `<span class="text-emerald-700 font-extrabold">✓ Lat: ${Number(place.lat).toFixed(5)}, Lng: ${Number(place.lng).toFixed(5)}</span>`;
+            if (dispDest2) dispDest2.innerHTML = `<span class="text-emerald-700 font-extrabold">✓ Lat: ${Number(place.lat).toFixed(5)}, Lng: ${Number(place.lng).toFixed(5)}</span>`;
+        }
+
+        if (typeof updateDistanceAndRoute === 'function') {
+            updateDistanceAndRoute();
+        }
+        if (typeof fitFullRoute === 'function') {
+            setTimeout(fitFullRoute, 500);
+        }
+
+        window.closeAllPlaceDropdowns();
+
+        setTimeout(() => {
+            window.isSelectingPlace = false;
+        }, 500);
+    };
+
+    window.closeAllPlaceDropdowns = function () {
+        clearTimeout(searchPlaceTimer);
+        ['store_name', 'origin_address', 'destination_address'].forEach(id => {
+            const dropdown = document.getElementById('dropdown-' + id);
+            if (dropdown) dropdown.classList.add('hidden');
+            const spinner = getSpinnerForField(id);
+            if (spinner) spinner.classList.add('hidden');
+        });
+    };
+
+    document.addEventListener('pointerdown', function (e) {
+        if (!e.target.closest('#store-name-wrapper') && !e.target.closest('#origin-address-wrapper') && !e.target.closest('#destination-address-wrapper')) {
+            closeAllPlaceDropdowns();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeAllPlaceDropdowns();
+        }
+    });
 </script>
 @endscript

@@ -67,4 +67,9 @@ class Customer extends Authenticatable
     {
         return $this->hasOne(Cart::class);
     }
+
+    public function supportMessages()
+    {
+        return $this->hasMany(SupportMessage::class, 'customer_id');
+    }
 }

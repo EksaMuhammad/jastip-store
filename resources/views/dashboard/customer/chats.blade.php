@@ -28,19 +28,69 @@
                     <span class="text-[10px] font-bold text-slate-700">Inbox</span>
                 </div>
 
-                <!-- Bantuan -->
-                <div class="flex flex-col items-center gap-1 cursor-pointer" onclick="showMaintenanceToast(event)">
-                    <div class="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+                <!-- Bantuan (Live Chat Admin Support) -->
+                @php
+                    $unreadSupportCount = \App\Models\SupportMessage::where('customer_id', auth('customer')->id())
+                        ->where('sender_type', 'admin')
+                        ->where('is_read', false)
+                        ->count();
+                @endphp
+                <a href="{{ route('customer.support.chat') }}" class="flex flex-col items-center gap-1 cursor-pointer group">
+                    <div class="w-12 h-12 bg-emerald-600 group-hover:bg-emerald-700 rounded-full flex items-center justify-center text-white relative shadow-md shadow-emerald-500/20 transition transform group-hover:scale-105">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        @if($unreadSupportCount > 0)
+                            <span class="absolute -top-1 -right-1 bg-rose-600 text-[8px] font-black text-white px-1.5 py-0.5 rounded-full border border-white animate-pulse">
+                                {{ $unreadSupportCount }}
+                            </span>
+                        @endif
                     </div>
-                    <span class="text-[10px] font-bold text-slate-700">Bantuan</span>
-                </div>
+                    <span class="text-[10px] font-bold text-slate-700 group-hover:text-emerald-700 transition">Bantuan CS</span>
+                </a>
             </div>
         </div>
 
         <!-- Chat List (Chat kamu) -->
         <div>
             <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider mb-3">Chat kamu</h3>
+
+            <!-- Pinned Customer Support Chat Item -->
+            @php
+                $latestSupportMsg = \App\Models\SupportMessage::where('customer_id', auth('customer')->id())->latest()->first();
+            @endphp
+            <a href="{{ route('customer.support.chat') }}" class="p-3.5 mb-3 flex items-center justify-between gap-3 bg-gradient-to-r from-emerald-50/80 to-teal-50/40 border border-emerald-200/90 rounded-2xl hover:bg-emerald-50 transition shadow-2xs block">
+                <div class="flex items-center gap-3 min-w-0 flex-1">
+                    <div class="relative shrink-0">
+                        <div class="w-11 h-11 bg-emerald-600 text-white rounded-full flex items-center justify-center font-display font-black text-lg shadow-sm">
+                            🛡️
+                        </div>
+                        <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white flex items-center justify-center">
+                            <span class="w-1 h-1 bg-white rounded-full"></span>
+                        </span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-baseline justify-between gap-2">
+                            <div class="flex items-center gap-1.5">
+                                <h4 class="font-extrabold text-slate-900 text-xs truncate">Admin Customer Support</h4>
+                                <span class="text-[8px] font-black uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">Bantuan</span>
+                            </div>
+                            <span class="text-[9px] font-bold text-slate-400 shrink-0 font-mono">
+                                {{ $latestSupportMsg ? $latestSupportMsg->created_at->format('H:i') : 'Online' }}
+                            </span>
+                        </div>
+                        <p class="text-[10px] text-emerald-700 font-bold truncate mt-0.5">Pusat Bantuan, Kendala & Komplain</p>
+                        <p class="text-[11px] text-slate-600 font-medium truncate mt-0.5">
+                            {{ $latestSupportMsg ? ($latestSupportMsg->sender_type === 'admin' ? 'Admin: ' : 'Anda: ') . $latestSupportMsg->message : 'Ada kendala pesanan atau pertanyaan? Chat admin kami di sini...' }}
+                        </p>
+                    </div>
+                </div>
+                @if($unreadSupportCount > 0)
+                    <span class="shrink-0 bg-rose-600 text-[9px] font-extrabold text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
+                        {{ $unreadSupportCount }}
+                    </span>
+                @else
+                    <span class="text-slate-400 text-xs">›</span>
+                @endif
+            </a>
 
             @if($conversations->isEmpty())
                 <div class="bg-slate-50 border border-slate-200 rounded-3xl p-8 text-center">

@@ -25,4 +25,27 @@ class OrderItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function priceAdjustment()
+    {
+        return $this->hasOne(OrderPriceAdjustment::class, 'order_item_id')->latestOfMany();
+    }
+
+    public function getCleanNameAttribute(): string
+    {
+        if ($this->product && !empty($this->product->name)) {
+            return $this->product->name;
+        }
+
+        $clean = $this->name ?? 'Item';
+        $clean = preg_replace('/^\[.*?\]\s*/', '', $clean);
+        $clean = preg_replace('/\s*\[.*?\]$/', '', $clean);
+
+        return trim($clean) ?: ($this->name ?? 'Item');
+    }
+
+    public function getMerchantNameAttribute(): ?string
+    {
+        return $this->product?->merchant?->name ?? null;
+    }
 }

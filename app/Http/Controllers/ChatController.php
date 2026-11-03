@@ -101,7 +101,17 @@ class ChatController extends Controller
             ->orderBy('id')
             ->get();
 
-        $messages = $chats->map(fn (Chat $chat) => $this->formatChat($chat, $order, $role))->values()->toArray();
+        $adjIds = [];
+        foreach ($chats as $c) {
+            if ($c->action_type && str_starts_with($c->action_type, 'price_adjustment:')) {
+                $adjIds[] = (int) substr($c->action_type, strlen('price_adjustment:'));
+            }
+        }
+        $adjustments = !empty($adjIds)
+            ? \App\Models\OrderPriceAdjustment::whereIn('id', $adjIds)->get()->keyBy('id')
+            : collect();
+
+        $messages = $chats->map(fn (Chat $chat) => $this->formatChat($chat, $order, $role, $adjustments))->values()->toArray();
 
         // Inject Virtual Message at index 0 for Order Details
         $virtualMessage = [
@@ -113,6 +123,7 @@ class ChatController extends Controller
             'message' => "🏷️ Detail Pesanan:\n" . $order->description . "\n\n💰 Estimasi Ongkir: Rp " . number_format($order->estimated_fare, 0, ',', '.'),
             'attachment_url' => null,
             'action_type' => null,
+            'adjustment_status' => null,
             'is_read' => true,
             'created_at' => $order->created_at->toIso8601String(),
         ];
@@ -184,8 +195,15 @@ class ChatController extends Controller
      * baris sender_role = 'system' ('system' tidak ada di Relation::morphMap()).
      * Nama pengirim di-resolve manual dari relasi $order->customer / $order->jastiper.
      */
-    private function formatChat(Chat $chat, Order $order, string $viewerRole): array
+    private function formatChat(Chat $chat, Order $order, string $viewerRole, $adjustments = null): array
     {
+        $adjustmentStatus = null;
+        if ($chat->action_type && str_starts_with($chat->action_type, 'price_adjustment:')) {
+            $adjId = (int) substr($chat->action_type, strlen('price_adjustment:'));
+            $adj = $adjustments ? ($adjustments[$adjId] ?? null) : \App\Models\OrderPriceAdjustment::find($adjId);
+            $adjustmentStatus = $adj ? $adj->status : null;
+        }
+
         return [
             'id' => $chat->id,
             'sender_role' => $chat->sender_role,
@@ -195,6 +213,7 @@ class ChatController extends Controller
             'message' => $chat->message,
             'attachment_url' => $chat->attachment_path ? Storage::url($chat->attachment_path) : null,
             'action_type' => $chat->action_type,
+            'adjustment_status' => $adjustmentStatus,
             'is_read' => (bool) $chat->is_read,
             'created_at' => $chat->created_at->toIso8601String(),
         ];

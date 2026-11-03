@@ -66,6 +66,36 @@ class Merchant extends Authenticatable
             return $offsetMap[$this->id];
         }
 
+        // Cek apakah nama atau alamat toko mengandung kata kunci wilayah
+        $text = strtolower(($this->address ?? '') . ' ' . ($this->name ?? ''));
+        if (str_contains($text, 'wonoayu')) {
+            return ['lat' => -7.4345, 'lng' => 112.6178];
+        }
+        if (str_contains($text, 'sedengan') || str_contains($text, 'krian')) {
+            return ['lat' => -7.4120, 'lng' => 112.5830];
+        }
+        if (str_contains($text, 'waru')) {
+            return ['lat' => -7.3540, 'lng' => 112.7260];
+        }
+        if (str_contains($text, 'sidoarjo')) {
+            return ['lat' => -7.4478, 'lng' => 112.7183];
+        }
+        if (str_contains($text, 'rungkut')) {
+            return ['lat' => -7.3180, 'lng' => 112.7820];
+        }
+        if (str_contains($text, 'dinoyo')) {
+            return ['lat' => -7.2842, 'lng' => 112.7459];
+        }
+        if (str_contains($text, 'surabaya')) {
+            return ['lat' => -7.2575, 'lng' => 112.7521];
+        }
+        if (str_contains($text, 'gresik')) {
+            return ['lat' => -7.1566, 'lng' => 112.6555];
+        }
+        if (str_contains($text, 'batu')) {
+            return ['lat' => -7.8712, 'lng' => 112.5270];
+        }
+
         $defaultLat = -7.9839;
         $defaultLng = 112.6214;
         $latOffset = (($this->id % 5) - 2) * 0.008;

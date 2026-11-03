@@ -16,8 +16,16 @@
                 <span class="text-[10px] font-bold text-slate-800 line-clamp-1">{{ session('customer_location', 'Malang, Jawa Timur') }}</span>
                 <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
+            @php
+                $foodCartCount = \App\Models\CartItem::whereHas('cart', fn($q) => $q->where('customer_id', auth('customer')->id()))->count();
+            @endphp
             <a href="{{ route('customer.cart.index') }}" class="relative text-slate-700 bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                @if($foodCartCount > 0)
+                    <span class="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                        {{ $foodCartCount }}
+                    </span>
+                @endif
             </a>
         </div>
         
@@ -32,26 +40,44 @@
         </a>
     </div>
 
-    <!-- Quick Filters -->
+    <!-- Quick Filters (Termasuk Link Khusus ke Halaman Resto Terdekat / Sekitarmu) -->
     <div class="px-4 py-4 grid grid-cols-4 gap-2">
-        <div class="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-2xl py-3 shadow-sm shadow-slate-100">
-            <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mb-1 text-green-600"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg></div>
-            <span class="text-[9px] font-bold text-slate-700">Resto<br>Terdekat</span>
-        </div>
+        <a href="{{ route('customer.food.nearby') }}" class="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-2xl py-3 shadow-sm shadow-slate-100 hover:border-rose-400 transition group">
+            <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mb-1 text-green-600 group-hover:scale-110 transition-transform">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
+            </div>
+            <span class="text-[9px] font-bold text-slate-700 text-center leading-tight group-hover:text-rose-600 transition-colors">Resto<br>Terdekat</span>
+        </a>
         <div class="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-2xl py-3 shadow-sm shadow-slate-100">
             <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center mb-1 text-orange-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
-            <span class="text-[9px] font-bold text-slate-700">Ongkir<br>MURAAAH</span>
+            <span class="text-[9px] font-bold text-slate-700 text-center leading-tight">Ongkir<br>MURAAAH</span>
         </div>
         <div class="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-2xl py-3 shadow-sm shadow-slate-100 relative">
             <span class="absolute -top-1.5 bg-slate-900 text-white text-[7px] font-bold px-1.5 py-0.5 rounded-full">-50%</span>
             <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mb-1 text-blue-600"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path></svg></div>
-            <span class="text-[9px] font-bold text-slate-700">Group<br>Order</span>
+            <span class="text-[9px] font-bold text-slate-700 text-center leading-tight">Group<br>Order</span>
         </div>
         <div class="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-2xl py-3 shadow-sm shadow-slate-100 relative">
             <span class="absolute -top-1.5 bg-slate-200 text-slate-700 text-[7px] font-bold px-1.5 py-0.5 rounded-full">30rb</span>
             <div class="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center mb-1 text-rose-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"></path></svg></div>
-            <span class="text-[9px] font-bold text-slate-700">GoFood<br>HEMAT</span>
+            <span class="text-[9px] font-bold text-slate-700 text-center leading-tight">GoFood<br>HEMAT</span>
         </div>
+    </div>
+
+    <!-- Pilihan Cepat: Jelajahi Sekitarmu Banner -->
+    <div class="px-4 mb-5">
+        <a href="{{ route('customer.food.nearby') }}" class="block bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-600 rounded-2xl p-3.5 text-white shadow-md relative overflow-hidden group">
+            <div class="flex items-center justify-between relative z-10">
+                <div>
+                    <span class="text-[9px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">Baru</span>
+                    <h3 class="font-black text-sm mt-1">Eksplor Resto di Sekitarmu</h3>
+                    <p class="text-[10px] text-white/80 mt-0.5">Filter berdasarkan toko terdata di peta & promo menarik</p>
+                </div>
+                <div class="w-8 h-8 rounded-full bg-white text-rose-600 flex items-center justify-center shrink-0 shadow group-hover:scale-110 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                </div>
+            </div>
+        </a>
     </div>
 
     <!-- Flash Sale -->
@@ -110,13 +136,12 @@
     <div class="px-4 mb-6">
         <div class="flex items-center justify-between mb-3">
             <h3 class="font-black text-slate-800 text-sm">Kuliner sesuai seleramu</h3>
-            <a href="#" class="text-[10px] bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">Lihat Semua</a>
+            <a href="{{ route('customer.food.nearby') }}" class="text-[10px] bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">Lihat Semua</a>
         </div>
         <div class="grid grid-cols-4 gap-y-4 gap-x-2">
             @foreach($categories as $category)
             <div class="flex flex-col items-center cursor-pointer">
                 <div class="w-16 h-16 rounded-full bg-slate-200 overflow-hidden mb-1.5 shadow-sm border border-slate-100">
-                    <!-- Dummy images based on category name -->
                     <img src="https://ui-avatars.com/api/?name={{ urlencode($category->name) }}&background=random&color=fff&size=100" class="w-full h-full object-cover">
                 </div>
                 <span class="text-[9px] font-bold text-slate-700 text-center leading-tight">{{ $category->name }}</span>
@@ -125,17 +150,24 @@
         </div>
     </div>
 
-    <!-- Resto List -->
+    <!-- Resto List (Resto Terpopuler) -->
     <div class="px-4">
-        <h3 class="font-black text-slate-800 text-sm mb-4">Resto Terpopuler</h3>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-black text-slate-800 text-sm">Resto Terpopuler</h3>
+            <a href="{{ route('customer.food.nearby') }}" class="text-[10px] text-rose-600 font-bold hover:underline flex items-center gap-0.5">
+                <span>Resto Sekitarmu</span>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </a>
+        </div>
+
         <div class="space-y-4">
             @foreach($merchants as $merchant)
             <a href="{{ route('customer.merchant.show', $merchant->id) }}" class="flex bg-white p-3 rounded-2xl shadow-sm border border-slate-100 items-start gap-3 relative">
                 <div class="w-20 h-20 rounded-xl bg-slate-200 shrink-0 overflow-hidden relative border border-slate-100">
-                     <img src="https://ui-avatars.com/api/?name={{ urlencode($merchant->name) }}&background=f43f5e&color=fff&size=200" class="w-full h-full object-cover">
+                     <img src="{{ $merchant->image ?: 'https://ui-avatars.com/api/?name=' . urlencode($merchant->name) . '&background=f43f5e&color=fff&size=200' }}" class="w-full h-full object-cover">
                 </div>
-                <div class="flex-grow pt-1">
-                    <h4 class="font-extrabold text-slate-800 text-sm mb-0.5">{{ $merchant->name }}</h4>
+                <div class="flex-grow pt-1 min-w-0">
+                    <h4 class="font-extrabold text-slate-800 text-sm mb-0.5 truncate">{{ $merchant->name }}</h4>
                     <p class="text-[10px] text-slate-500 mb-1.5 line-clamp-1">{{ $merchant->address }}</p>
                     <div class="flex items-center gap-2 mb-2">
                         <div class="flex items-center text-[10px] font-bold text-slate-700">
@@ -143,13 +175,14 @@
                             4.8
                         </div>
                         <span class="text-slate-300">•</span>
-                        <span class="text-[10px] text-slate-500">2.5 km</span>
+                        <span class="text-[10px] text-slate-500 truncate max-w-[140px]">{{ $merchant->description ?: 'Malang' }}</span>
                     </div>
                 </div>
             </a>
             @endforeach
         </div>
     </div>
+
     <!-- Modal Location -->
     <div id="modal-location" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="document.getElementById('modal-location').classList.add('hidden')"></div>

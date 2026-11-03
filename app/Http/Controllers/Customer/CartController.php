@@ -9,6 +9,7 @@ use App\Models\Merchant;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Wilayah;
 use App\Services\DistanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -19,7 +20,8 @@ use Illuminate\View\View;
 class CartController extends Controller
 {
     /**
-     * Tampilkan halaman keranjang belanja beserta rute multi-toko dan estimasi ongkir.
+     * Tampilkan halaman keranjang belanja terpadu (Katalog, Titip Beli Kustom, & Jasa Kurir/Antar)
+     * beserta rute multi-stop berantai dan estimasi ongkir.
      */
     public function index(Request $request): View
     {
@@ -27,49 +29,95 @@ class CartController extends Controller
             ['customer_id' => Auth::guard('customer')->id()]
         );
 
-        // Kelompokkan item berdasarkan merchant/toko
-        $groupedItems = $cart->cartItems->groupBy(function ($item) {
+        $catalogItems = $cart->catalogItems;
+        $customBuyItems = $cart->customBuyItems;
+        $deliveryServiceItems = $cart->deliveryServiceItems;
+
+        // Kelompokkan item katalog berdasarkan merchant/toko
+        $groupedCatalog = $catalogItems->groupBy(function ($item) {
             return $item->product->merchant_id ?? 0;
         });
 
-        // Kumpulkan merchant unik yang ada di keranjang sesuai urutan
-        $merchantIds = $cart->cartItems->pluck('product.merchant_id')->unique()->values();
+        $merchantIds = $catalogItems->pluck('product.merchant_id')->filter()->unique()->values();
         $merchants = Merchant::whereIn('id', $merchantIds)->get()->keyBy('id');
 
-        $merchantLocations = [];
-        foreach ($merchantIds as $mId) {
-            if ($merchants->has($mId)) {
-                $m = $merchants->get($mId);
-                $coords = $m->getCoordinates();
-                $merchantLocations[] = [
-                    'id' => $m->id,
-                    'name' => $m->name,
-                    'address' => $m->address,
-                    'lat' => $coords['lat'],
-                    'lng' => $coords['lng'],
-                ];
-            }
+        // Kumpulkan semua titik penjemputan/belanja dari semua layanan
+        $allStops = $this->collectStops($cart, $merchants);
+
+        // Tentukan default titik pengantaran / tujuan akhir customer
+        // Prioritas:
+        // 1. Parameter eksplisit request (lat, lng, address)
+        // 2. Alamat pesanan terakhir customer jika memesan barang/makanan (lokasi rumah customer)
+        // 3. Titik tujuan dari item jasa di keranjang (jika hanya pesan kurir)
+        // 4. Area sekitar toko pertama
+        $lastOrder = Order::where('customer_id', Auth::guard('customer')->id())
+            ->whereNotNull('destination_lat')
+            ->latest()
+            ->first();
+
+        $firstStop = $allStops[0] ?? null;
+        $fallbackLat = $firstStop ? ($firstStop['lat'] + 0.012) : -7.4435;
+        $fallbackLng = $firstStop ? ($firstStop['lng'] + 0.012) : 112.7085;
+        $fallbackAddr = $firstStop ? "Area sekitar {$firstStop['name']}" : 'Alamat Pengantaran Customer';
+
+        $firstItemWithDest = $cart->cartItems->filter(fn($it) => !empty($it->destination_lat))->first();
+
+        if ($request->filled('lat') && $request->filled('lng')) {
+            $destLat = (float) $request->input('lat');
+            $destLng = (float) $request->input('lng');
+            $destAddress = $request->input('address') ?: ($lastOrder?->destination_address ?? $fallbackAddr);
+        } elseif ($lastOrder && $catalogItems->isNotEmpty()) {
+            $destLat = (float) $lastOrder->destination_lat;
+            $destLng = (float) $lastOrder->destination_lng;
+            $destAddress = $lastOrder->destination_address ?: $fallbackAddr;
+        } elseif ($firstItemWithDest) {
+            $destLat = (float) $firstItemWithDest->destination_lat;
+            $destLng = (float) $firstItemWithDest->destination_lng;
+            $destAddress = $firstItemWithDest->destination_address ?: $fallbackAddr;
+        } elseif ($lastOrder) {
+            $destLat = (float) $lastOrder->destination_lat;
+            $destLng = (float) $lastOrder->destination_lng;
+            $destAddress = $lastOrder->destination_address ?: $fallbackAddr;
+        } else {
+            $destLat = $fallbackLat;
+            $destLng = $fallbackLng;
+            $destAddress = $fallbackAddr;
         }
 
-        // Koordinat default tujuan pengiriman (Malang Kota)
-        $destLat = $request->filled('lat') ? (float) $request->input('lat') : -7.9839;
-        $destLng = $request->filled('lng') ? (float) $request->input('lng') : 112.6214;
+        // Hitung rute berantai seluruh titik: Stop 1 -> Stop 2 -> ... -> Tujuan
+        $routeCalculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng);
 
-        // Hitung rute berantai Toko 1 -> Toko 2 -> ... -> Tujuan
-        $routeCalculation = DistanceService::calculateMultiStoreRoute($merchantLocations, $destLat, $destLng);
+        // Kalkulasi Total Harga Barang
+        $totalCatalogPrice = $catalogItems->sum(fn($it) => ($it->product->final_price ?? 0) * $it->quantity);
+        $totalCustomPrice = $customBuyItems->sum(fn($it) => ($it->estimated_price ?? 0) * $it->quantity);
+        $totalItemsPrice = $totalCatalogPrice + $totalCustomPrice;
+        $estimatedFare = $routeCalculation['estimated_fare'];
+        $dpAmount = ($totalItemsPrice * 0.5) + $estimatedFare;
+        $grandTotal = $totalItemsPrice + $estimatedFare;
 
         return view('customer.cart.index', compact(
             'cart',
-            'groupedItems',
+            'catalogItems',
+            'customBuyItems',
+            'deliveryServiceItems',
+            'groupedCatalog',
             'merchants',
-            'merchantIds',
-            'merchantLocations',
-            'routeCalculation'
+            'allStops',
+            'destLat',
+            'destLng',
+            'destAddress',
+            'routeCalculation',
+            'totalCatalogPrice',
+            'totalCustomPrice',
+            'totalItemsPrice',
+            'estimatedFare',
+            'dpAmount',
+            'grandTotal'
         ));
     }
 
     /**
-     * Tambahkan produk ke keranjang belanja (Mendukung Multi-Merchant / Toko Berbeda).
+     * Tambahkan produk katalog ke keranjang belanja (Mendukung Multi-Merchant / Toko Berbeda).
      */
     public function add(Request $request, Product $product): JsonResponse
     {
@@ -89,7 +137,11 @@ class CartController extends Controller
         } else {
             $cart->cartItems()->create([
                 'product_id' => $product->id,
+                'item_type' => 'catalog',
+                'category' => $product->category ?? 'beli-antar',
+                'name' => $product->name,
                 'quantity' => 1,
+                'estimated_price' => $product->final_price,
             ]);
         }
 
@@ -116,27 +168,33 @@ class CartController extends Controller
             return response()->json(['error' => 'Keranjang kosong'], 400);
         }
 
-        $merchantIds = $cart->cartItems->pluck('product.merchant_id')->unique()->values();
+        $catalogItems = $cart->catalogItems;
+        $merchantIds = $catalogItems->pluck('product.merchant_id')->filter()->unique()->values();
         $merchants = Merchant::whereIn('id', $merchantIds)->get()->keyBy('id');
 
-        $merchantLocations = [];
-        foreach ($merchantIds as $mId) {
-            if ($merchants->has($mId)) {
-                $m = $merchants->get($mId);
-                $coords = $m->getCoordinates();
-                $merchantLocations[] = [
-                    'id' => $m->id,
-                    'name' => $m->name,
-                    'address' => $m->address,
-                    'lat' => $coords['lat'],
-                    'lng' => $coords['lng'],
-                ];
-            }
-        }
+        $allStops = $this->collectStops($cart, $merchants);
+        $destAddr = $request->input('destination_address', 'Alamat Pengantaran Utama');
+        $calculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng, [
+            'name' => 'Alamat Pengantaran Utama',
+            'address' => $destAddr,
+        ]);
 
-        $calculation = DistanceService::calculateMultiStoreRoute($merchantLocations, $destLat, $destLng);
+        $totalCatalogPrice = $catalogItems->sum(fn($it) => ($it->product->final_price ?? 0) * $it->quantity);
+        $totalCustomPrice = $cart->customBuyItems->sum(fn($it) => ($it->estimated_price ?? 0) * $it->quantity);
+        $totalItemsPrice = $totalCatalogPrice + $totalCustomPrice;
+        $estimatedFare = $calculation['estimated_fare'];
+        $dpAmount = ($totalItemsPrice * 0.5) + $estimatedFare;
+        $grandTotal = $totalItemsPrice + $estimatedFare;
 
-        return response()->json($calculation);
+        return response()->json(array_merge($calculation, [
+            'total_items_price' => $totalItemsPrice,
+            'dp_amount' => $dpAmount,
+            'grand_total' => $grandTotal,
+            'total_items_price_formatted' => number_format($totalItemsPrice, 0, ',', '.'),
+            'estimated_fare_formatted' => number_format($estimatedFare, 0, ',', '.'),
+            'dp_amount_formatted' => number_format($dpAmount, 0, ',', '.'),
+            'grand_total_formatted' => number_format($grandTotal, 0, ',', '.'),
+        ]));
     }
 
     /**
@@ -145,7 +203,7 @@ class CartController extends Controller
     public function updateQuantity(Request $request, CartItem $cartItem): JsonResponse
     {
         $request->validate(['quantity' => 'required|integer|min:1']);
-        
+
         $cart = $cartItem->cart;
         if ($cart->customer_id !== Auth::guard('customer')->id()) {
             return response()->json(['error' => 'Unauthorized'], 403);
@@ -166,15 +224,29 @@ class CartController extends Controller
             $cartItem->delete();
         }
 
-        return redirect()->route('customer.cart.index')->with('success', 'Barang dihapus dari keranjang.');
+        return redirect()->route('customer.cart.index')->with('success', 'Item berhasil dihapus dari keranjang.');
     }
 
     /**
-     * Checkout pesanan keranjang (Mendukung Rute Multi-Toko Berantai).
+     * Kosongkan seluruh isi keranjang belanja.
+     */
+    public function clear(): RedirectResponse
+    {
+        $cart = Cart::where('customer_id', Auth::guard('customer')->id())->first();
+        if ($cart) {
+            $cart->cartItems()->delete();
+            $cart->update(['merchant_id' => null]);
+        }
+
+        return redirect()->route('customer.cart.index')->with('success', 'Keranjang berhasil dikosongkan.');
+    }
+
+    /**
+     * Checkout pesanan keranjang terpadu (Katalog, Titip Beli Kustom, & Jasa Kurir/Antar).
      */
     public function checkout(Request $request): RedirectResponse
     {
-        $cart = Cart::with(['cartItems.product.merchant'])
+        $cart = Cart::with(['cartItems.product.merchant', 'cartItems.merchant'])
             ->where('customer_id', Auth::guard('customer')->id())
             ->first();
 
@@ -182,114 +254,215 @@ class CartController extends Controller
             return redirect()->back()->with('error', 'Keranjang masih kosong.');
         }
 
-        $destLat = $request->filled('destination_lat') ? (float) $request->input('destination_lat') : -7.9839;
-        $destLng = $request->filled('destination_lng') ? (float) $request->input('destination_lng') : 112.6214;
-        $destAddress = $request->input('delivery_location', 'Alamat Customer');
+        $firstItemWithDest = $cart->cartItems->filter(fn($it) => !empty($it->destination_lat))->first();
+        $destLat = $request->filled('destination_lat') ? (float) $request->input('destination_lat') : ($firstItemWithDest?->destination_lat ?? -7.9839);
+        $destLng = $request->filled('destination_lng') ? (float) $request->input('destination_lng') : ($firstItemWithDest?->destination_lng ?? 112.6214);
+        $destAddress = $request->input('destination_address') ?? $request->input('delivery_location') ?? ($firstItemWithDest?->destination_address ?? 'Alamat Pengantaran Customer');
 
-        // Kelompokkan item berdasarkan merchant/toko
-        $groupedItems = $cart->cartItems->groupBy(function ($item) {
-            return $item->product->merchant_id ?? 0;
-        });
+        $catalogItems = $cart->catalogItems;
+        $customBuyItems = $cart->customBuyItems;
+        $deliveryServiceItems = $cart->deliveryServiceItems;
 
-        $merchantIds = $cart->cartItems->pluck('product.merchant_id')->unique()->values();
+        $merchantIds = $catalogItems->pluck('product.merchant_id')->filter()->unique()->values();
         $merchants = Merchant::whereIn('id', $merchantIds)->get()->keyBy('id');
 
-        $merchantLocations = [];
-        $multiStops = [];
-        $merchantNames = [];
+        $allStops = $this->collectStops($cart, $merchants);
 
-        foreach ($merchantIds as $idx => $mId) {
-            if ($merchants->has($mId)) {
-                $m = $merchants->get($mId);
-                $coords = $m->getCoordinates();
-                $itemsForMerchant = $groupedItems->get($mId, collect());
+        $recipientName = $request->input('recipient_name') ?: Auth::guard('customer')->user()->name;
+        $recipientPhone = $request->input('recipient_phone') ?: Auth::guard('customer')->user()->phone_number;
 
-                $itemDescriptions = $itemsForMerchant->map(function ($it) {
-                    return "{$it->product->name} ({$it->quantity}x)";
-                })->implode(', ');
-
-                $merchantLocations[] = [
-                    'id' => $m->id,
-                    'name' => $m->name,
-                    'address' => $m->address,
-                    'lat' => $coords['lat'],
-                    'lng' => $coords['lng'],
-                ];
-
-                $multiStops[] = [
-                    'type' => 'merchant',
-                    'merchant_id' => $m->id,
-                    'name' => $m->name,
-                    'address' => "Toko " . ($idx + 1) . ": {$m->name} ({$m->address})",
-                    'lat' => $coords['lat'],
-                    'lng' => $coords['lng'],
-                    'notes' => $itemDescriptions,
-                ];
-
-                $merchantNames[] = $m->name;
-            }
-        }
-
-        // Hitung rute multi-toko berantai (Toko 1 ➔ Toko 2 ➔ ... ➔ Alamat Tujuan)
-        $routeCalculation = DistanceService::calculateMultiStoreRoute($merchantLocations, $destLat, $destLng);
+        // Hitung rute multi-stop berantai (Stop 1 ➔ Stop 2 ➔ ... ➔ Alamat Tujuan)
+        $routeCalculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng, [
+            'name' => 'Alamat Pengantaran Utama',
+            'address' => $destAddress,
+            'recipient_name' => $recipientName,
+            'recipient_phone' => $recipientPhone,
+        ]);
         $totalDistance = $routeCalculation['total_distance_km'];
         $deliveryFee = $routeCalculation['estimated_fare'];
+        $orderedStops = $routeCalculation['ordered_stops'];
 
-        // Jika customer/form mengirimkan delivery_fee terverifikasi
-        if ($request->has('delivery_fee') && (int) $request->input('delivery_fee') > 0) {
+        // Jika terverifikasi ada delivery fee dari form
+        if ($request->filled('delivery_fee') && (int) $request->input('delivery_fee') > 0) {
             $deliveryFee = (int) $request->input('delivery_fee');
         }
 
         // Hitung total harga barang
-        $estimatedItemsPrice = 0;
-        foreach ($cart->cartItems as $item) {
-            $estimatedItemsPrice += ($item->product->final_price * $item->quantity);
-        }
+        $totalCatalogPrice = $catalogItems->sum(fn($it) => ($it->product->final_price ?? 0) * $it->quantity);
+        $totalCustomPrice = $customBuyItems->sum(fn($it) => ($it->estimated_price ?? 0) * $it->quantity);
+        $estimatedItemsPrice = $totalCatalogPrice + $totalCustomPrice;
 
         // Skema DP: 50% barang + full ongkir
         $dpAmount = ($estimatedItemsPrice * 0.5) + $deliveryFee;
 
-        // Informasi asal / rute
-        $firstMerchant = $merchantLocations[0] ?? null;
-        $originAddress = count($merchantNames) > 1
-            ? implode(' ➔ ', array_map(function ($nm, $i) {
-                return "Toko " . ($i + 1) . ": {$nm}";
-            }, $merchantNames, array_keys($merchantNames)))
-            : ($firstMerchant['address'] ?? 'Sesuai Toko');
-
-        $isMultiStore = count($merchantNames) > 1;
-        $category = $isMultiStore ? 'multi-stop' : ($firstMerchant && ($merchants->get($firstMerchant['id'])->type ?? '') === 'food' ? 'beli-antar' : 'toko-kirim');
+        // Tentukan kategori order & primary merchant
+        $hasMultiDropoff = $routeCalculation['has_multi_dropoff'] ?? false;
         
-        $descTitle = $isMultiStore
-            ? "Pesanan Multi-Toko (" . count($merchantNames) . " Toko: " . implode(', ', $merchantNames) . ") - Rute berantai {$totalDistance} KM"
-            : "Pesanan dari Katalog: " . ($merchantNames[0] ?? 'Toko');
+        // Filter titik singgah perantara (tanpa menduplikat tujuan akhir yang sudah tercatat di destination_address)
+        $intermediateStops = array_values(array_filter($orderedStops, function($st) {
+            return ($st['type'] ?? '') !== 'destination' && ($st['id'] ?? '') !== 'final_destination';
+        }));
+
+        $isMultiStop = count($intermediateStops) > 1 || $hasMultiDropoff || count($allStops) > 1;
+
+        // Susun struktur multi_stops untuk Order jika ada lebih dari 1 titik singgah / multi-dropoff
+        $multiStops = null;
+        if ($isMultiStop) {
+            $multiStops = [];
+            foreach ($intermediateStops as $idx => $st) {
+                $multiStops[] = [
+                    'stop_number' => $idx + 1,
+                    'action' => $st['action'] ?? 'pickup',
+                    'type' => $st['type'] ?? 'stop',
+                    'merchant_id' => $st['merchant_id'] ?? null,
+                    'name' => $st['name'] ?? '',
+                    'badge' => $st['badge'] ?? '',
+                    'address' => $st['address'] ?? '',
+                    'lat' => $st['lat'],
+                    'lng' => $st['lng'],
+                    'recipient_name' => $st['recipient_name'] ?? null,
+                    'recipient_phone' => $st['recipient_phone'] ?? null,
+                    'is_perishable' => $st['is_perishable'] ?? false,
+                    'notes' => $st['notes'] ?? null,
+                ];
+            }
+        }
+
+        if ($isMultiStop) {
+            $category = 'multi-stop';
+        } elseif ($catalogItems->isNotEmpty()) {
+            $firstMerchant = $merchants->first();
+            $category = ($firstMerchant && $firstMerchant->type === 'food') ? 'beli-antar' : 'toko-kirim';
+        } elseif ($customBuyItems->isNotEmpty()) {
+            $category = 'beli-antar';
+        } elseif ($deliveryServiceItems->isNotEmpty()) {
+            $firstDelivery = $deliveryServiceItems->first();
+            $category = $firstDelivery->category ?: 'ambil-antar';
+        } else {
+            $category = 'beli-antar';
+        }
+
+        $primaryMerchantId = (!$isMultiStop && $catalogItems->isNotEmpty() && $merchants->count() === 1)
+            ? $merchants->first()->id
+            : null;
+
+        // Jika bukan multi-stop dan tidak ada toko katalog, gunakan merchant_id dari item titip beli kustom
+        if (!$primaryMerchantId && !$isMultiStop && $customBuyItems->isNotEmpty()) {
+            $primaryMerchantId = $customBuyItems->first()->merchant_id;
+        }
+
+        // Tentukan origin address ringkas
+        $firstStop = $orderedStops[0] ?? ($allStops[0] ?? null);
+        $originAddress = $isMultiStop
+            ? implode(' ➔ ', array_map(function($st, $i) {
+                $actLabel = (($st['action'] ?? '') === 'dropoff') ? 'Antar' : 'Jemput/Beli';
+                return "Stop " . ($i + 1) . " [{$actLabel}]: {$st['name']}";
+            }, $multiStops, array_keys($multiStops)))
+            : ($firstStop['address'] ?? 'Sesuai Rute');
+        $originLat = $firstStop['lat'] ?? -7.9839;
+        $originLng = $firstStop['lng'] ?? 112.6214;
+
+        // Ambil reference photo dari item titip beli / jasa jika ada
+        $refPhoto = $customBuyItems->first(fn($it) => !empty($it->reference_photo))?->reference_photo
+            ?? $deliveryServiceItems->first(fn($it) => !empty($it->reference_photo))?->reference_photo;
+
+        // Bangun ringkasan deskripsi pesanan yang jelas dan informatif (makanan/barang apa, dari toko/resto mana)
+        $itemSummaries = [];
+        $merchantNames = collect();
+
+        foreach ($catalogItems as $item) {
+            $mName = $item->product->merchant->name ?? null;
+            if ($mName) $merchantNames->push($mName);
+            $itemSummaries[] = "{$item->quantity}x {$item->product->name}";
+        }
+
+        foreach ($customBuyItems as $item) {
+            if ($item->merchant) $merchantNames->push($item->merchant->name);
+            $qty = $item->quantity ?: 1;
+            $itemSummaries[] = "{$qty}x {$item->name}";
+        }
+
+        foreach ($deliveryServiceItems as $item) {
+            $itemSummaries[] = "Antar: {$item->name}";
+        }
+
+        $uniqueMerchants = $merchantNames->unique()->values();
+        $merchantPrefix = '';
+        if ($uniqueMerchants->isNotEmpty()) {
+            if ($uniqueMerchants->count() === 1) {
+                $merchantPrefix = $uniqueMerchants->first() . ' – ';
+            } else {
+                $merchantPrefix = $uniqueMerchants->take(2)->implode(' & ') . ($uniqueMerchants->count() > 2 ? ' +' . ($uniqueMerchants->count() - 2) . ' toko' : '') . ' – ';
+            }
+        }
+
+        $itemsText = '';
+        if (!empty($itemSummaries)) {
+            if (count($itemSummaries) <= 2) {
+                $itemsText = implode(', ', $itemSummaries);
+            } else {
+                $itemsText = $itemSummaries[0] . ', ' . $itemSummaries[1] . ' (+' . (count($itemSummaries) - 2) . ' item lain)';
+            }
+        } else {
+            $summaryParts = [];
+            if ($catalogItems->isNotEmpty()) $summaryParts[] = $catalogItems->count() . ' Produk Toko';
+            if ($customBuyItems->isNotEmpty()) $summaryParts[] = $customBuyItems->count() . ' Titip Beli';
+            if ($deliveryServiceItems->isNotEmpty()) $summaryParts[] = $deliveryServiceItems->count() . ' Pengantaran';
+            $itemsText = 'Pesanan (' . implode(', ', $summaryParts) . ')';
+        }
+
+        $freshnessTag = ($routeCalculation['has_freshness_optimization'] ?? false) ? ' [Freshness]' : '';
+        $dropoffTag = ($routeCalculation['has_multi_dropoff'] ?? false) ? ' [Multi-Dropoff]' : '';
+
+        // Jelas & transparan: Nama Resto/Toko + Nama Makanan/Barang + Jarak KM
+        $descTitle = $merchantPrefix . $itemsText . " ({$totalDistance} KM){$freshnessTag}{$dropoffTag}";
+
+        // Tentukan wilayah_id secara dinamis (Surabaya, Sidoarjo, Malang, dll)
+        $destStr = strtolower(($destAddress ?? '') . ' ' . ($originAddress ?? ''));
+        $targetWilayah = null;
+        if (str_contains($destStr, 'surabaya')) {
+            $targetWilayah = Wilayah::where('name', 'like', '%Surabaya%')->first();
+        } elseif (str_contains($destStr, 'sidoarjo')) {
+            $targetWilayah = Wilayah::where('name', 'like', '%Sidoarjo%')->first();
+        } elseif (str_contains($destStr, 'gresik')) {
+            $targetWilayah = Wilayah::where('name', 'like', '%Gresik%')->first();
+        } elseif (str_contains($destStr, 'malang') || str_contains($destStr, 'batu')) {
+            $targetWilayah = Wilayah::where('name', 'like', '%Malang%')->first();
+        } else {
+            $targetWilayah = Wilayah::where('name', 'like', '%Jawa Timur%')->first()
+                ?? Wilayah::where('name', 'like', '%Malang%')->first()
+                ?? Wilayah::where('is_active', true)->first();
+        }
+        $wilayahId = $targetWilayah?->id ?? 11;
 
         // Buat Order baru
         $order = Order::create([
             'customer_id' => Auth::guard('customer')->id(),
-            'merchant_id' => !$isMultiStore ? ($firstMerchant['id'] ?? null) : null,
-            'is_catalog_order' => true,
-            'wilayah_id' => 11, // Malang Kota
+            'merchant_id' => $primaryMerchantId,
+            'is_catalog_order' => $catalogItems->isNotEmpty(),
+            'wilayah_id' => $wilayahId,
             'category' => $category,
             'weight_category' => 'ringan',
             'description' => $descTitle,
+            'reference_photo' => $refPhoto,
             'origin_address' => $originAddress,
-            'origin_lat' => $firstMerchant['lat'] ?? -7.9839,
-            'origin_lng' => $firstMerchant['lng'] ?? 112.6214,
+            'origin_lat' => $originLat,
+            'origin_lng' => $originLng,
             'destination_address' => $destAddress,
             'destination_lat' => $destLat,
             'destination_lng' => $destLng,
-            'recipient_name' => Auth::guard('customer')->user()->name,
-            'recipient_phone' => Auth::guard('customer')->user()->phone_number,
+            'recipient_name' => $recipientName,
+            'recipient_phone' => $recipientPhone,
             'estimated_fare' => $deliveryFee,
             'downpayment_amount' => $dpAmount,
             'cash_amount' => 0,
-            'multi_stops' => $isMultiStore ? $multiStops : null,
+            'multi_stops' => $multiStops,
             'status' => 'menunggu_tawaran',
         ]);
 
-        // Buat Order Items
-        foreach ($cart->cartItems as $item) {
+        // Simpan Order Items
+        // 1. Produk Katalog
+        foreach ($catalogItems as $item) {
             $merchantLabel = $item->product->merchant->name ?? 'Toko';
             OrderItem::create([
                 'order_id' => $order->id,
@@ -297,17 +470,216 @@ class CartController extends Controller
                 'name' => "{$item->product->name} [{$merchantLabel}]",
                 'quantity' => $item->quantity,
                 'estimated_price' => $item->product->final_price,
+                'actual_price' => $item->product->final_price,
+                'notes' => null,
             ]);
         }
+
+        // 2. Titip Beli Kustom (Non-Katalog)
+        foreach ($customBuyItems as $item) {
+            $storeTag = $item->merchant ? " [{$item->merchant->name}]" : "";
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => null,
+                'name' => "[Titip Beli] {$item->name}{$storeTag}",
+                'quantity' => $item->quantity ?: 1,
+                'estimated_price' => $item->estimated_price ?: 0,
+                'actual_price' => null,
+                'notes' => $item->description ?: ($item->origin_address ? "Beli di: {$item->origin_address}" : null),
+            ]);
+        }
+
+        // 3. Jasa Pengantaran / Kurir
+        foreach ($deliveryServiceItems as $item) {
+            $serviceLabel = strtoupper(str_replace('-', ' ', $item->category ?: 'jasa'));
+            $dropoffInfo = $item->recipient_name ? " ➔ Penerima: {$item->recipient_name} ({$item->recipient_phone})" : "";
+            $destInfo = $item->destination_address ? " ➔ Drop-off: {$item->destination_address}" : "";
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => null,
+                'name' => "[{$serviceLabel}] {$item->name}",
+                'quantity' => 1,
+                'estimated_price' => 0,
+                'actual_price' => 0,
+                'notes' => "Jemput di: {$item->origin_address}{$destInfo}{$dropoffInfo}" . ($item->description ? " | {$item->description}" : ""),
+            ]);
+        }
+
+        // Log Aktivitas Pembuatan Pesanan
+        \App\Services\ActivityLogger::logOrder(
+            $order,
+            'order_created',
+            "Pesanan #{$order->id} Dibuat",
+            "Customer " . Auth::guard('customer')->user()->name . " membuat pesanan: \"{$order->description}\" (Estimasi Ongkir: Rp " . number_format($order->estimated_fare, 0, ',', '.') . ")",
+            Auth::guard('customer')->user(),
+            'pesanan'
+        );
 
         // Kosongkan keranjang
         $cart->cartItems()->delete();
         $cart->update(['merchant_id' => null]);
 
-        $successMsg = $isMultiStore
-            ? "Pesanan Multi-Toko (" . count($merchantNames) . " Toko) berhasil dibuat dengan rute berantai {$totalDistance} KM! Menunggu tawaran dari Jastiper."
-            : "Pesanan Katalog berhasil dibuat! Menunggu tawaran dari Jastiper.";
+        $successMsg = $isMultiStop
+            ? "Pesanan Terpadu Multi-Stop (" . count($multiStops) . " Titik Rute) berhasil dibuat dengan rute berantai {$totalDistance} KM! Menunggu tawaran dari Jastiper."
+            : "Pesanan Terpadu berhasil dibuat! Menunggu tawaran dari Jastiper.";
 
         return redirect()->route('customer.dashboard')->with('success', $successMsg);
+    }
+
+    /**
+     * Kumpulkan seluruh titik penjemputan/belanja dari item keranjang (Multi-Layanan & Multi-Merchant).
+     */
+    protected function collectStops(Cart $cart, $merchants): array
+    {
+        $stops = [];
+
+        // Deteksi apakah item berupa makanan/minuman yang membutuhkan penanganan kesegaran khusus
+        $isPerishableItem = function ($text, $merchant = null) {
+            if ($merchant && ($merchant->type === 'food' || $merchant->category === 'food')) {
+                return true;
+            }
+            $keywords = ['kopi', 'coffee', 'es ', 'ice', 'minuman', 'drink', 'boba', 'jus', 'juice', 'makanan', 'food', 'mie', 'nasi', 'ayam', 'bakso', 'soto', 'burger', 'pizza', 'roti', 'cake'];
+            $lower = strtolower($text ?? '');
+            foreach ($keywords as $kw) {
+                if (str_contains($lower, $kw)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // 1. Toko Katalog (dikelompokkan per merchant unik)
+        $catalogItems = $cart->catalogItems;
+        $groupedCatalog = $catalogItems->groupBy(fn($it) => $it->product->merchant_id ?? 0);
+        $merchantIds = $catalogItems->pluck('product.merchant_id')->filter()->unique()->values();
+
+        foreach ($merchantIds as $mId) {
+            if ($merchants->has($mId)) {
+                $m = $merchants->get($mId);
+                $coords = $m->getCoordinates();
+                $itemsForMerchant = $groupedCatalog->get($mId, collect());
+                $itemDescriptions = $itemsForMerchant->map(fn($it) => "{$it->product->name} ({$it->quantity}x)")->implode(', ');
+                $isFood = ($m->type === 'food') || $itemsForMerchant->contains(fn($it) => $isPerishableItem($it->product->name, $m));
+
+                $stops[] = [
+                    'id' => 'merchant_' . $m->id,
+                    'type' => 'merchant',
+                    'action' => 'pickup',
+                    'merchant_id' => $m->id,
+                    'name' => $m->name,
+                    'badge' => $isFood ? '☕ Katalog Makanan/Minuman' : '🏪 Katalog Toko',
+                    'address' => $m->address,
+                    'lat' => (float) $coords['lat'],
+                    'lng' => (float) $coords['lng'],
+                    'notes' => $itemDescriptions,
+                    'item_count' => $itemsForMerchant->count(),
+                    'is_perishable' => $isFood,
+                ];
+            }
+        }
+
+        // 2. Titip Beli Kustom (Non-Katalog)
+        foreach ($cart->customBuyItems as $cItem) {
+            $merchantObj = $cItem->merchant;
+            $displayName = $merchantObj ? "Beli: {$cItem->name} [{$merchantObj->name}]" : "Beli: {$cItem->name}";
+            $badgeTitle = $merchantObj ? "🏪 {$merchantObj->name} (Toko Baru)" : '📝 Titip Beli Kustom';
+            $addr = $cItem->origin_address ?: ($merchantObj ? $merchantObj->address : 'Titik Pembelian Kustom');
+            $isFood = ($merchantObj && $merchantObj->type === 'food') || $isPerishableItem($cItem->name . ' ' . $cItem->description, $merchantObj);
+
+            $stops[] = [
+                'id' => 'custom_' . $cItem->id,
+                'type' => 'custom_buy',
+                'action' => 'pickup',
+                'merchant_id' => $cItem->merchant_id,
+                'cart_item_id' => $cItem->id,
+                'name' => $displayName,
+                'badge' => $isFood ? '☕ Titip Beli Kuliner' : $badgeTitle,
+                'address' => $addr,
+                'lat' => (float) ($cItem->origin_lat ?? ($merchantObj?->latitude ?? -7.9839)),
+                'lng' => (float) ($cItem->origin_lng ?? ($merchantObj?->longitude ?? 112.6214)),
+                'notes' => $cItem->description ?: "Est. Rp " . number_format($cItem->estimated_price ?? 0, 0, ',', '.'),
+                'item_count' => $cItem->quantity ?: 1,
+                'is_perishable' => $isFood,
+            ];
+        }
+
+        // 3. Jasa Pengantaran / Kurir / Multi-stop
+        foreach ($cart->deliveryServiceItems as $dItem) {
+            $serviceName = ucwords(str_replace('-', ' ', $dItem->category ?: 'jasa'));
+
+            // Periksa jika ada titik pemberhentian berantai (multi-stop data)
+            if (!empty($dItem->stops_data) && is_array($dItem->stops_data)) {
+                foreach ($dItem->stops_data as $sIdx => $stopInfo) {
+                    $stopAddr = $stopInfo['address'] ?? "Titik Singgah " . ($sIdx + 1);
+                    $stopLat = !empty($stopInfo['lat']) ? (float)$stopInfo['lat'] : (float)($dItem->origin_lat ?? -7.9839);
+                    $stopLng = !empty($stopInfo['lng']) ? (float)$stopInfo['lng'] : (float)($dItem->origin_lng ?? 112.6214);
+                    $action = $stopInfo['action'] ?? 'pickup';
+                    $isDropoff = ($action === 'dropoff');
+
+                    $badge = $isDropoff
+                        ? "🔵 Antar Singgah (" . ($sIdx + 1) . ")"
+                        : "🟢 Jemput Singgah (" . ($sIdx + 1) . ")";
+
+                    $title = $isDropoff
+                        ? "Drop-off " . ($sIdx + 1) . (!empty($stopInfo['recipient_name']) ? ": " . $stopInfo['recipient_name'] : ": " . \Illuminate\Support\Str::limit($stopAddr, 25))
+                        : "Stop " . ($sIdx + 1) . ": " . \Illuminate\Support\Str::limit($stopAddr, 25);
+
+                    $stops[] = [
+                        'id' => 'delivery_' . $dItem->id . '_stop_' . $sIdx,
+                        'type' => $isDropoff ? 'dropoff' : 'delivery_service',
+                        'action' => $action,
+                        'cart_item_id' => $dItem->id,
+                        'name' => $title,
+                        'badge' => $badge,
+                        'address' => $stopAddr,
+                        'lat' => $stopLat,
+                        'lng' => $stopLng,
+                        'recipient_name' => $stopInfo['recipient_name'] ?? null,
+                        'recipient_phone' => $stopInfo['recipient_phone'] ?? null,
+                        'notes' => $stopInfo['notes'] ?? ($dItem->description ?? ''),
+                        'item_count' => 1,
+                        'is_perishable' => false,
+                    ];
+                }
+            } else {
+                // Item jasa biasa (ambil-antar, kirim dokumen, titip pihak ketiga, dll)
+                $stops[] = [
+                    'id' => 'delivery_' . $dItem->id . '_pickup',
+                    'type' => 'delivery_service',
+                    'action' => 'pickup',
+                    'cart_item_id' => $dItem->id,
+                    'name' => 'Jemput: ' . $dItem->name,
+                    'badge' => "📦 {$serviceName} (Jemput)",
+                    'address' => $dItem->origin_address ?: 'Titik Penjemputan',
+                    'lat' => (float) ($dItem->origin_lat ?? -7.9839),
+                    'lng' => (float) ($dItem->origin_lng ?? 112.6214),
+                    'notes' => $dItem->description ?: 'Pengambilan barang/dokumen',
+                    'item_count' => 1,
+                    'is_perishable' => false,
+                ];
+
+                // Jika item memiliki alamat drop-off spesifik penerima
+                if (!empty($dItem->destination_address)) {
+                    $stops[] = [
+                        'id' => 'delivery_' . $dItem->id . '_dropoff',
+                        'type' => 'delivery_service_dropoff',
+                        'action' => 'dropoff',
+                        'cart_item_id' => $dItem->id,
+                        'name' => 'Antar: ' . ($dItem->recipient_name ?: $dItem->name),
+                        'badge' => "🔵 Antar Penerima",
+                        'address' => $dItem->destination_address,
+                        'lat' => (float) ($dItem->destination_lat ?? -7.9839),
+                        'lng' => (float) ($dItem->destination_lng ?? 112.6214),
+                        'recipient_name' => $dItem->recipient_name,
+                        'recipient_phone' => $dItem->recipient_phone,
+                        'notes' => "Untuk: " . ($dItem->recipient_name ? "{$dItem->recipient_name} ({$dItem->recipient_phone})" : "Penerima") . ($dItem->description ? " - {$dItem->description}" : ""),
+                        'item_count' => 1,
+                        'is_perishable' => false,
+                    ];
+                }
+            }
+        }
+
+        return $stops;
     }
 }

@@ -22,6 +22,9 @@ Route::view('/syarat-ketentuan', 'terms')->name('terms');
 Route::view('/kebijakan-privasi', 'privacy')->name('privacy');
 Route::view('/tentang-kami', 'about')->name('about');
 
+// Live Autocomplete Place & Merchant Search
+Route::get('/api/search-places', [\App\Http\Controllers\Customer\SearchController::class, 'searchPlaces'])->name('api.search.places');
+
 // Authentication Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
@@ -49,6 +52,8 @@ Route::middleware('auth:customer')->group(function () {
     // Catalog / GoFood & GoMart Routes
     Route::get('/customer/search', [\App\Http\Controllers\Customer\SearchController::class, 'index'])->name('customer.search');
     Route::get('/customer/food', [\App\Http\Controllers\Customer\MerchantController::class, 'food'])->name('customer.food');
+    Route::get('/customer/food/index', [\App\Http\Controllers\Customer\MerchantController::class, 'food'])->name('customer.food.index');
+    Route::get('/customer/food/sekitarmu', [\App\Http\Controllers\Customer\MerchantController::class, 'nearby'])->name('customer.food.nearby');
     Route::get('/customer/mart', [\App\Http\Controllers\Customer\MerchantController::class, 'mart'])->name('customer.mart');
     Route::get('/customer/merchant/{merchant}', [\App\Http\Controllers\Customer\MerchantController::class, 'show'])->name('customer.merchant.show');
     
@@ -59,18 +64,29 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/customer/cart/calculate-route', [\App\Http\Controllers\Customer\CartController::class, 'calculateRoute'])->name('customer.cart.calculate-route');
     Route::post('/customer/cart/update-qty/{cartItem}', [\App\Http\Controllers\Customer\CartController::class, 'updateQuantity'])->name('customer.cart.update-qty');
     Route::delete('/customer/cart/remove/{cartItem}', [\App\Http\Controllers\Customer\CartController::class, 'remove'])->name('customer.cart.remove');
+    Route::delete('/customer/cart/clear', [\App\Http\Controllers\Customer\CartController::class, 'clear'])->name('customer.cart.clear');
     
     Route::get('/customer/orders/active-feed', [DashboardController::class, 'customerActiveOrdersFeed'])->name('customer.orders.active-feed');
+    Route::get('/customer/orders/{id}', [DashboardController::class, 'customerOrderDetail'])->name('customer.orders.show');
     Route::post('/customer/offers/{id}/accept', [DashboardController::class, 'customerAcceptOffer'])->name('customer.offers.accept');
     Route::post('/customer/orders/{id}/expand-radius', [DashboardController::class, 'customerExpandOrderRadius'])->name('customer.orders.expand-radius');
     Route::post('/customer/orders/{id}/cancel', [OrderCancellationController::class, 'cancelOrder'])->name('customer.orders.cancel');
     Route::post('/customer/orders/{id}/confirm', [DashboardController::class, 'customerConfirmDelivery'])->name('customer.orders.confirmation');
+    Route::get('/customer/orders/{id}/report', [\App\Http\Controllers\OrderReportController::class, 'create'])->name('customer.orders.report');
+    Route::post('/customer/orders/{id}/report', [\App\Http\Controllers\OrderReportController::class, 'store'])->name('customer.orders.report.store');
 
     // ===== Chat Personal per Order =====
     Route::post('/customer/orders/{id}/chat', [ChatController::class, 'send'])->name('customer.orders.chat.send');
     Route::get('/customer/orders/{id}/chat', [ChatController::class, 'history'])->name('customer.orders.chat.history');
     Route::post('/customer/orders/{id}/addon', [OrderAddonController::class, 'requestAddon'])->name('customer.orders.addon.request');
     Route::post('/customer/orders/{id}/addon/{addon_id}/pay', [OrderAddonController::class, 'payAddon'])->name('customer.orders.addon.pay');
+    Route::get('/customer/price-adjustments/{id}', [\App\Http\Controllers\OrderPriceAdjustmentController::class, 'show'])->name('customer.price-adjustments.show');
+    Route::post('/customer/price-adjustments/{id}/respond', [\App\Http\Controllers\OrderPriceAdjustmentController::class, 'respond'])->name('customer.price-adjustments.respond');
+
+    // ===== Live Chat Bantuan Admin (Customer Support) =====
+    Route::get('/customer/support-chat', [\App\Http\Controllers\Customer\CustomerSupportChatController::class, 'index'])->name('customer.support.chat');
+    Route::get('/customer/support-chat/messages', [\App\Http\Controllers\Customer\CustomerSupportChatController::class, 'fetchMessages'])->name('customer.support.messages');
+    Route::post('/customer/support-chat/send', [\App\Http\Controllers\Customer\CustomerSupportChatController::class, 'sendMessage'])->name('customer.support.send');
 
     // ===== Pembayaran Wajib (Virtual Escrow) — Tahap 3 & 5 =====
     Route::get('/customer/orders/{id}/payment', [PaymentController::class, 'page'])->name('customer.orders.payment.page');
@@ -121,6 +137,9 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::post('/jastiper/orders/{id}/chat', [ChatController::class, 'send'])->name('jastiper.orders.chat.send');
     Route::get('/jastiper/orders/{id}/chat', [ChatController::class, 'history'])->name('jastiper.orders.chat.history');
     Route::post('/jastiper/addons/{id}/respond', [OrderAddonController::class, 'respondAddon'])->name('jastiper.addons.respond');
+    Route::get('/jastiper/orders/{id}/adjustment-items', [\App\Http\Controllers\OrderPriceAdjustmentController::class, 'getItemsForAdjustment'])->name('jastiper.orders.adjustment-items');
+    Route::post('/jastiper/orders/{id}/price-adjustments', [\App\Http\Controllers\OrderPriceAdjustmentController::class, 'store'])->name('jastiper.orders.price-adjustments.store');
+    Route::get('/jastiper/price-adjustments/{id}', [\App\Http\Controllers\OrderPriceAdjustmentController::class, 'show'])->name('jastiper.price-adjustments.show');
 
     // ===== Rekap Pendapatan & Withdraw (Sprint 8 Bagian 3) =====
     Route::get('/jastiper/earnings', [EarningsController::class, 'recap'])->name('jastiper.earnings');
@@ -150,6 +169,19 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/withdraws', [AdminWithdrawController::class, 'index'])->name('admin.withdraws');
     Route::post('/admin/withdraws/{id}/approve', [AdminWithdrawController::class, 'approve'])->name('admin.withdraws.approve');
     Route::post('/admin/withdraws/{id}/reject', [AdminWithdrawController::class, 'reject'])->name('admin.withdraws.reject');
+
+    // ===== Master Data Mutasi Keseluruhan (Arus Kas & Ledger Saldo) =====
+    Route::get('/admin/mutations', [\App\Http\Controllers\AdminMutationController::class, 'index'])->name('admin.mutations.index');
+
+    // ===== Log & Monitoring Aktivitas Seluruh Pengguna (Audit Trail) =====
+    Route::get('/admin/activity-logs', [\App\Http\Controllers\Admin\AdminActivityLogController::class, 'index'])->name('admin.activities.index');
+    Route::get('/admin/activity-logs/order/{orderId}', [\App\Http\Controllers\Admin\AdminActivityLogController::class, 'orderTimeline'])->name('admin.activities.order-timeline');
+
+    // ===== Pengaturan Tarif & Ketentuan Jastip (Admin Portal) =====
+    Route::get('/admin/settings', fn() => redirect()->route('admin.settings.tariffs'))->name('admin.settings');
+    Route::get('/admin/settings/tariffs', [\App\Http\Controllers\Admin\AdminTariffSettingController::class, 'index'])->name('admin.settings.tariffs');
+    Route::post('/admin/settings/tariffs', [\App\Http\Controllers\Admin\AdminTariffSettingController::class, 'update'])->name('admin.settings.tariffs.update');
+    Route::post('/admin/settings/tariffs/reset', [\App\Http\Controllers\Admin\AdminTariffSettingController::class, 'reset'])->name('admin.settings.tariffs.reset');
 
     // ===== Pengaturan Payment Gateway Midtrans (Admin Portal) =====
     Route::get('/admin/settings/midtrans', [\App\Http\Controllers\AdminMidtransSettingController::class, 'index'])->name('admin.settings.midtrans');
@@ -190,6 +222,17 @@ Route::middleware('auth:admin')->group(function () {
     // ===== Daftar Pelanggan (Customer) & Mitra Jastiper (Admin) =====
     Route::get('/admin/customers', [\App\Http\Controllers\AdminCustomerController::class, 'index'])->name('admin.customers.index');
     Route::get('/admin/jastipers', [\App\Http\Controllers\AdminJastiperController::class, 'index'])->name('admin.jastipers.index');
+
+    // ===== Pengaduan & Sengketa Pesanan (Dispute Resolution) =====
+    Route::get('/admin/reports', [\App\Http\Controllers\Admin\AdminReportController::class, 'index'])->name('admin.reports.index');
+    Route::get('/admin/reports/{id}', [\App\Http\Controllers\Admin\AdminReportController::class, 'show'])->name('admin.reports.show');
+    Route::post('/admin/reports/{id}/resolve', [\App\Http\Controllers\Admin\AdminReportController::class, 'resolve'])->name('admin.reports.resolve');
+
+    // ===== Live Chat Bantuan & Customer Support (Admin Desk) =====
+    Route::get('/admin/support-chats', [\App\Http\Controllers\Admin\AdminSupportChatController::class, 'index'])->name('admin.support.index');
+    Route::get('/admin/support-chats/conversations', [\App\Http\Controllers\Admin\AdminSupportChatController::class, 'fetchConversations'])->name('admin.support.conversations');
+    Route::get('/admin/support-chats/{customer_id}/messages', [\App\Http\Controllers\Admin\AdminSupportChatController::class, 'fetchMessages'])->name('admin.support.messages');
+    Route::post('/admin/support-chats/{customer_id}/send', [\App\Http\Controllers\Admin\AdminSupportChatController::class, 'sendMessage'])->name('admin.support.send');
 });
 
 // ===== PORTAL MITRA MERCHANT (Self-Service Partner Portal) =====

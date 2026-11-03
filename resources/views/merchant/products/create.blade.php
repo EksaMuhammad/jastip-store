@@ -137,7 +137,7 @@
                                 value="{{ old('estimated_price') }}" 
                                 required 
                                 min="0" 
-                                placeholder="25000" 
+                                placeholder="25.000" 
                                 oninput="calcDiscountPreview()"
                                 class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-semibold focus:ring-2 focus:ring-slate-900 focus:outline-none"
                             >

@@ -6,123 +6,8 @@
 <!-- Full-viewport Admin Wrapper -->
 <div class="flex min-h-screen bg-[#F3F4F6]">
     
-    <!-- LEFT SIDEBAR: Full height sticky -->
-    <aside class="w-72 bg-slate-950 text-slate-350 flex flex-col justify-between shrink-0 border-r border-slate-800 hidden lg:flex sticky top-0 h-screen">
-        <div>
-            <!-- Sidebar Header Brand -->
-            <div class="h-16 flex items-center px-6 border-b border-slate-850 gap-3">
-                <div class="w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center font-bold text-white text-sm">
-                    JK
-                </div>
-                <div>
-                    <h3 class="font-extrabold text-sm text-white tracking-wide">JastipKuy</h3>
-                    <span class="text-[8px] font-black text-rose-500 tracking-widest uppercase block -mt-0.5">ADMIN PORTAL</span>
-                </div>
-            </div>
-
-            <!-- Profile Summary Box -->
-            <div class="p-6 border-b border-slate-900 bg-slate-950">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center font-bold text-white text-sm shrink-0">
-                        AD
-                    </div>
-                    <div class="min-w-0">
-                        <h4 class="font-extrabold text-xs text-white truncate">Admin JastipKuy</h4>
-                        <span class="text-[9px] text-slate-400 block mt-0.5 truncate">admin@jastipkuy.com</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sidebar Navigation Menu -->
-            <nav class="p-4 space-y-1.5">
-                <span class="text-[9px] font-black text-slate-500 uppercase tracking-wider block px-3 mb-2">Menu Utama</span>
-
-                <!-- Menu: Dashboard Utama -->
-                <a href="{{ route('admin.dashboard') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                        <span>Dashboard Utama</span>
-                    </div>
-                </a>
-
-                <!-- Menu: Verifikasi Jastiper -->
-                <a href="{{ route('admin.verification') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                        <span>Verifikasi Jastiper</span>
-                    </div>
-                </a>
-
-                <!-- Menu: Verifikasi Pembayaran -->
-                <a href="{{ route('admin.payments') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
-                        <span>Verifikasi Pembayaran</span>
-                    </div>
-                </a>
-
-                <!-- Menu: Gateway Midtrans (ACTIVE) -->
-                <a href="{{ route('admin.settings.midtrans') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl bg-rose-600/10 text-rose-500 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        <span>Gateway Midtrans</span>
-                    </div>
-                    <span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
-                </a>
-
-                <!-- Menu: Kelola Merchant -->
-                <a href="{{ route('admin.merchants.index') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                        <span>Kelola Merchant</span>
-                    </div>
-                </a>
-
-                <!-- Menu: Manajemen Promo -->
-                <a href="{{ route('admin.promos.index') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                        <span>Manajemen Promo</span>
-                    </div>
-                </a>
-
-                <!-- Menu: Daftar Customer -->
-                <a href="{{ route('admin.customers.index') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        <span>Daftar Pelanggan</span>
-                    </div>
-                </a>
-
-                <!-- Menu: Daftar Jastiper -->
-                <a href="{{ route('admin.jastipers.index') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        <span>Daftar Jastiper</span>
-                    </div>
-                </a>
-
-                <!-- Menu: Withdraw Jastiper -->
-                <a href="{{ route('admin.withdraws') }}" class="flex items-center justify-between px-3 py-2.5 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/40 font-bold text-xs transition">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 12v-2m9-4a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span>Withdraw Jastiper</span>
-                    </div>
-                </a>
-            </nav>
-        </div>
-
-        <!-- Sidebar Footer Action (Logout) -->
-        <div class="p-4 border-t border-slate-900 bg-slate-950">
-            <form action="{{ route('admin.logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-rose-500 hover:bg-rose-500/10 font-bold text-xs transition text-left">
-                    <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                    <span>Keluar Panel</span>
-                </button>
-            </form>
-        </div>
-    </aside>
+    <!-- UNIFIED LEFT SIDEBAR -->
+    @include('layouts.admin-sidebar')
 
     <!-- RIGHT MAIN CONTENT -->
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -159,24 +44,24 @@
 
                     <div class="flex items-center gap-2">
                         @if($isActive)
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                                 GATEWAY AKTIF
                             </span>
                         @else
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-600 border border-slate-300">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-300">
                                 <span class="w-2 h-2 rounded-full bg-slate-400"></span>
                                 GATEWAY NONAKTIF
                             </span>
                         @endif
 
                         @if($isProduction)
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-purple-50 text-purple-700 border border-purple-200">
-                                🚀 PRODUCTION (LIVE)
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                PRODUCTION (LIVE)
                             </span>
                         @else
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-700 border border-amber-200">
-                                🧪 SANDBOX (TESTING)
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                SANDBOX (TESTING)
                             </span>
                         @endif
                     </div>
@@ -341,15 +226,15 @@
                                 type="button"
                                 onclick="runTestConnection()"
                                 id="btn-test-conn"
-                                class="w-full sm:w-auto px-5 py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider transition shadow-sm flex items-center justify-center gap-2"
+                                class="w-full sm:w-auto px-5 py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider transition shadow-xs flex items-center justify-center gap-2"
                             >
-                                <span class="text-base">⚡</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                                 <span>Uji Koneksi Server Key</span>
                             </button>
 
                             <button
                                 type="submit"
-                                class="w-full sm:w-auto px-8 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs uppercase tracking-wider transition shadow-md shadow-rose-600/20"
+                                class="w-full sm:w-auto px-8 py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider transition shadow-xs"
                             >
                                 Simpan Pengaturan
                             </button>
@@ -366,8 +251,8 @@
                     <!-- Box 1: Webhook & URL Redirect -->
                     <div class="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
                         <div class="flex items-center gap-2">
-                            <div class="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">
-                                🔗
+                            <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
                             </div>
                             <h4 class="font-extrabold text-xs text-slate-800 uppercase tracking-wide">URL Callback Midtrans</h4>
                         </div>
@@ -421,14 +306,14 @@
                     <!-- Box 2: Panduan Langkah Pengaturan untuk Pemilik Aplikasi -->
                     <div class="bg-slate-950 text-white rounded-3xl p-6 shadow-sm space-y-4">
                         <div class="flex items-center gap-2">
-                            <div class="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs">
-                                📖
+                            <div class="w-7 h-7 rounded-lg bg-slate-800 text-slate-200 flex items-center justify-center font-bold text-xs">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                             </div>
-                            <h4 class="font-extrabold text-xs uppercase tracking-wide text-rose-400">Panduan Siap Pakai</h4>
+                            <h4 class="font-extrabold text-xs uppercase tracking-wide text-slate-200">Panduan Siap Pakai</h4>
                         </div>
                         <ol class="space-y-3 text-[11px] text-slate-350 list-decimal list-inside leading-relaxed">
                             <li>
-                                Buat / masuk ke akun di <a href="https://dashboard.midtrans.com" target="_blank" class="text-rose-400 hover:underline font-bold">dashboard.midtrans.com</a>.
+                                Buat / masuk ke akun di <a href="https://dashboard.midtrans.com" target="_blank" class="text-sky-400 hover:underline font-bold">dashboard.midtrans.com</a>.
                             </li>
                             <li>
                                 Buka menu <b>Settings > Access Keys</b>.
@@ -478,7 +363,7 @@ function copyToClipboard(elementId, btn) {
     navigator.clipboard.writeText(input.value);
     
     const originalText = btn.innerText;
-    btn.innerText = 'Tersalin! ✓';
+    btn.innerText = 'Tersalin!';
     btn.classList.add('bg-emerald-600', 'text-white');
     setTimeout(() => {
         btn.innerText = originalText;
@@ -494,12 +379,12 @@ function runTestConnection() {
 
     if (!serverKey) {
         resultBox.className = 'rounded-2xl p-4 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700 block';
-        resultBox.innerHTML = '⚠️ Masukkan Server Key terlebih dahulu di formulir sebelum menguji koneksi.';
+        resultBox.innerHTML = 'Masukkan Server Key terlebih dahulu di formulir sebelum menguji koneksi.';
         return;
     }
 
     testBtn.disabled = true;
-    testBtn.innerHTML = '<span>⏳ Menguji Koneksi Midtrans...</span>';
+    testBtn.innerHTML = '<span>Menguji Koneksi Midtrans...</span>';
 
     fetch('{{ route("admin.settings.midtrans.test") }}', {
         method: 'POST',
@@ -515,21 +400,21 @@ function runTestConnection() {
     .then(res => res.json())
     .then(data => {
         testBtn.disabled = false;
-        testBtn.innerHTML = '<span class="text-base">⚡</span><span>Uji Koneksi Server Key</span>';
+        testBtn.innerHTML = '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><span>Uji Koneksi Server Key</span>';
 
         if (data.success) {
             resultBox.className = 'rounded-2xl p-4 text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-800 block';
-            resultBox.innerHTML = '<b>✓ ' + data.message + '</b>';
+            resultBox.innerHTML = '<b>' + data.message + '</b>';
         } else {
             resultBox.className = 'rounded-2xl p-4 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-800 block';
-            resultBox.innerHTML = '<b>✕ ' + data.message + '</b>';
+            resultBox.innerHTML = '<b>' + data.message + '</b>';
         }
     })
     .catch(err => {
         testBtn.disabled = false;
-        testBtn.innerHTML = '<span class="text-base">⚡</span><span>Uji Koneksi Server Key</span>';
+        testBtn.innerHTML = '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><span>Uji Koneksi Server Key</span>';
         resultBox.className = 'rounded-2xl p-4 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-800 block';
-        resultBox.innerHTML = '⚠️ Gagal melakukan pengecekan: ' + err.message;
+        resultBox.innerHTML = 'Gagal melakukan pengecekan: ' + err.message;
     });
 }
 </script>

@@ -143,6 +143,7 @@ class MerchantProductController extends Controller
             'category_id' => 'nullable',
             'new_category_name' => 'nullable|string|max:100',
             'description' => 'nullable|string',
+            
             'estimated_price' => 'required|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:3072',

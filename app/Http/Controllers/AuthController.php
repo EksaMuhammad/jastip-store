@@ -9,18 +9,10 @@ class AuthController extends Controller
 {
     /**
      * Tampilkan halaman login & register (gabungan).
+     * Selalu tampilkan halaman login agar pengguna bisa login peran lain di tab baru.
      */
     public function showLogin()
     {
-        // Jika sudah login sebagai customer atau jastiper, redirect langsung ke dashboard masing-masing
-        if (Auth::guard('customer')->check()) {
-            return redirect()->route('customer.dashboard');
-        }
-
-        if (Auth::guard('jastiper')->check()) {
-            return redirect()->route('jastiper.dashboard');
-        }
-
         return view('auth.login');
     }
 
@@ -33,10 +25,31 @@ class AuthController extends Controller
     }
 
     /**
-     * Proses logout untuk semua guard user.
+     * Proses logout untuk guard user (tidak mematikan sesi role lain di tab berbeda).
      */
     public function logout(Request $request)
     {
+        $role = $request->input('role') ?? $request->query('role');
+
+        if (!$role) {
+            $referer = $request->header('referer', '');
+            if (str_contains($referer, '/jastiper')) {
+                $role = 'jastiper';
+            } elseif (str_contains($referer, '/customer')) {
+                $role = 'customer';
+            }
+        }
+
+        if ($role === 'customer') {
+            Auth::guard('customer')->logout();
+            return redirect('/')->with('info', 'Berhasil keluar dari akun Customer.');
+        }
+
+        if ($role === 'jastiper') {
+            Auth::guard('jastiper')->logout();
+            return redirect('/')->with('info', 'Berhasil keluar dari akun Jastiper.');
+        }
+
         if (Auth::guard('customer')->check()) {
             Auth::guard('customer')->logout();
         }

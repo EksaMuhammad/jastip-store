@@ -24,6 +24,10 @@ class Order extends Model
         'downpayment_amount',
         'cash_amount',
         'reference_photo',
+        'pickup_photo',
+        'pickup_time',
+        'delivery_photo',
+        'delivery_time',
         'origin_address',
         'origin_lat',
         'origin_lng',
@@ -52,6 +56,8 @@ class Order extends Model
         'destination_lat' => 'decimal:8',
         'destination_lng' => 'decimal:8',
         'multi_stops' => 'array',
+        'pickup_time' => 'datetime',
+        'delivery_time' => 'datetime',
     ];
 
     /**
@@ -72,9 +78,10 @@ class Order extends Model
 
         if (DB::connection() instanceof \Illuminate\Database\SQLiteConnection) {
             // SQLite does not support virtual columns in HAVING without GROUP BY, so we put the formula in WHERE
+            // Note: CAST(? AS REAL) is required because SQLite considers any REAL number less than any TEXT string
             return $query
                 ->selectRaw("orders.*, {$haversine} AS distance_km", [$centerLat, $centerLng, $centerLat])
-                ->whereRaw("{$haversine} <= ?", [$centerLat, $centerLng, $centerLat, $radiusKm])
+                ->whereRaw("{$haversine} <= CAST(? AS REAL)", [$centerLat, $centerLng, $centerLat, $radiusKm])
                 ->orderBy('distance_km', 'asc');
         }
 
@@ -100,6 +107,11 @@ class Order extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id');
+    }
+
+    public function merchant()
+    {
+        return $this->belongsTo(Merchant::class, 'merchant_id');
     }
 
     public function jastiper()
@@ -152,6 +164,16 @@ class Order extends Model
         return $this->hasMany(Chat::class, 'order_id');
     }
 
+    public function priceAdjustments()
+    {
+        return $this->hasMany(OrderPriceAdjustment::class, 'order_id');
+    }
+
+    public function approvedPriceAdjustmentsTotal(): float
+    {
+        return (float) $this->priceAdjustments()->where('status', 'approved')->sum('difference');
+    }
+
     public function reports()
     {
         return $this->hasMany(Report::class, 'order_id');
@@ -160,5 +182,15 @@ class Order extends Model
     public function cancelledBy()
     {
         return $this->morphTo('cancelledBy', 'cancelled_by_role', 'cancelled_by_id');
+    }
+
+    public function cancellationLog()
+    {
+        return $this->hasOne(OrderCancellationLog::class, 'order_id')->latestOfMany();
+    }
+
+    public function activityLogs()
+    {
+        return $this->hasMany(ActivityLog::class, 'order_id')->orderBy('created_at', 'asc');
     }
 }

@@ -398,6 +398,7 @@ class OrderApiController extends Controller
             'order_id' => 'required|exists:orders,id',
             'jastiper_id' => 'required|exists:jastiper,id',
             'status' => 'required|in:barang_diambil,sedang_diantar,tiba_tujuan',
+            'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,heic,heif|max:10240',
         ]);
 
         if ($validator->fails()) {
@@ -417,12 +418,25 @@ class OrderApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Order tidak ditemukan atau bukan milik Anda.'], 404);
         }
 
-        $order->update(['status' => $status]);
+        $updateData = ['status' => $status];
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            $photoPath = \App\Services\ImageUploadService::store($request->file('photo'), 'order_proofs', 'public');
+            if ($status === 'barang_diambil') {
+                $updateData['pickup_photo'] = $photoPath;
+                $updateData['pickup_time'] = now();
+            } elseif ($status === 'tiba_tujuan') {
+                $updateData['delivery_photo'] = $photoPath;
+                $updateData['delivery_time'] = now();
+            }
+        }
+
+        $order->update($updateData);
 
         $statusMessages = [
-            'barang_diambil' => "Jastiper telah mengambil barang pesanan \"{$order->description}\".",
+            'barang_diambil' => "Jastiper telah mengambil barang pesanan \"{$order->description}\"" . (!empty($photoPath) ? " dan melampirkan foto bukti." : "."),
             'sedang_diantar' => "Jastiper sedang mengantar pesanan \"{$order->description}\" ke tujuan.",
-            'tiba_tujuan' => "Pesanan \"{$order->description}\" telah tiba di tujuan! Mohon konfirmasi penerimaan di aplikasi."
+            'tiba_tujuan' => "Pesanan \"{$order->description}\" telah tiba di tujuan" . (!empty($photoPath) ? " dengan foto bukti serah terima!" : "!") . " Mohon konfirmasi penerimaan di aplikasi."
         ];
         
         if (isset($statusMessages[$status])) {

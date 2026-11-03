@@ -73,6 +73,17 @@ class OrderCompletionService
                 $order,
                 "Belanjaan Anda \"{$order->description}\" telah selesai dibelanjakan dan diantarkan oleh Jastiper " . ($jastiper->name ?? '') . "! Terima kasih telah menggunakan layanan JastipKuy. 🙏"
             );
+        } elseif ($completedByRole === 'admin') {
+            app(ChatService::class)->sendSystemMessage(
+                $order,
+                "Admin telah meninjau pengaduan dan menyelesaikan pesanan \"{$order->description}\". Pembayaran diteruskan kepada Jastiper."
+            );
+            if ($jastiper) {
+                \App\Services\WhatsAppService::sendMessage(
+                    $jastiper->phone_number,
+                    "Admin telah meninjau pengaduan dan menyelesaikan pesanan \"{$order->description}\". Pembayaran telah diteruskan ke dompet Anda."
+                );
+            }
         } else {
             if ($jastiper) {
                 \App\Services\WhatsAppService::sendMessage(

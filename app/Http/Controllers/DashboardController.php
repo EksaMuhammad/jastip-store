@@ -37,23 +37,23 @@ class DashboardController extends Controller
 
         $promos = Promo::where('is_active', true)->latest()->get();
 
-        // Rekomendasi Toko Minimarket (Mart) & Produk Terbaru untuk dashboard customer
-        $latestMartProducts = \App\Models\Product::where('is_available', true)
-            ->whereHas('merchant', function($q) { $q->where('type', 'mart'); })
-            ->with(['merchant', 'category'])
-            ->latest()
-            ->take(8)
-            ->get();
-
-        $martMerchants = \App\Models\Merchant::where('type', 'mart')
-            ->where('is_active', true)
-            ->withCount('products')
-            ->latest()
-            ->take(6)
+        // Ambil jastiper yang sedang aktif check-in di lokasi belanja
+        $checkinJastipers = Jastiper::whereNotNull('checkin_location')
+            ->where('is_available', true)
+            ->where('verification_status', 'approved')
+            ->with('badge')
+            ->latest('checked_in_at')
             ->get();
 
         $balance = $customer->wallet ? $customer->wallet->balance : 0;
-        return view('dashboard.customer', compact('customer', 'balance', 'unratedCompletedOrders', 'promos', 'latestMartProducts', 'martMerchants'));
+
+        $pendingPriceAdjustments = \App\Models\OrderPriceAdjustment::whereHas('order', fn($q) => $q->where('customer_id', $customer->id))
+            ->where('status', 'pending')
+            ->with(['order', 'orderItem'])
+            ->latest()
+            ->get();
+
+        return view('dashboard.customer', compact('customer', 'balance', 'unratedCompletedOrders', 'promos', 'checkinJastipers', 'pendingPriceAdjustments'));
     }
 
     /**
@@ -65,17 +65,43 @@ class DashboardController extends Controller
         
         $activeOrders = \App\Models\Order::where('customer_id', $customer->id)
             ->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
-            ->with(['jastiper', 'addons'])
+            ->with(['jastiper', 'addons', 'merchant', 'items.product.merchant'])
             ->latest()
             ->get();
             
         $pastOrders = \App\Models\Order::where('customer_id', $customer->id)
             ->whereIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
-            ->with(['jastiper'])
+            ->with(['jastiper', 'merchant', 'items.product.merchant'])
             ->latest()
             ->get();
 
         return view('dashboard.customer.activity', compact('customer', 'activeOrders', 'pastOrders'));
+    }
+
+    /**
+     * Halaman Rincian Pesanan Customer (ShopeeFood / Mobile Reference Style).
+     */
+    public function customerOrderDetail($id)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        $order = \App\Models\Order::where('id', $id)
+            ->where('customer_id', $customer->id)
+            ->with([
+                'jastiper.badge',
+                'orderItems.product.merchant',
+                'orderItems.priceAdjustment',
+                'priceAdjustments',
+                'payments' => fn($q) => $q->latest('id'),
+                'addons',
+                'wilayah',
+                'merchant'
+            ])
+            ->firstOrFail();
+
+        $latestPayment = $order->payments->first();
+
+        return view('customer.orders.show', compact('customer', 'order', 'latestPayment'));
     }
 
     /**
@@ -159,18 +185,21 @@ class DashboardController extends Controller
     public function jastiperDashboard()
     {
         $jastiper = Auth::guard('jastiper')->user();
+        // Otomatis sinkronkan wilayah jika koordinat jastiper berada di wilayah terdekat yang berbeda
+        $jastiper->syncWilayahFromCoordinates();
         // Load relation wilayah to display location
         $jastiper->load(['wilayah', 'latestVerification']);
 
         // Ambil direct orders khusus untuk Jastiper ini yang belum direspons
         $directOrders = \App\Models\Order::where('status', 'menunggu_tawaran')
             ->where('jastiper_id', $jastiper->id)
+            ->with(['customer', 'merchant', 'items.product.merchant'])
             ->latest()
             ->get();
 
         $activeOrders = \App\Models\Order::where('jastiper_id', $jastiper->id)
-            ->whereNotIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
-            ->with(['customer', 'addons'])
+            ->whereIn('status', ['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'])
+            ->with(['customer', 'merchant', 'items.product.merchant', 'addons'])
             ->latest()
             ->get();
 
@@ -413,27 +442,42 @@ class DashboardController extends Controller
         usort($serviceBreakdown, fn($a, $b) => $b['count'] <=> $a['count']);
         $topService = $serviceBreakdown[0] ?? null;
 
-        // 4. Financial Analytics (Cash In vs Cash Out)
-        // Cash In: payments verified/lunas in date range + topups verified
+        // 4. Financial Analytics (Kas Masuk, Kas Keluar/Pengeluaran termasuk Refund, Keuntungan Bersih)
         $paymentInQuery = \App\Models\Payment::where('status', 'lunas');
         $topupInQuery = \App\Models\Topup::where('status', 'berhasil');
-        $withdrawOutQuery = \App\Models\WithdrawRequest::where('status', 'approved');
+        $withdrawOutQuery = \App\Models\WithdrawRequest::whereIn('status', ['disetujui', 'approved']);
+        $refundQuery = \App\Models\WalletTransaction::where('source', 'like', 'refund%');
         $komisiQuery = \App\Models\Komisi::query();
 
         if ($startDate && $endDate) {
             $paymentInQuery->whereBetween('created_at', [$startDate, $endDate]);
             $topupInQuery->whereBetween('created_at', [$startDate, $endDate]);
             $withdrawOutQuery->whereBetween('processed_at', [$startDate, $endDate]);
+            $refundQuery->whereBetween('created_at', [$startDate, $endDate]);
             $komisiQuery->whereBetween('created_at', [$startDate, $endDate]);
         }
 
+        // 4a. Kas Masuk (Order Payment + Topup)
         $cashInPayments = (float) $paymentInQuery->sum('amount');
         $cashInTopups = (float) $topupInQuery->sum('amount');
         $totalCashIn = $cashInPayments + $cashInTopups;
 
-        $totalCashOut = (float) $withdrawOutQuery->sum('amount');
+        // 4b. Kas Keluar (Pengeluaran: Withdraw Jastiper + Refund Customer)
+        $cashOutWithdraws = (float) $withdrawOutQuery->sum('amount');
+        $withdrawCount = (int) $withdrawOutQuery->count();
+        $totalRefund = (float) $refundQuery->sum('amount');
+        $refundCount = (int) $refundQuery->count();
+        $totalCashOut = $cashOutWithdraws + $totalRefund;
+
+        // 4c. Keuntungan Bersih Platform (Laba Komisi Aplikasi)
         $platformCommissionEarned = (float) $komisiQuery->sum('commission_amount');
+        $grossOrderFare = (float) $komisiQuery->sum('gross_amount');
         $netCashFlow = $totalCashIn - $totalCashOut;
+
+        // 4d. Dana Mengendap (Escrow Titipan Saldo User)
+        $customerEscrowBalance = (float) \App\Models\Wallet::where('owner_role', 'customer')->sum('balance');
+        $jastiperPendingBalance = (float) \App\Models\Wallet::where('owner_role', 'jastiper')->sum('balance');
+        $totalEscrowBalance = $customerEscrowBalance + $jastiperPendingBalance;
 
         // 5. Hourly Orders Distribution (for Today chart)
         $hourlyDistribution = array_fill(0, 24, 0);
@@ -446,7 +490,7 @@ class DashboardController extends Controller
         }
 
         // 6. Interactive Orders Table with Search & Status Filter
-        $tableQuery = \App\Models\Order::with(['customer', 'jastiper', 'wilayah'])
+        $tableQuery = \App\Models\Order::with(['customer', 'jastiper', 'wilayah', 'reports'])
             ->latest();
 
         if ($request->filled('status_filter') && $request->status_filter !== 'all') {
@@ -478,6 +522,12 @@ class DashboardController extends Controller
 
         $latestOrders = $tableQuery->paginate(15)->appends($request->query());
 
+        // 7. Master Data Mutasi Keseluruhan (Ringkasan Eksekutif Cepat)
+        $mutationTotalCount = \App\Models\WalletTransaction::count();
+        $mutationTotalKredit = (float) \App\Models\WalletTransaction::where('type', 'kredit')->sum('amount');
+        $mutationTotalDebit = (float) \App\Models\WalletTransaction::where('type', 'debit')->sum('amount');
+        $mutationNet = $mutationTotalKredit - $mutationTotalDebit;
+
         return view('admin.dashboard', compact(
             'dateFilter',
             'totalOrdersFiltered',
@@ -497,10 +547,22 @@ class DashboardController extends Controller
             'cashInPayments',
             'cashInTopups',
             'totalCashOut',
+            'cashOutWithdraws',
+            'withdrawCount',
+            'totalRefund',
+            'refundCount',
             'platformCommissionEarned',
+            'grossOrderFare',
             'netCashFlow',
+            'customerEscrowBalance',
+            'jastiperPendingBalance',
+            'totalEscrowBalance',
             'hourlyDistribution',
-            'latestOrders'
+            'latestOrders',
+            'mutationTotalCount',
+            'mutationTotalKredit',
+            'mutationTotalDebit',
+            'mutationNet'
         ));
     }
 
@@ -612,12 +674,73 @@ class DashboardController extends Controller
                 ? $request->location_name_custom
                 : $request->location_name_select;
 
-            $jastiper->update([
+            $updateData = [
                 'checkin_location' => $locationName,
                 'checked_in_at' => now(),
                 'is_available' => true,
-            ]);
-            $msg = "Anda berhasil check-in di {$locationName}! Customer kini dapat membooking Anda secara langsung.";
+            ];
+
+            // Jika koordinat dikirim via input lat/lng atau GPS
+            if ($request->filled('lat') && $request->filled('lng')) {
+                $updateData['current_lat'] = (float) $request->input('lat');
+                $updateData['current_lng'] = (float) $request->input('lng');
+            } else {
+                // Resolusi koordinat cerdas agar peta Jastiper & radar Customer langsung berpindah
+                $locLower = strtolower($locationName);
+                $knownCoords = [
+                    'mie gacoan lowokwaru' => [-7.9445, 112.6180],
+                    'starbucks ijen' => [-7.9735, 112.6230],
+                    'matos' => [-7.9570, 112.6185],
+                    'malang town square' => [-7.9570, 112.6185],
+                    'pasar besar malang' => [-7.9865, 112.6325],
+                    'bakso bakar pak man' => [-7.9620, 112.6280],
+                    'lippo plaza' => [-7.4478, 112.7183],
+                    'alun-alun sidoarjo' => [-7.4528, 112.7175],
+                    'tunjungan plaza' => [-7.2625, 112.7380],
+                ];
+
+                $matched = false;
+                foreach ($knownCoords as $k => $c) {
+                    if (str_contains($locLower, $k)) {
+                        $updateData['current_lat'] = $c[0];
+                        $updateData['current_lng'] = $c[1];
+                        $matched = true;
+                        break;
+                    }
+                }
+
+                if (!$matched) {
+                    if (str_contains($locLower, 'wiyung')) {
+                        $updateData['current_lat'] = -7.3110;
+                        $updateData['current_lng'] = 112.6980;
+                    } elseif (str_contains($locLower, 'wonoayu')) {
+                        $updateData['current_lat'] = -7.4345;
+                        $updateData['current_lng'] = 112.6178;
+                    } elseif (str_contains($locLower, 'sedengan') || str_contains($locLower, 'krian')) {
+                        $updateData['current_lat'] = -7.4120;
+                        $updateData['current_lng'] = 112.5830;
+                    } elseif (str_contains($locLower, 'sidoarjo')) {
+                        $updateData['current_lat'] = -7.4478;
+                        $updateData['current_lng'] = 112.7183;
+                    } elseif (str_contains($locLower, 'rungkut')) {
+                        $updateData['current_lat'] = -7.3180;
+                        $updateData['current_lng'] = 112.7820;
+                    } elseif (str_contains($locLower, 'surabaya')) {
+                        $updateData['current_lat'] = -7.2575;
+                        $updateData['current_lng'] = 112.7521;
+                    }
+                }
+            }
+
+            if (!empty($updateData['current_lat']) && !empty($updateData['current_lng'])) {
+                $nearestWilayah = \App\Models\Wilayah::findNearest((float) $updateData['current_lat'], (float) $updateData['current_lng']);
+                if ($nearestWilayah) {
+                    $updateData['wilayah_id'] = $nearestWilayah->id;
+                }
+            }
+
+            $jastiper->update($updateData);
+            $msg = "Anda berhasil check-in di {$locationName}! Posisi Anda di peta telah diperbarui dan Customer kini dapat membooking Anda secara langsung.";
         }
 
         return redirect()->back()->with('success', $msg);
@@ -829,7 +952,7 @@ class DashboardController extends Controller
             ->whereNull('jastiper_id')
             ->nearby((float) $jastiper->current_lat, (float) $jastiper->current_lng, (float) $jastiper->radius_km)
             ->categoryIs($category)
-            ->with('customer:id,name,phone_number')
+            ->with(['customer:id,name,phone_number', 'merchant', 'items.product.merchant'])
             ->with(['offers' => function ($q) use ($jastiper) {
                 $q->where('jastiper_id', $jastiper->id)->where('status', 'pending');
             }])
@@ -848,11 +971,31 @@ class DashboardController extends Controller
         $formatted = $orders->map(function ($order) use ($categoryNames) {
             $myOffer = $order->offers->first();
 
+            $itemsData = $order->items->map(function ($it) {
+                $price = (float) ($it->actual_price ?? $it->estimated_price ?? 0);
+                return [
+                    'id' => $it->id,
+                    'name' => $it->name,
+                    'name_clean' => $it->clean_name,
+                    'quantity' => (int) ($it->quantity ?: 1),
+                    'price' => $price,
+                    'price_formatted' => $price > 0 ? 'Rp ' . number_format($price, 0, ',', '.') : null,
+                    'notes' => $it->notes,
+                    'merchant_name' => $it->product?->merchant?->name ?? null,
+                ];
+            })->values();
+
+            $merchantName = $order->merchant?->name
+                ?? ($order->items->first(fn($it) => $it->product && $it->product->merchant)?->product?->merchant?->name ?? null);
+
             return [
                 'id' => $order->id,
                 'category' => $order->category,
                 'category_label' => $categoryNames[$order->category] ?? 'Jastip',
                 'description' => $order->description,
+                'merchant_name' => $merchantName,
+                'items' => $itemsData,
+                'items_count' => $itemsData->count(),
                 'weight_category' => $order->weight_category,
                 'origin_address' => $order->origin_address,
                 'destination_address' => $order->destination_address,
@@ -1338,7 +1481,10 @@ class DashboardController extends Controller
 
         $orders = Order::with([
                 'jastiper',
+                'merchant',
+                'items.product.merchant',
                 'addons',
+                'priceAdjustments' => fn($q) => $q->where('status', 'pending'),
                 'payments' => function ($q) {
                     $q->where('status', 'menunggu')->latest('id');
                 },
@@ -1362,9 +1508,40 @@ class DashboardController extends Controller
         $formatted = $orders->map(function ($order) {
             $secondsSinceCreated = $order->created_at->diffInSeconds(now());
 
+            $itemsData = $order->items->map(function ($it) {
+                $price = (float) ($it->actual_price ?? $it->estimated_price ?? 0);
+                return [
+                    'id' => $it->id,
+                    'name' => $it->name,
+                    'name_clean' => $it->clean_name,
+                    'quantity' => (int) ($it->quantity ?: 1),
+                    'price' => $price,
+                    'price_formatted' => $price > 0 ? 'Rp ' . number_format($price, 0, ',', '.') : null,
+                    'notes' => $it->notes,
+                    'merchant_name' => $it->product?->merchant?->name ?? null,
+                ];
+            })->values();
+
+            $merchantName = $order->merchant?->name
+                ?? ($order->items->first(fn($it) => $it->product && $it->product->merchant)?->product?->merchant?->name ?? null);
+
+            $pendingAdj = $order->priceAdjustments ? $order->priceAdjustments->first() : null;
+
             return [
                 'id' => $order->id,
                 'description' => $order->description,
+                'merchant_name' => $merchantName,
+                'items' => $itemsData,
+                'items_count' => $itemsData->count(),
+                'has_pending_adjustment' => $pendingAdj !== null,
+                'pending_adjustment' => $pendingAdj ? [
+                    'id' => $pendingAdj->id,
+                    'item_name' => $pendingAdj->item_name,
+                    'proposed_price' => (float) $pendingAdj->proposed_price,
+                    'difference' => (float) $pendingAdj->difference,
+                    'difference_formatted' => '+Rp ' . number_format($pendingAdj->difference, 0, ',', '.'),
+                    'reason' => $pendingAdj->reason,
+                ] : null,
                 'category' => $order->category,
                 'status' => $order->status,
                 'estimated_fare' => (float) $order->estimated_fare,
@@ -1438,14 +1615,57 @@ class DashboardController extends Controller
             return redirect()->back()->with('error', 'Order tidak ditemukan atau bukan milik Anda.');
         }
 
-        $request->validate(['status' => 'required|in:barang_diambil,sedang_diantar,tiba_tujuan']);
+        $request->validate([
+            'status' => 'required|in:barang_diambil,sedang_diantar,tiba_tujuan',
+            'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,heic,heif|max:10240',
+        ], [
+            'photo.mimes' => 'Format foto harus berupa JPG, PNG, WEBP, atau HEIC.',
+            'photo.max' => 'Ukuran foto maksimal 10MB.',
+        ]);
+
+        $updateData = ['status' => $request->status];
+        $photoPath = null;
+
+        if ($request->hasFile('photo')) {
+            $photoPath = \App\Services\ImageUploadService::store($request->file('photo'), 'order_proofs', 'public');
+            if ($request->status === 'barang_diambil') {
+                $updateData['pickup_photo'] = $photoPath;
+                $updateData['pickup_time'] = now();
+            } elseif ($request->status === 'tiba_tujuan') {
+                $updateData['delivery_photo'] = $photoPath;
+                $updateData['delivery_time'] = now();
+            }
+        }
+
+        $order->update($updateData);
+
+        $statusLabels = [
+            'barang_diambil' => 'Barang Diambil di Toko',
+            'sedang_diantar' => 'Mulai Pengantaran ke Tujuan',
+            'tiba_tujuan' => 'Tiba di Lokasi Tujuan'
+        ];
+        $label = $statusLabels[$request->status] ?? $request->status;
         
-        $order->update(['status' => $request->status]);
+        $properties = ['status' => $request->status];
+        if (!empty($photoPath)) {
+            $properties['photo'] = $photoPath;
+            $properties['photo_type'] = $request->status === 'barang_diambil' ? 'pickup_photo' : 'delivery_photo';
+        }
+
+        \App\Services\ActivityLogger::logOrder(
+            $order,
+            "status_{$request->status}",
+            "Jastiper: {$label}" . (!empty($photoPath) ? " (+Foto Bukti)" : ""),
+            "Mitra Jastiper {$jastiper->name} memperbarui status pesanan #{$order->id} menjadi \"{$label}\"" . (!empty($photoPath) ? " dengan melampirkan foto bukti." : ""),
+            $jastiper,
+            'pengantaran',
+            $properties
+        );
 
         $statusMessages = [
-            'barang_diambil' => "Jastiper telah mengambil barang pesanan \"{$order->description}\".",
+            'barang_diambil' => "Jastiper telah mengambil barang pesanan \"{$order->description}\"" . (!empty($photoPath) ? " dan melampirkan foto bukti barang." : "."),
             'sedang_diantar' => "Jastiper sedang mengantar pesanan \"{$order->description}\" ke tujuan.",
-            'tiba_tujuan' => "Pesanan \"{$order->description}\" telah tiba di tujuan! Mohon konfirmasi penerimaan di aplikasi."
+            'tiba_tujuan' => "Pesanan \"{$order->description}\" telah tiba di tujuan" . (!empty($photoPath) ? " dengan foto bukti serah terima!" : "!") . " Mohon konfirmasi penerimaan di aplikasi."
         ];
         
         if (isset($statusMessages[$request->status])) {
@@ -1453,7 +1673,7 @@ class DashboardController extends Controller
             app(\App\Services\ChatService::class)->sendSystemMessage($order, $statusMessages[$request->status]);
         }
 
-        return redirect()->back()->with('success', 'Status pesanan diperbarui.');
+        return redirect()->back()->with('success', "Status pesanan berhasil diperbarui menjadi \"{$label}\"" . (!empty($photoPath) ? " beserta foto bukti." : "."));
     }
 
     /**

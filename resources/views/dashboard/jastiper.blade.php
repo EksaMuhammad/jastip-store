@@ -301,7 +301,7 @@
             <div class="flex justify-between items-start">
                 <div class="space-y-1">
                     <span class="text-[9px] uppercase font-bold text-rose-100 tracking-wider block">Pendapatan Jastiper Hari Ini</span>
-                    <div class="text-3xl font-black font-display tracking-tight">Rp{{ number_format($todayEarnings, 0, ',', '.') }}</div>
+                    <div class="text-3xl font-black font-display tracking-tight">Rp {{ number_format($todayEarnings, 0, ',', '.') }}</div>
                     <span class="text-[8px] text-rose-200/80 font-semibold block">ID: #JSTP-{{ str_pad($jastiper->id, 4, '0', STR_PAD_LEFT) }}</span>
                 </div>
 
@@ -314,7 +314,7 @@
             <div class="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 mt-5 text-center">
                 <div>
                     <span class="text-[8px] font-bold text-rose-100 uppercase tracking-wide block">Bulan Ini</span>
-                    <span class="text-xs font-black block mt-0.5">Rp{{ number_format($monthEarnings, 0, ',', '.') }}</span>
+                    <span class="text-xs font-black block mt-0.5">Rp {{ number_format($monthEarnings, 0, ',', '.') }}</span>
                 </div>
                 <div>
                     <span class="text-[8px] font-bold text-rose-100 uppercase tracking-wide block">Penyelesaian</span>
@@ -370,17 +370,22 @@
                         </form>
                     </div>
                 @else
-                    <form action="{{ route('jastiper.checkin') }}" method="POST" class="space-y-3" x-data="{ location: 'Mie Gacoan Lowokwaru', customLocation: '' }">
+                    <form action="{{ route('jastiper.checkin') }}" method="POST" id="form-jastiper-checkin" class="space-y-3" x-data="{ location: 'Mie Gacoan Lowokwaru', customLocation: '' }">
                         @csrf
                         <input type="hidden" name="action" value="checkin">
+                        <input type="hidden" name="lat" id="checkin_lat">
+                        <input type="hidden" name="lng" id="checkin_lng">
 
                         <div class="grid grid-cols-1 gap-3">
                             <div>
                                 <label for="location_select" class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pilih Lokasi Populer</label>
                                 <select id="location_select" name="location_name_select" x-model="location" class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-[11px] font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150">
-                                    <option value="Mie Gacoan Lowokwaru">Mie Gacoan Lowokwaru</option>
-                                    <option value="Starbucks Ijen">Starbucks Ijen</option>
-                                    <option value="Matos (Malang Town Square)">Matos (Malang Town Square)</option>
+                                    <option value="Mie Gacoan Lowokwaru">Mie Gacoan Lowokwaru (Malang)</option>
+                                    <option value="Starbucks Ijen">Starbucks Ijen (Malang)</option>
+                                    <option value="Matos (Malang Town Square)">Matos (Malang)</option>
+                                    <option value="Lippo Plaza Sidoarjo">Lippo Plaza (Sidoarjo)</option>
+                                    <option value="Alun-Alun Sidoarjo">Alun-Alun (Sidoarjo)</option>
+                                    <option value="Tunjungan Plaza Surabaya">Tunjungan Plaza (Surabaya)</option>
                                     <option value="Pasar Besar Malang">Pasar Besar Malang</option>
                                     <option value="Bakso Bakar Pak Man">Bakso Bakar Pak Man</option>
                                     <option value="custom">-- Tulis Kustom --</option>
@@ -411,7 +416,14 @@
                 <div>
                     <h3 class="font-display font-black text-xs text-slate-800 uppercase tracking-wider">Area Kerja & Radius</h3>
                     <p class="text-[9px] text-slate-400 mt-0.5 leading-normal">
-                        Wilayah: <b>{{ $jastiper->wilayah ? $jastiper->wilayah->name : 'Belum Ditentukan' }}</b> | Radius: <b>{{ number_format($jastiper->radius_km, 1) }} KM</b>
+                        @if($jastiper->checkin_location)
+                            <span class="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Sedang Aktif di: <b>{{ $jastiper->checkin_location }}</b>
+                            </span>
+                            <span class="text-slate-300 mx-1">•</span>
+                        @endif
+                        Wilayah: <b id="dash-wilayah-text">{{ $jastiper->wilayah ? $jastiper->wilayah->name : 'Belum Ditentukan' }}</b> | Radius: <b>{{ number_format($jastiper->radius_km, 1) }} KM</b>
                     </p>
                 </div>
                 @if ($jastiper->verification_status === 'approved')
@@ -459,12 +471,79 @@
                                     <span class="text-xs font-black text-rose-600">Rp {{ number_format($active->agreed_fare ?? $active->estimated_fare, 0, ',', '.') }}</span>
                                 </div>
                             </div>
+
+                            @if($active->items->isNotEmpty())
+                                <div class="bg-white border border-rose-100 rounded-2xl p-3 shadow-2xs space-y-2">
+                                    <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1.5">
+                                        <span class="flex items-center gap-1.5 text-rose-600">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                                            <span>Rincian Belanjaan ({{ $active->items->count() }} Item)</span>
+                                        </span>
+                                        @if($active->merchant)
+                                            <span class="text-slate-500 font-bold">🏬 {{ $active->merchant->name }}</span>
+                                        @endif
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        @foreach($active->items as $item)
+                                            <div class="flex items-start justify-between text-[10px] gap-2 bg-slate-50/70 border border-slate-100 rounded-xl px-2.5 py-1.5">
+                                                <div class="flex items-start gap-2 min-w-0">
+                                                    <span class="w-5 h-5 rounded-lg bg-rose-100 text-rose-600 font-black text-[9px] flex items-center justify-center shrink-0 mt-0.5">{{ $item->quantity }}x</span>
+                                                    <div class="min-w-0">
+                                                        <span class="font-black text-slate-800 block leading-snug">{{ $item->clean_name }}</span>
+                                                        @if($item->notes)
+                                                            <span class="text-[8.5px] text-amber-700 font-medium block leading-tight mt-0.5">📝 Catatan: {{ $item->notes }}</span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                                @if($item->actual_price || $item->estimated_price)
+                                                    <span class="text-slate-600 font-bold shrink-0 text-[9px] mt-0.5">Rp {{ number_format($item->actual_price ?? $item->estimated_price, 0, ',', '.') }}</span>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
                             <div class="space-y-1.5 text-[9px] text-slate-500">
                                 <div><span class="font-bold">Antar:</span> {{ $active->destination_address }}</div>
                                 <div><span class="font-bold">Customer:</span> {{ $active->customer->name }} (<a href="tel:{{ $active->customer->phone_number }}" class="text-rose-600 hover:underline font-bold">{{ $active->customer->phone_number }}</a>)</div>
                                 <div><span class="font-bold">Penerima:</span> {{ $active->recipient_name }} ({{ $active->recipient_phone }})</div>
                             </div>
                             
+                            <!-- Bukti Foto Lapangan Jika Sudah Ada -->
+                            @if($active->pickup_photo || $active->delivery_photo)
+                                <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 space-y-2 text-[9px]">
+                                    @if($active->pickup_photo)
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-2 min-w-0">
+                                                <img src="{{ Storage::url($active->pickup_photo) }}" alt="Foto Ambil" class="w-7 h-7 rounded-lg object-cover border border-slate-300 shrink-0">
+                                                <div class="min-w-0">
+                                                    <span class="font-bold text-slate-800 block truncate">Bukti Ambil di Toko</span>
+                                                    <span class="text-slate-400 font-mono text-[8.5px] block">{{ $active->pickup_time ? $active->pickup_time->format('H:i') . ' WIB' : 'Tercatat' }}</span>
+                                                </div>
+                                            </div>
+                                            <button type="button" @click="$dispatch('open-image-lightbox', { url: '{{ Storage::url($active->pickup_photo) }}', title: 'Bukti Pengambilan Barang di Toko' })" class="text-indigo-600 font-bold hover:underline shrink-0 text-[9px]">
+                                                Lihat
+                                            </button>
+                                        </div>
+                                    @endif
+                                    @if($active->delivery_photo)
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-2 min-w-0">
+                                                <img src="{{ Storage::url($active->delivery_photo) }}" alt="Foto Tiba" class="w-7 h-7 rounded-lg object-cover border border-slate-300 shrink-0">
+                                                <div class="min-w-0">
+                                                    <span class="font-bold text-slate-800 block truncate">Bukti Serah Terima</span>
+                                                    <span class="text-slate-400 font-mono text-[8.5px] block">{{ $active->delivery_time ? $active->delivery_time->format('H:i') . ' WIB' : 'Tercatat' }}</span>
+                                                </div>
+                                            </div>
+                                            <button type="button" @click="$dispatch('open-image-lightbox', { url: '{{ Storage::url($active->delivery_photo) }}', title: 'Bukti Serah Terima di Tujuan' })" class="text-emerald-600 font-bold hover:underline shrink-0 text-[9px]">
+                                                Lihat
+                                            </button>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+
                             <!-- Action button to update status -->
                             <div class="pt-1 flex gap-2">
                                 @if($active->status === 'deal')
@@ -475,13 +554,19 @@
                                         </button>
                                     </form>
                                 @elseif($active->status === 'diproses')
-                                    <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
-                                        @csrf
-                                        <input type="hidden" name="status" value="barang_diambil">
-                                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
-                                            Konfirmasi Barang Diambil
-                                        </button>
-                                    </form>
+                                    <button type="button" 
+                                        @click="$dispatch('open-proof-modal', { 
+                                            orderId: {{ $active->id }}, 
+                                            status: 'barang_diambil', 
+                                            title: 'Foto Bukti Pengambilan Barang', 
+                                            subtitle: 'Ambil foto barang belanjaan atau struk fisik toko sebelum memulai pengantaran.',
+                                            buttonText: 'Konfirmasi Barang Diambil',
+                                            actionUrl: '{{ route('jastiper.orders.update-status', $active->id) }}'
+                                        })"
+                                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                        <span>Konfirmasi Barang Diambil</span>
+                                    </button>
                                 @elseif($active->status === 'barang_diambil')
                                     <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
                                         @csrf
@@ -491,13 +576,19 @@
                                         </button>
                                     </form>
                                 @elseif($active->status === 'sedang_diantar')
-                                    <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
-                                        @csrf
-                                        <input type="hidden" name="status" value="tiba_tujuan">
-                                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
-                                            Konfirmasi Tiba di Tujuan
-                                        </button>
-                                    </form>
+                                    <button type="button" 
+                                        @click="$dispatch('open-proof-modal', { 
+                                            orderId: {{ $active->id }}, 
+                                            status: 'tiba_tujuan', 
+                                            title: 'Foto Bukti Serah Terima Paket', 
+                                            subtitle: 'Ambil foto paket di lokasi tujuan atau serah terima dengan penerima.',
+                                            buttonText: 'Konfirmasi Tiba di Tujuan',
+                                            actionUrl: '{{ route('jastiper.orders.update-status', $active->id) }}'
+                                        })"
+                                        class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                        <span>Konfirmasi Tiba di Tujuan</span>
+                                    </button>
                                 @elseif($active->status === 'tiba_tujuan')
                                     <div class="w-full bg-gray-200 text-gray-500 font-bold text-[9px] py-2.5 rounded-xl uppercase tracking-wide shadow-sm text-center block">
                                         Menunggu Konfirmasi Customer
@@ -620,6 +711,39 @@
                                             <span class="text-xs font-black text-rose-600">Rp {{ number_format($direct->estimated_fare, 0, ',', '.') }}</span>
                                         </div>
                                     </div>
+
+                                    @if($direct->items->isNotEmpty())
+                                        <div class="bg-white border border-rose-200/80 rounded-2xl p-3 shadow-2xs space-y-2">
+                                            <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1.5">
+                                                <span class="flex items-center gap-1.5 text-rose-600">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                                                    <span>Rincian Belanjaan ({{ $direct->items->count() }} Item)</span>
+                                                </span>
+                                                @if($direct->merchant)
+                                                    <span class="text-slate-500 font-bold">🏬 {{ $direct->merchant->name }}</span>
+                                                @endif
+                                            </div>
+                                            <div class="space-y-1.5">
+                                                @foreach($direct->items as $item)
+                                                    <div class="flex items-start justify-between text-[10px] gap-2 bg-slate-50/70 border border-slate-100 rounded-xl px-2.5 py-1.5">
+                                                        <div class="flex items-start gap-2 min-w-0">
+                                                            <span class="w-5 h-5 rounded-lg bg-rose-100 text-rose-600 font-black text-[9px] flex items-center justify-center shrink-0 mt-0.5">{{ $item->quantity }}x</span>
+                                                            <div class="min-w-0">
+                                                                <span class="font-black text-slate-800 block leading-snug">{{ $item->clean_name }}</span>
+                                                                @if($item->notes)
+                                                                    <span class="text-[8.5px] text-amber-700 font-medium block leading-tight mt-0.5">📝 Catatan: {{ $item->notes }}</span>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                        @if($item->actual_price || $item->estimated_price)
+                                                            <span class="text-slate-600 font-bold shrink-0 text-[9px] mt-0.5">Rp {{ number_format($item->actual_price ?? $item->estimated_price, 0, ',', '.') }}</span>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+
                                     <div class="space-y-2 text-[9px] text-slate-500">
                                         <div class="flex items-start gap-1">
                                             <span class="leading-tight">Antar: <b>{{ $direct->destination_address }}</b></span>
@@ -708,6 +832,9 @@
                                                 <div class="flex items-center gap-1.5 flex-wrap">
                                                     <span class="text-[8px] font-black bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full uppercase tracking-wider" x-text="order.category_label"></span>
                                                     <span class="text-[8px] font-bold text-slate-400" x-text="order.distance_km + ' KM'"></span>
+                                                    <template x-if="order.merchant_name">
+                                                        <span class="text-[8px] font-black bg-slate-900 text-white px-2 py-0.5 rounded-full uppercase tracking-wider" x-text="'🏬 ' + order.merchant_name"></span>
+                                                    </template>
                                                 </div>
                                                 <h4 class="font-extrabold text-xs text-slate-800 mt-1.5 leading-tight" x-text="order.description"></h4>
                                                 <span class="text-[9px] text-slate-400 block mt-0.5" x-text="'Asal: ' + (order.origin_address || '-')"></span>
@@ -718,6 +845,33 @@
                                             <span class="text-xs font-black text-slate-500" x-text="order.estimated_fare_formatted"></span>
                                         </div>
                                     </div>
+
+                                    <!-- Box Daftar Belanjaan / Makanan (Rincian Item Jelas untuk Jastiper) -->
+                                    <template x-if="order.items && order.items.length > 0">
+                                        <div class="bg-white border border-rose-200/80 rounded-2xl p-3 shadow-2xs space-y-2">
+                                            <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1.5">
+                                                <span class="flex items-center gap-1.5 text-rose-600">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                                                    <span>Daftar Pesanan Belanja (<span x-text="order.items.length"></span> Item)</span>
+                                                </span>
+                                                <span class="text-slate-400 font-bold" x-text="order.category === 'beli-antar' ? '🍽️ Menu Makanan' : '🛍️ Barang Titipan'"></span>
+                                            </div>
+                                            <div class="space-y-1.5">
+                                                <template x-for="(item, idx) in order.items" :key="item.id || idx">
+                                                    <div class="flex items-start justify-between text-[10px] gap-2 bg-slate-50/70 border border-slate-100 rounded-xl px-2.5 py-1.5">
+                                                        <div class="flex items-start gap-2 min-w-0">
+                                                            <span class="w-5 h-5 rounded-lg bg-rose-100 text-rose-600 font-black text-[9px] flex items-center justify-center shrink-0 mt-0.5" x-text="item.quantity + 'x'"></span>
+                                                            <div class="min-w-0">
+                                                                <span class="font-black text-slate-800 block leading-snug" x-text="item.name_clean"></span>
+                                                                <span x-show="item.notes" class="text-[8.5px] text-amber-700 font-medium block leading-tight mt-0.5" x-text="'📝 Catatan: ' + item.notes"></span>
+                                                            </div>
+                                                        </div>
+                                                        <span class="text-slate-600 font-bold shrink-0 text-[9px] mt-0.5" x-show="item.price > 0" x-text="item.price_formatted"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
 
                                     <div class="space-y-2 text-[9px] text-slate-500">
                                         <!-- Khusus Multi-Stop: Tampilkan rute titik-titik belanja -->
@@ -772,7 +926,9 @@
                                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none">Rp</span>
                                             <input type="number" min="5000" step="500"
                                                 x-model.number="orderPrices[order.id]"
+                                                placeholder="17.000"
                                                 class="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2.5 text-[10px] font-bold text-slate-800 focus:outline-none focus:border-rose-400 transition">
+                                            <div x-show="orderPrices[order.id] > 0" class="text-[9px] font-bold text-rose-600 mt-1" x-text="'Tawaran: Rp ' + Number(orderPrices[order.id] || 0).toLocaleString('id-ID')"></div>
                                         </div>
                                         <button type="button" @click="submitOffer(order.id)" :disabled="loading"
                                             class="shrink-0 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[9px] px-4 py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm">
@@ -839,13 +995,190 @@
                 <input type="hidden" name="action" value="accept">
                 <div class="mb-4 text-left">
                     <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Biaya (Rp)</label>
-                    <input type="number" name="additional_fare" required min="1000" class="w-full bg-slate-50 border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-xs font-black focus:outline-none focus:bg-white focus:border-emerald-500 transition duration-150">
+                    <input type="number" name="additional_fare" required min="1000" placeholder="15.000" class="w-full bg-slate-50 border border-slate-200 text-slate-750 px-3.5 py-2.5 rounded-xl text-xs font-black focus:outline-none focus:bg-white focus:border-emerald-500 transition duration-150">
                 </div>
                 
                 <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-3 rounded-xl uppercase tracking-wider transition flex items-center justify-center">
                     Kirim & Setujui
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal Ambil Foto Bukti Pengambilan / Pengantaran Barang -->
+    <div x-data="{
+            proofModalOpen: false,
+            orderId: null,
+            status: '',
+            title: '',
+            subtitle: '',
+            buttonText: '',
+            actionUrl: '',
+            photoPreview: null,
+            isSubmitting: false,
+            openModal(data) {
+                this.orderId = data.orderId;
+                this.status = data.status;
+                this.title = data.title;
+                this.subtitle = data.subtitle;
+                this.buttonText = data.buttonText;
+                this.actionUrl = data.actionUrl;
+                this.photoPreview = null;
+                this.isSubmitting = false;
+                if (this.$refs.photoInput) {
+                    this.$refs.photoInput.value = '';
+                }
+                this.proofModalOpen = true;
+            },
+            closeModal() {
+                this.proofModalOpen = false;
+            },
+            handlePhotoChange(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.photoPreview = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    this.photoPreview = null;
+                }
+            },
+            removePhoto() {
+                this.photoPreview = null;
+                if (this.$refs.photoInput) {
+                    this.$refs.photoInput.value = '';
+                }
+            }
+        }"
+        @open-proof-modal.window="openModal($event.detail)"
+        x-show="proofModalOpen" 
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" 
+        style="display: none;" 
+        x-transition>
+        
+        <div @click.away="closeModal()" class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5 overflow-hidden relative border border-slate-100">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
+                    <div class="text-left">
+                        <h3 class="text-xs font-black text-slate-800" x-text="title"></h3>
+                        <span class="text-[9px] text-slate-400 block" x-text="subtitle"></span>
+                    </div>
+                </div>
+                <button type="button" @click="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Form -->
+            <form :action="actionUrl" method="POST" enctype="multipart/form-data" @submit="isSubmitting = true">
+                @csrf
+                <input type="hidden" name="status" :value="status">
+
+                <!-- Native Camera Capture Support Input -->
+                <input type="file" 
+                    name="photo" 
+                    accept="image/*" 
+                    capture="environment" 
+                    x-ref="photoInput" 
+                    @change="handlePhotoChange($event)" 
+                    class="hidden">
+
+                <!-- Upload / Camera Area -->
+                <div class="mb-4">
+                    <template x-if="!photoPreview">
+                        <div @click="$refs.photoInput.click()" 
+                            class="border-2 border-dashed border-slate-300 hover:border-slate-800 bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group">
+                            <div class="w-12 h-12 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-700 group-hover:scale-105 transition">
+                                <svg class="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </div>
+                            <div>
+                                <span class="text-xs font-bold text-slate-800 block">Buka Kamera / Pilih Foto</span>
+                                <span class="text-[9.5px] text-slate-400 mt-0.5 block">Ambil foto jelas barang atau struk kasir</span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Image Preview -->
+                    <template x-if="photoPreview">
+                        <div class="space-y-2">
+                            <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 h-44 flex items-center justify-center">
+                                <img :src="photoPreview" class="w-full h-full object-cover" alt="Preview Foto">
+                                <button type="button" @click="removePhoto()" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-slate-900/80 text-white flex items-center justify-center hover:bg-slate-900 transition cursor-pointer">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                            <div class="flex items-center justify-between text-[9.5px]">
+                                <span class="text-emerald-600 font-bold flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    Foto Siap Dilampirkan
+                                </span>
+                                <button type="button" @click="$refs.photoInput.click()" class="text-slate-600 font-bold hover:underline cursor-pointer">
+                                    Ganti Foto
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="space-y-2">
+                    <button type="submit" 
+                        :disabled="isSubmitting"
+                        class="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white text-[10px] font-bold py-3 rounded-xl uppercase tracking-wider transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer">
+                        <svg x-show="!isSubmitting" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span x-text="isSubmitting ? 'Memproses...' : buttonText"></span>
+                    </button>
+                    
+                    <button type="button" @click="closeModal()" class="w-full text-slate-400 hover:text-slate-600 text-[10px] font-bold py-1 transition cursor-pointer">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Global Image Lightbox Modal -->
+    <div x-data="{
+            lightboxOpen: false,
+            lightboxUrl: '',
+            lightboxTitle: '',
+            openLightbox(data) {
+                this.lightboxUrl = data.url;
+                this.lightboxTitle = data.title || 'Foto Bukti';
+                this.lightboxOpen = true;
+            },
+            closeLightbox() {
+                this.lightboxOpen = false;
+            }
+        }"
+        @open-image-lightbox.window="openLightbox($event.detail)"
+        x-show="lightboxOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
+        style="display: none;"
+        x-transition>
+        
+        <div @click.away="closeLightbox()" class="max-w-lg w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col">
+            <div class="p-3.5 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between text-white">
+                <span class="text-xs font-bold" x-text="lightboxTitle"></span>
+                <button type="button" @click="closeLightbox()" class="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-2 flex items-center justify-center bg-black/40 max-h-[75vh] overflow-auto">
+                <img :src="lightboxUrl" class="max-w-full max-h-[70vh] rounded-xl object-contain shadow-lg" alt="Foto">
+            </div>
+            <div class="p-3 bg-slate-950/90 border-t border-slate-800 flex justify-end">
+                <a :href="lightboxUrl" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    Buka Ukuran Penuh
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -879,28 +1212,52 @@
             map = L.map('leaflet-jastiper-dash-map', {
                 zoomControl: false,
                 attributionControl: false
-            }).setView([currentLat, currentLng], 12);
+            }).setView([currentLat, currentLng], 13);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 18
             }).addTo(map);
 
+            const isCheckin = @json(!empty($jastiper->checkin_location));
+            const checkinName = @json($jastiper->checkin_location ?? '');
+
             const jastiperIcon = L.icon({
                 iconUrl: 'https://cdn-icons-png.flaticon.com/512/854/854878.png',
-                iconSize: [30, 30],
-                iconAnchor: [15, 30]
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
             });
 
             marker = L.marker([currentLat, currentLng], {
                 icon: jastiperIcon
             }).addTo(map);
 
+            if (isCheckin) {
+                marker.bindPopup(`
+                    <div class="text-xs p-1 font-sans text-center">
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase tracking-wider inline-block mb-0.5">Sedang Check-in</span>
+                        <strong class="text-slate-800 text-xs block">${checkinName}</strong>
+                        <span class="text-[9px] text-emerald-600 font-semibold block mt-0.5">Siap menerima pesanan langsung</span>
+                    </div>
+                `).openPopup();
+            }
+
             circle = L.circle([currentLat, currentLng], {
-                color: '#e11d48',
-                fillColor: '#f43f5e',
-                fillOpacity: 0.1,
+                color: isCheckin ? '#059669' : '#e11d48',
+                fillColor: isCheckin ? '#10b981' : '#f43f5e',
+                fillOpacity: 0.12,
                 radius: currentRadius * 1000
             }).addTo(map);
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const latEl = document.getElementById('checkin_lat');
+                    const lngEl = document.getElementById('checkin_lng');
+                    if (latEl && lngEl) {
+                        latEl.value = pos.coords.latitude;
+                        lngEl.value = pos.coords.longitude;
+                    }
+                }, () => {}, { timeout: 5000, maximumAge: 60000 });
+            }
 
             setTimeout(() => {
                 if (map) {

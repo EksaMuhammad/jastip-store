@@ -18,13 +18,17 @@ class Report extends Model
         'category',
         'description',
         'evidence_image',
+        'refund_amount',
         'status',
+        'resolution_type',
         'admin_decision',
+        'investigation_notes',
         'decided_by',
         'decided_at',
     ];
 
     protected $casts = [
+        'refund_amount' => 'decimal:2',
         'decided_at' => 'datetime',
     ];
 

@@ -30,17 +30,17 @@
     <body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-rose-600 selection:text-white flex flex-col min-h-screen">
 
         <!-- Header -->
-        @if(!request()->is('admin/*', 'admin', 'login', 'register', 'customer/cart', 'customer/cart/*'))
+        @if(!request()->is('admin/*', 'admin', 'login', 'register', 'customer/cart', 'customer/cart/*', 'customer/orders/*', 'customer/support*'))
             @include('layouts.header')
         @endif
 
         <!-- Main Content -->
-        <main class="flex-grow {{ request()->is('customer/*', 'jastiper/*', 'customer', 'jastiper') ? 'pb-20 md:pb-0' : '' }}">
+        <main class="flex-grow {{ request()->is('customer/*', 'jastiper/*', 'customer', 'jastiper') && !request()->is('customer/orders/*', 'customer/support*') ? 'pb-20 md:pb-0' : '' }}">
             @yield('content')
         </main>
 
         <!-- Sticky Bottom Navigation for Mobile Dashboards -->
-        @if(request()->is('customer/*', 'customer') && !request()->is('customer/cart', 'customer/cart/*'))
+        @if(request()->is('customer/*', 'customer') && !request()->is('customer/cart', 'customer/cart/*', 'customer/orders/*', 'customer/support*'))
             <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] px-4 py-2 flex justify-around items-center">
                 
                 <!-- Beranda -->
@@ -49,10 +49,20 @@
                     <span>Beranda</span>
                 </a>
 
-                <!-- Booking -->
-                <a href="{{ route('customer.booking') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('customer/booking') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    <span>Booking</span>
+                <!-- Keranjang Terpadu -->
+                @php
+                    $mobileCartCount = \App\Models\CartItem::whereHas('cart', fn($q) => $q->where('customer_id', auth('customer')->id()))->count();
+                @endphp
+                <a href="{{ route('customer.cart.index') }}" class="relative flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('customer/cart*') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
+                    <div class="relative">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                        @if($mobileCartCount > 0)
+                            <span class="absolute -top-1 -right-2 bg-rose-600 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
+                                {{ $mobileCartCount }}
+                            </span>
+                        @endif
+                    </div>
+                    <span>Keranjang</span>
                 </a>
 
                 <!-- Pesan Jastip (Middle) -->
@@ -89,12 +99,6 @@
                 <a href="{{ route('jastiper.area') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('jastiper/area') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                     <span>Area Kerja</span>
-                </a>
-
-                <!-- Verifikasi Akun -->
-                <a href="{{ route('jastiper.verification') }}" class="flex flex-col items-center gap-1 text-[9px] font-bold {{ request()->is('jastiper/verification') ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600' }} transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <span>Verifikasi</span>
                 </a>
 
                 <!-- Profil Jastiper -->

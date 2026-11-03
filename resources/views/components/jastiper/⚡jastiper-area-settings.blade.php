@@ -46,14 +46,48 @@ new class extends Component
     {
         $jastiper = Auth::guard('jastiper')->user();
         
-        $this->wilayah_id = $jastiper->wilayah_id;
         $this->radius_km = floatval($jastiper->radius_km ?? 5.00);
-        
-        // Default to Malang Kota coordinates if not set
         $this->current_lat = floatval($jastiper->current_lat ?? -7.9839);
         $this->current_lng = floatval($jastiper->current_lng ?? 112.6214);
+
+        // Jika jastiper sudah memiliki koordinat, otomatis cari dan sinkronkan wilayah terdekat
+        if ($jastiper->current_lat && $jastiper->current_lng) {
+            $nearest = Wilayah::findNearest((float) $jastiper->current_lat, (float) $jastiper->current_lng);
+            if ($nearest) {
+                $this->wilayah_id = $nearest->id;
+                if ($jastiper->wilayah_id !== $nearest->id) {
+                    $jastiper->update(['wilayah_id' => $nearest->id]);
+                }
+            } else {
+                $this->wilayah_id = $jastiper->wilayah_id;
+            }
+        } else {
+            $this->wilayah_id = $jastiper->wilayah_id;
+        }
         
         $this->wilayah_list = Wilayah::where('is_active', true)->get();
+    }
+
+    /**
+     * Saat jastiper memilih wilayah di dropdown, otomatis pindahkan koordinat dan peta ke pusat kota wilayah tersebut
+     */
+    public function updatedWilayahId($val)
+    {
+        if ($val) {
+            $w = Wilayah::find($val);
+            if ($w) {
+                $coords = $w->center_coordinates;
+                $this->current_lat = $coords['lat'];
+                $this->current_lng = $coords['lng'];
+                
+                $this->dispatch('pan-to-coordinates', [
+                    'lat' => $this->current_lat,
+                    'lng' => $this->current_lng,
+                    'radius' => $this->radius_km,
+                    'name' => $w->name,
+                ]);
+            }
+        }
     }
 
     /**
@@ -64,11 +98,24 @@ new class extends Component
         $this->current_lat = floatval($lat);
         $this->current_lng = floatval($lng);
 
+        // Deteksi otomatis wilayah terdekat dari koordinat baru
+        $nearest = Wilayah::findNearest($this->current_lat, $this->current_lng);
+        if ($nearest) {
+            $this->wilayah_id = $nearest->id;
+            $this->dispatch('wilayah-auto-detected', [
+                'id' => $nearest->id,
+                'name' => $nearest->name,
+            ]);
+        }
+
         // Jika mode simulasi GPS berjalan aktif, langsung simpan perubahan koordinat ke database
         if ($this->is_simulating) {
             $jastiper = Auth::guard('jastiper')->user();
             $jastiper->current_lat = $this->current_lat;
             $jastiper->current_lng = $this->current_lng;
+            if ($nearest) {
+                $jastiper->wilayah_id = $nearest->id;
+            }
             $jastiper->save();
         }
     }
@@ -85,6 +132,10 @@ new class extends Component
             $jastiper = Auth::guard('jastiper')->user();
             $jastiper->current_lat = $this->current_lat;
             $jastiper->current_lng = $this->current_lng;
+            $nearest = Wilayah::findNearest($this->current_lat, $this->current_lng);
+            if ($nearest) {
+                $jastiper->wilayah_id = $nearest->id;
+            }
             $jastiper->save();
             
             $this->success_message = 'Simulasi GPS Berjalan diaktifkan! Lokasi Anda di DB akan diperbarui secara real-time.';
@@ -102,6 +153,13 @@ new class extends Component
 
         try {
             $jastiper = Auth::guard('jastiper')->user();
+
+            // Otomatis sinkronkan wilayah_id dengan titik koordinat aktual di peta
+            $nearest = Wilayah::findNearest($this->current_lat, $this->current_lng);
+            if ($nearest) {
+                $this->wilayah_id = $nearest->id;
+            }
+
             $jastiper->update([
                 'wilayah_id' => $this->wilayah_id,
                 'radius_km' => $this->radius_km,
@@ -109,14 +167,16 @@ new class extends Component
                 'current_lng' => $this->current_lng,
             ]);
 
-            $this->success_message = 'Pengaturan wilayah & radius jangkauan berhasil disimpan!';
+            $wName = $jastiper->fresh()->wilayah ? $jastiper->fresh()->wilayah->name : '';
+            $this->success_message = "Pengaturan wilayah ({$wName}) & radius jangkauan ({$this->radius_km} KM) berhasil disimpan!";
             $this->error_message = '';
             
             // Dispatch browser event to notify Map component about coordinates / radius updates
             $this->dispatch('settings-saved', [
                 'lat' => $this->current_lat,
                 'lng' => $this->current_lng,
-                'radius' => $this->radius_km
+                'radius' => $this->radius_km,
+                'name' => $wName,
             ]);
         } catch (\Exception $e) {
             Log::error("Error Jastiper Area Settings: " . $e->getMessage());
@@ -188,10 +248,16 @@ new class extends Component
                     
                     <!-- Pilih Wilayah Dropdown -->
                     <div class="space-y-2">
-                        <label for="wilayah_id" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Wilayah Kerja Utama</label>
+                        <div class="flex items-center justify-between">
+                            <label for="wilayah_id" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Wilayah Kerja Utama</label>
+                            <span class="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>Sinkron Otomatis Peta</span>
+                            </span>
+                        </div>
                         <select 
                             id="wilayah_id" 
-                            wire:model="wilayah_id" 
+                            wire:model.live="wilayah_id" 
                             class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-700 px-3.5 py-3 rounded-2xl text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150"
                         >
                             <option value="">-- Pilih Wilayah Operasional --</option>
@@ -199,6 +265,9 @@ new class extends Component
                                 <option value="{{ $w->id }}">{{ $w->name }} (Bawaan: {{ number_format($w->default_radius_km, 1) }} km)</option>
                             @endforeach
                         </select>
+                        <p class="text-[10px] text-slate-400">
+                            💡 Geser pin di peta untuk mendeteksi wilayah otomatis, atau pilih dari daftar untuk memindahkan peta.
+                        </p>
                         @error('wilayah_id') <span class="text-rose-600 text-xs font-semibold block mt-1">{{ $message }}</span> @enderror
                     </div>
 
@@ -285,6 +354,19 @@ new class extends Component
     </div>
 </div>
 
+@php
+    $wilayahMap = [];
+    foreach($wilayah_list as $w) {
+        $coords = $w->center_coordinates;
+        $wilayahMap[$w->id] = [
+            'id' => $w->id,
+            'name' => $w->name,
+            'lat' => $coords['lat'],
+            'lng' => $coords['lng'],
+        ];
+    }
+@endphp
+
 @script
 <script>
     let map;
@@ -296,6 +378,33 @@ new class extends Component
     let currentRadius = parseFloat($wire.radius_km);
     let isSimulating = $wire.is_simulating;
     let simulationInterval = null;
+    const wilayahCoordsMap = @json($wilayahMap);
+
+    function calcDistanceKm(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    function findClosestWilayah(lat, lng) {
+        let best = null;
+        let minDist = Infinity;
+        for (const [id, w] of Object.entries(wilayahCoordsMap)) {
+            if (!w.lat || !w.lng) continue;
+            if (w.name.includes('Antar Kota') || w.name.includes('Nasional')) continue;
+            const d = calcDistanceKm(lat, lng, w.lat, w.lng);
+            if (d < minDist) {
+                minDist = d;
+                best = w;
+            }
+        }
+        return best;
+    }
 
     // Inisialisasi Peta Leaflet
     function initMap() {
@@ -392,6 +501,15 @@ new class extends Component
         document.getElementById('disp-lat').innerText = lat.toFixed(6);
         document.getElementById('disp-lng').innerText = lng.toFixed(6);
 
+        // Deteksi otomatis wilayah terdekat di sisi browser secara instan
+        const closest = findClosestWilayah(lat, lng);
+        if (closest) {
+            const selectEl = document.getElementById('wilayah_id');
+            if (selectEl && selectEl.value != closest.id) {
+                selectEl.value = closest.id;
+            }
+        }
+
         // Panggil fungsi Livewire
         $wire.updateLocation(lat, lng);
     }
@@ -427,6 +545,30 @@ new class extends Component
             alert("Browser Anda tidak mendukung Geolocation.");
         }
     };
+
+    // Responsif terhadap perpindahan wilayah lewat dropdown (pindah ke pusat kota wilayah tersebut)
+    $wire.on('pan-to-coordinates', (event) => {
+        const data = event[0];
+        currentLat = data.lat;
+        currentLng = data.lng;
+        if (map && marker && circle) {
+            map.flyTo([data.lat, data.lng], 13);
+            marker.setLatLng([data.lat, data.lng]);
+            circle.setLatLng([data.lat, data.lng]);
+            circle.setRadius(data.radius * 1000);
+            document.getElementById('disp-lat').innerText = data.lat.toFixed(6);
+            document.getElementById('disp-lng').innerText = data.lng.toFixed(6);
+        }
+    });
+
+    // Responsif terhadap event deteksi wilayah otomatis dari server
+    $wire.on('wilayah-auto-detected', (event) => {
+        const data = event[0];
+        const selectEl = document.getElementById('wilayah_id');
+        if (selectEl && selectEl.value != data.id) {
+            selectEl.value = data.id;
+        }
+    });
 
     // Responsif terhadap event simpan pengaturan sukses untuk refresh maps state
     $wire.on('settings-saved', (event) => {

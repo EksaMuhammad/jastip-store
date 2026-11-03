@@ -22,8 +22,8 @@ class JastiperAreaTest extends TestCase
 
         $this->artisan('db:seed');
 
-        $this->wilayah1 = Wilayah::first();
-        $this->wilayah2 = Wilayah::create([
+        $this->wilayah1 = Wilayah::where('name', 'Malang Kota')->first() ?? Wilayah::first();
+        $this->wilayah2 = Wilayah::where('name', 'Surabaya Kota')->first() ?? Wilayah::create([
             'name' => 'Surabaya Kota',
             'default_radius_km' => 3.00,
             'is_active' => true,
@@ -66,7 +66,7 @@ class JastiperAreaTest extends TestCase
             ->set('current_lng', 112.7508) // Surabaya lng
             ->call('saveSettings')
             ->assertHasNoErrors()
-            ->assertSet('success_message', 'Pengaturan wilayah & radius jangkauan berhasil disimpan!');
+            ->assertSet('success_message', "Pengaturan wilayah ({$this->wilayah2->name}) & radius jangkauan (7.5 KM) berhasil disimpan!");
 
         $this->jastiper->refresh();
         $this->assertEquals($this->wilayah2->id, $this->jastiper->wilayah_id);

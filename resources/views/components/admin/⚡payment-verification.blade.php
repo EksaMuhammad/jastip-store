@@ -230,7 +230,6 @@ new class extends Component
 <div class="space-y-6">
     @php
         $payments = \App\Models\Payment::with(['order.customer'])
-            ->whereNotNull('proof_image')
             ->when($filter_status !== 'semua', function ($query) use ($filter_status) {
                 $query->where('status', $filter_status);
             })
@@ -245,6 +244,9 @@ new class extends Component
             })
             ->latest()
             ->get();
+
+        // Payment yang butuh verifikasi manual (punya bukti transfer)
+        $manualPayments = $payments->filter(fn($p) => !empty($p->proof_image));
 
         $selected_payment = $selected_id
             ? \App\Models\Payment::with(['order.customer', 'order.jastiper'])->find($selected_id)
@@ -293,7 +295,7 @@ new class extends Component
         <!-- Header -->
         <div class="border-b border-slate-100 pb-4 mb-6">
             <h3 class="font-display font-black text-lg text-slate-800 uppercase tracking-wider">Antrian Verifikasi Pembayaran & Top Up</h3>
-            <p class="text-xs text-slate-400 mt-1">Sistem Verifikasi 2 Tahap: Review pengajuan awal top up customer (ACC Buka Pembayaran), dilanjutkan pengecekan bukti transfer manual / Midtrans (ACC Tambah Saldo).</p>
+            <p class="text-xs text-slate-400 mt-1">Pembayaran via Midtrans (QRIS / VA) otomatis terverifikasi & diselesaikan instan oleh gateway callback. Pembayaran transfer manual dapat ditinjau dan disetujui di sini.</p>
         </div>
 
         <!-- Alerts -->
@@ -359,10 +361,10 @@ new class extends Component
             </div>
         </div>
 
-        <!-- Tabel Antrian Verifikasi Top Up E-Wallet (2 Tahap) -->
+        <!-- Tabel Antrian Verifikasi Top Up E-Wallet -->
         <div class="mb-8">
             <div class="flex items-center justify-between mb-2">
-                <p class="text-[11px] font-black text-rose-600 uppercase tracking-wider">Top Up E-Wallet Customer (Alur 2 Tahap: Pengajuan & Pembayaran)</p>
+                <p class="text-[11px] font-black text-rose-600 uppercase tracking-wider">Top Up E-Wallet Customer (Midtrans Gateway & Verifikasi Manual)</p>
                 <span class="text-[10px] text-slate-400 font-semibold">{{ $topups->count() }} Permintaan</span>
             </div>
             <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">

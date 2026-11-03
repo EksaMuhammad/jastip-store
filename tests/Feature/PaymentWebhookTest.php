@@ -210,4 +210,64 @@ class PaymentWebhookTest extends TestCase
         $payment->refresh();
         $this->assertEquals('lunas', $payment->status);
     }
+
+    public function test_topup_langsung_mendapatkan_tiket_qris_dan_menunggu_pembayaran_tanpa_manual_approval()
+    {
+        $wallet = $this->customer->wallet()->firstOrCreate([], ['balance' => 0]);
+        $topup = app(\App\Services\WalletService::class)->initiateTopup($wallet, 50000);
+
+        // Topup langsung berada di status menunggu_pembayaran dengan tiket QRIS dan Snap Token aktif
+        $this->assertEquals('menunggu_pembayaran', $topup->status);
+        $this->assertNotNull($topup->payment_deadline);
+        $this->assertNotEmpty($topup->qr_string);
+        $this->assertNotEmpty($topup->snap_token);
+        $this->assertNotEmpty($topup->gateway_reference);
+        $this->assertStringStartsWith('TOPUP-', $topup->gateway_reference);
+    }
+
+    public function test_webhook_settlement_topup_otomatis_menambah_saldo_wallet_customer_tanpa_admin()
+    {
+        $wallet = $this->customer->wallet()->firstOrCreate([], ['balance' => 20000]);
+        $topup = app(\App\Services\WalletService::class)->initiateTopup($wallet, 50000);
+
+        $response = $this->postJson('/webhooks/midtrans', [
+            'order_id' => $topup->gateway_reference,
+            'transaction_id' => $topup->gateway_transaction_id ?: 'TRX-TOPUP-123',
+            'transaction_status' => 'settlement',
+            'status_code' => '200',
+            'gross_amount' => '50000.00',
+        ]);
+
+        $response->assertOk()->assertJson(['success' => true]);
+
+        $topup->refresh();
+        $wallet->refresh();
+
+        $this->assertEquals('berhasil', $topup->status);
+        $this->assertNotNull($topup->verified_at);
+        $this->assertNull($topup->verified_by_admin_id); // Otomatis via Midtrans, bukan manual admin
+        $this->assertEquals(70000, (float) $wallet->balance); // 20.000 + 50.000
+    }
+
+    public function test_webhook_topup_status_gagal_menandai_topup_gagal()
+    {
+        $wallet = $this->customer->wallet()->firstOrCreate([], ['balance' => 0]);
+        $topup = app(\App\Services\WalletService::class)->initiateTopup($wallet, 50000);
+
+        $response = $this->postJson('/webhooks/midtrans', [
+            'order_id' => $topup->gateway_reference,
+            'transaction_id' => $topup->gateway_transaction_id ?: 'TRX-TOPUP-123',
+            'transaction_status' => 'expire',
+            'status_code' => '200',
+            'gross_amount' => '50000.00',
+        ]);
+
+        $response->assertOk();
+
+        $topup->refresh();
+        $wallet->refresh();
+
+        $this->assertEquals('gagal', $topup->status);
+        $this->assertEquals(0, (float) $wallet->balance);
+    }
 }

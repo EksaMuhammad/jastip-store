@@ -110,7 +110,7 @@
             },
 
             formatRupiah(value) {
-                return 'Rp' + Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 });
+                return 'Rp ' + Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 });
             },
 
             statusLabel(status) {
@@ -164,7 +164,7 @@
         <template x-if="pendingWithdraw">
             <div class="p-4 rounded-3xl border-2 border-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] bg-amber-50" x-cloak>
                 <p class="text-[10px] font-bold text-amber-800 uppercase tracking-wide">Pengajuan Withdraw Menunggu</p>
-                <p class="text-xs text-slate-600 mt-1" x-text="'Rp' + formatRupiah(pendingWithdraw?.amount).replace('Rp', '') + ' sedang menunggu persetujuan admin.'"></p>
+                <p class="text-xs text-slate-600 mt-1" x-text="formatRupiah(pendingWithdraw?.amount) + ' sedang menunggu persetujuan admin.'"></p>
             </div>
         </template>
 

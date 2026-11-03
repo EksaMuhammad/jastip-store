@@ -69,7 +69,12 @@ class PaymentPage extends Component
         $order = $this->resolveOwnedOrder();
         abort_if(!$order, 404, 'Order tidak ditemukan atau bukan milik Anda.');
 
-        $payment = Payment::where('order_id', $order->id)->latest('id')->first();
+        // Ambil payment terbaru — utamakan yang masih menunggu, fallback ke yang lunas
+        $payment = Payment::where('order_id', $order->id)
+            ->where('status', 'menunggu')
+            ->latest('id')
+            ->first()
+            ?? Payment::where('order_id', $order->id)->latest('id')->first();
         $this->paymentId = $payment?->id;
 
         if ($payment && in_array($payment->status, ['menunggu'], true)) {
@@ -116,11 +121,70 @@ class PaymentPage extends Component
             return;
         }
 
+        // Jika transaksi memiliki BCA VA di mode Sandbox, simulasikan pelunasan ke Midtrans Simulator
+        if (!empty($payment->va_number) && !config('services.midtrans.is_production')) {
+            try {
+                app(\App\Services\MidtransGatewayService::class)->simulateBcaVaPayment($payment->va_number);
+            } catch (\Throwable $e) {
+                // Jangan gagalkan alur jika simulator eksternal timeout
+            }
+        }
+
         app(PaymentService::class)->settlePaymentAutomatically($payment, $channel, $transactionId);
 
         $this->showMockSnapModal = false;
         $this->flashSuccess = 'Pembayaran berhasil dikonfirmasi! Pesanan Anda sedang diproses jastiper.';
         $this->dispatch('order-diproses');
+    }
+
+    /**
+     * Cek status pembayaran pesanan secara langsung ke server API Midtrans.
+     * Otomatis melunasi order & mencatat mutasi saat pembayaran disetujui di Midtrans.
+     */
+    public function checkMidtransStatus(bool $isManual = true): void
+    {
+        $payment = $this->requirePendingPayment();
+        if (!$payment || $payment->status === 'lunas') {
+            return;
+        }
+
+        if (!filled(config('services.midtrans.server_key'))) {
+            if ($isManual) {
+                $this->flashError = 'Server Key Midtrans belum dikonfigurasi.';
+            }
+            return;
+        }
+
+        $identifier = $payment->gateway_reference ?: $payment->gateway_transaction_id;
+        if (!$identifier) {
+            if ($isManual) {
+                $this->flashError = 'ID Transaksi Midtrans belum terbit untuk pesanan ini.';
+            }
+            return;
+        }
+
+        try {
+            $status = app(\App\Services\MidtransGatewayService::class)->getStatus($identifier);
+            $txStatus = $status['transaction_status'] ?? 'pending';
+
+            if (in_array($txStatus, ['settlement', 'capture'], true)) {
+                app(PaymentService::class)->settlePaymentAutomatically(
+                    $payment,
+                    $status['payment_type'] ?? 'midtrans',
+                    $status['transaction_id'] ?? null
+                );
+
+                $this->flashSuccess = 'Pembayaran terverifikasi lunas dari Midtrans! Pesanan Anda sedang diproses jastiper.';
+                $this->dispatch('order-diproses');
+            } elseif ($isManual) {
+                $channel = strtoupper($status['payment_type'] ?? 'PEMBAYARAN');
+                $this->flashError = "Status di Midtrans saat ini: [{$txStatus}] ({$channel}). Silakan selesaikan pembayaran di simulator atau aplikasi e-wallet / mobile banking Anda.";
+            }
+        } catch (\Throwable $e) {
+            if ($isManual) {
+                $this->flashError = 'Gagal memeriksa status ke Midtrans: ' . $e->getMessage();
+            }
+        }
     }
 
     /**
@@ -137,13 +201,35 @@ class PaymentPage extends Component
             return;
         }
 
-        if ($order->status === 'diproses') {
+        // Order sudah final / tidak butuh pembayaran lagi — redirect sesuai kondisi
+        if (in_array($order->status, ['diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan', 'selesai'], true)) {
             $this->dispatch('order-diproses');
             return;
         }
 
         if ($order->status === 'dibatalkan') {
             $this->dispatch('order-dibatalkan');
+            return;
+        }
+
+        // Jika payment sudah lunas (misal settle via webhook setelah Snap), redirect juga
+        $payment = $this->paymentId
+            ? Payment::find($this->paymentId)
+            : Payment::where('order_id', $order->id)->latest('id')->first();
+
+        if ($payment && $payment->status === 'lunas') {
+            $this->dispatch('order-diproses');
+            return;
+        }
+
+        // Hanya cek ke Midtrans bila order masih menunggu_pembayaran DAN payment masih menunggu
+        if (
+            $order->status === 'menunggu_pembayaran'
+            && $payment
+            && $payment->status === 'menunggu'
+            && filled(config('services.midtrans.server_key'))
+        ) {
+            $this->checkMidtransStatus(false);
         }
     }
 

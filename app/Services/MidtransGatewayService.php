@@ -364,6 +364,52 @@ class MidtransGatewayService implements PaymentGatewayService
             ->asJson();
     }
 
+    /**
+     * Bantuan pengujian Sandbox: Simulasikan pembayaran lunas BCA VA langsung ke server simulator Midtrans.
+     * Membuat status transaksi di Dashboard Midtrans seketika berubah menjadi Settlement (hijau).
+     */
+    public function simulateBcaVaPayment(string $vaNumber): bool
+    {
+        if (config('services.midtrans.is_production')) {
+            return false;
+        }
+
+        try {
+            $jar = new \GuzzleHttp\Cookie\CookieJar();
+            $client = new \GuzzleHttp\Client(['cookies' => $jar, 'timeout' => 8]);
+
+            $inquiry = $client->post('https://simulator.sandbox.midtrans.com/bca/va/inquiry', [
+                'form_params' => ['va_number' => $vaNumber]
+            ]);
+            $html = (string) $inquiry->getBody();
+
+            preg_match('/name="company_code" value="([^"]+)"/', $html, $mComp);
+            preg_match('/name="customer_number" value="([^"]+)"/', $html, $mCust);
+            preg_match('/name="customer_name" value="([^"]+)"/', $html, $mName);
+            preg_match('/name="currency_code" value="([^"]+)"/', $html, $mCurr);
+            preg_match('/name="total_amount" value="([^"]+)"/', $html, $mAmount);
+
+            if (empty($mComp[1]) || empty($mCust[1])) {
+                return false;
+            }
+
+            $pay = $client->post('https://simulator.sandbox.midtrans.com/bca/va/payment', [
+                'form_params' => [
+                    'company_code' => $mComp[1] ?? '',
+                    'customer_number' => $mCust[1] ?? '',
+                    'customer_name' => $mName[1] ?? '',
+                    'currency_code' => $mCurr[1] ?? 'IDR',
+                    'total_amount' => $mAmount[1] ?? '0.00',
+                ]
+            ]);
+
+            return str_contains(strtolower((string) $pay->getBody()), 'successful');
+        } catch (\Throwable $e) {
+            Log::warning('[SANDBOX VA SIMULATOR ERROR] ' . $e->getMessage());
+            return false;
+        }
+    }
+
     private function mockVaNumber(string $bank): string
     {
         $prefix = match ($bank) {

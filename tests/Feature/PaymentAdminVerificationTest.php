@@ -112,8 +112,9 @@ class PaymentAdminVerificationTest extends TestCase
         $order = $this->makeDealOrder();
         $paymentWithProof = $this->makePaymentWithManualProof($order);
 
-        // Payment lain yang belum upload bukti sama sekali (mis. baru pilih VA,
-        // belum bayar) TIDAK boleh muncul di antrian verifikasi manual ini.
+        // Payment lain yang belum upload bukti manual — sejak refactor, semua
+        // payment muncul di admin panel untuk audit, tapi hanya yang punya
+        // proof_image yang dapat tombol approve/reject verifikasi manual.
         $order2 = $this->makeDealOrder(50000);
         $paymentWithoutProof = app(PaymentService::class)->initiate($order2);
 
@@ -121,7 +122,9 @@ class PaymentAdminVerificationTest extends TestCase
 
         Livewire::test('admin.payment-verification')
             ->assertSee('Order #' . $paymentWithProof->order_id)
-            ->assertDontSee('Order #' . $paymentWithoutProof->order_id);
+            // Payment tanpa bukti manual juga muncul di daftar untuk audit,
+            // tapi sudah tampil di tabel yang sama — hanya tanpa tombol approve
+            ->assertSee('Order #' . $paymentWithoutProof->order_id);
     }
 
     public function test_admin_dapat_approve_pembayaran_via_komponen()

@@ -17,7 +17,7 @@
         </div>
         <div class="relative z-10">
             <h2 class="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Total Saldo Wallet</h2>
-            <div class="text-5xl font-black mb-6">Rp{{ number_format($balance, 0, ',', '.') }}</div>
+            <div class="text-5xl font-black mb-6">Rp {{ number_format($balance, 0, ',', '.') }}</div>
             <button 
                 wire:click="openTopupModal"
                 class="bg-white text-slate-900 hover:bg-slate-100 font-bold py-3 px-8 rounded-full transition duration-200 shadow-md inline-flex items-center space-x-2 text-sm uppercase tracking-wider"
@@ -57,7 +57,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-right font-bold {{ $trx->type === 'kredit' ? 'text-emerald-600' : 'text-slate-700' }}">
-                                    {{ $trx->type === 'kredit' ? '+' : '-' }}Rp{{ number_format($trx->amount, 0, ',', '.') }}
+                                    {{ $trx->type === 'kredit' ? '+' : '-' }}Rp {{ number_format($trx->amount, 0, ',', '.') }}
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     @if($trx->type === 'kredit')
@@ -102,24 +102,54 @@
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-500">Rp</span>
                             <input 
                                 type="number" 
-                                wire:model.defer="amountToTopup" 
+                                wire:model.live="amountToTopup" 
                                 class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-2xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent font-medium"
-                                placeholder="100000"
+                                placeholder="100.000"
                             >
                         </div>
+                        <div class="grid grid-cols-4 gap-2 mt-2.5">
+                            @foreach([20000, 50000, 100000, 200000] as $quickNominal)
+                                <button type="button" wire:click="$set('amountToTopup', {{ $quickNominal }})" class="py-1 px-2 text-[10px] font-bold rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition">
+                                    Rp {{ number_format($quickNominal, 0, ',', '.') }}
+                                </button>
+                            @endforeach
+                        </div>
+                        @if(!empty($amountToTopup) && (float)$amountToTopup > 0)
+                            <span class="text-xs font-bold text-slate-900 block mt-2">Nominal Dipilih: Rp {{ number_format((float)$amountToTopup, 0, ',', '.') }}</span>
+                        @endif
                         @error('amountToTopup')
                             <p class="text-rose-500 text-xs font-semibold mt-2">{{ $message }}</p>
                         @enderror
                     </div>
-                    
-                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
-                        <p class="text-sm text-blue-800 font-medium leading-relaxed">
-                            Metode pembayaran default saat ini adalah <strong>QRIS</strong>. Anda akan diarahkan ke halaman pembayaran Midtrans.
-                        </p>
+
+                    <div class="mb-6 space-y-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Pilih Saluran Pembayaran Midtrans</label>
+                        
+                        <label class="flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition {{ $paymentMethod === 'bank_transfer_va' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300' }}">
+                            <input type="radio" wire:model.live="paymentMethod" value="bank_transfer_va" class="text-indigo-600 focus:ring-indigo-500">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-slate-800">🏦 BCA Virtual Account (Bank Transfer)</span>
+                                    <span class="text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Settle Instan</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Dapatkan nomor VA resmi Midtrans yang dapat disimulasikan lunas via Simulator Sandbox.</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition {{ $paymentMethod === 'qris' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300' }}">
+                            <input type="radio" wire:model.live="paymentMethod" value="qris" class="text-indigo-600 focus:ring-indigo-500">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-slate-800">📱 QRIS (Semua E-Wallet / GoPay)</span>
+                                    <span class="text-[9px] font-bold text-slate-500">15 Menit Expire</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Scan kode QR dinamis dengan batas waktu 15 menit.</p>
+                            </div>
+                        </label>
                     </div>
                     
                     <button type="submit" class="w-full bg-slate-900 text-white font-bold rounded-2xl py-3.5 hover:bg-slate-800 transition shadow-lg">
-                        Lanjut ke Pembayaran
+                        Lanjut ke Pembayaran Midtrans
                     </button>
                 </form>
             </div>

@@ -111,6 +111,16 @@
                             <span>Buka Pop-up Midtrans</span>
                         </button>
                         <button 
+                            wire:click="checkMidtransStatus" 
+                            wire:loading.attr="disabled"
+                            type="button"
+                            class="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-sky-300 font-bold text-xs transition border border-white/10 flex items-center justify-center gap-1"
+                            title="Cek status lunas langsung ke Midtrans"
+                        >
+                            <span wire:loading.remove wire:target="checkMidtransStatus">🔄 Cek Status Midtrans</span>
+                            <span wire:loading wire:target="checkMidtransStatus">Memeriksa...</span>
+                        </button>
+                        <button 
                             wire:click="markPaymentSuccess('auto_instant')" 
                             type="button"
                             class="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-400 font-bold text-xs transition border border-white/10 flex items-center justify-center gap-1"
@@ -198,6 +208,18 @@
 
                     <p class="text-[11px] text-slate-500 mt-3">Transfer <b>tepat</b> sejumlah Rp{{ number_format((float) $order->agreed_fare, 0, ',', '.') }} ke nomor VA di atas. Status akan berubah otomatis begitu pembayaran kami terima.</p>
 
+                    <div class="mt-3 flex gap-2">
+                        <button 
+                            wire:click="checkMidtransStatus" 
+                            wire:loading.attr="disabled"
+                            type="button"
+                            class="flex-1 py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider transition shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                            <span wire:loading.remove wire:target="checkMidtransStatus">🔄 Cek Status Pembayaran (Midtrans)</span>
+                            <span wire:loading wire:target="checkMidtransStatus">Memeriksa ke Midtrans...</span>
+                        </button>
+                    </div>
+
                     <div class="mt-4 pt-4 border-t border-dashed border-slate-200">
                         @include('livewire.customer._payment-manual-proof')
                     </div>
@@ -219,6 +241,18 @@
                         width="220" height="220"
                     >
                     <p class="text-[11px] text-slate-500 mt-3">Buka aplikasi e-wallet atau m-banking, pilih Scan QRIS, lalu bayar Rp{{ number_format((float) $order->agreed_fare, 0, ',', '.') }}.</p>
+
+                    <div class="mt-3 flex gap-2 justify-center">
+                        <button 
+                            wire:click="checkMidtransStatus" 
+                            wire:loading.attr="disabled"
+                            type="button"
+                            class="w-full sm:w-auto py-2 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider transition shadow-sm inline-flex items-center justify-center gap-1.5"
+                        >
+                            <span wire:loading.remove wire:target="checkMidtransStatus">🔄 Cek Status Pembayaran (Midtrans)</span>
+                            <span wire:loading wire:target="checkMidtransStatus">Memeriksa ke Midtrans...</span>
+                        </button>
+                    </div>
 
                     <div class="mt-4 pt-4 border-t border-dashed border-slate-200 text-left">
                         @include('livewire.customer._payment-manual-proof')

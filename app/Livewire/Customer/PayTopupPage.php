@@ -60,7 +60,7 @@ class PayTopupPage extends Component
     {
         $topup = $this->resolveOwnedTopup();
         if (!$topup || $topup->status !== 'menunggu_pembayaran') {
-            $this->flashError = 'Topup belum disetujui admin atau sudah selesai.';
+            $this->flashError = 'Tagihan topup tidak dalam status menunggu pembayaran atau sudah selesai.';
             return;
         }
 
@@ -88,11 +88,70 @@ class PayTopupPage extends Component
             return;
         }
 
+        // Jika transaksi memiliki BCA VA di mode Sandbox, simulasikan pelunasan ke Midtrans Simulator
+        if (!empty($topup->va_number) && !config('services.midtrans.is_production')) {
+            try {
+                app(\App\Services\MidtransGatewayService::class)->simulateBcaVaPayment($topup->va_number);
+            } catch (\Throwable $e) {
+                // Jangan gagalkan alur jika simulator eksternal timeout
+            }
+        }
+
         app(WalletService::class)->settleTopupAutomatically($topup, $channel, $transactionId);
 
         $this->showMockSnapModal = false;
         $this->flashSuccess = 'Pembayaran berhasil dikonfirmasi! Saldo telah masuk ke E-Wallet Anda.';
         $this->dispatch('topup-berhasil');
+    }
+
+    /**
+     * Cek status pembayaran secara langsung ke server API Midtrans.
+     * Sangat berguna saat di localhost karena webhook Midtrans cloud tidak bisa tembus ke localhost tanpa tunnel.
+     */
+    public function checkMidtransStatus(bool $isManual = true): void
+    {
+        $topup = $this->resolveOwnedTopup();
+        if (!$topup || $topup->status === 'berhasil') {
+            return;
+        }
+
+        if (!filled(config('services.midtrans.server_key'))) {
+            if ($isManual) {
+                $this->flashError = 'Server Key Midtrans belum dikonfigurasi.';
+            }
+            return;
+        }
+
+        $identifier = $topup->gateway_reference ?: $topup->gateway_transaction_id;
+        if (!$identifier) {
+            if ($isManual) {
+                $this->flashError = 'ID Transaksi Midtrans belum terbit untuk top-up ini.';
+            }
+            return;
+        }
+
+        try {
+            $status = app(\App\Services\MidtransGatewayService::class)->getStatus($identifier);
+            $txStatus = $status['transaction_status'] ?? 'pending';
+
+            if (in_array($txStatus, ['settlement', 'capture'], true)) {
+                app(WalletService::class)->settleTopupAutomatically(
+                    $topup,
+                    $status['payment_type'] ?? 'midtrans',
+                    $status['transaction_id'] ?? null
+                );
+
+                $this->flashSuccess = 'Pembayaran terverifikasi lunas dari Midtrans! Saldo telah masuk ke E-Wallet Anda.';
+                $this->dispatch('topup-berhasil');
+            } elseif ($isManual) {
+                $channel = strtoupper($status['payment_type'] ?? 'PEMBAYARAN');
+                $this->flashError = "Status di Midtrans saat ini: [{$txStatus}] ({$channel}). Silakan selesaikan pembayaran di simulator atau aplikasi e-wallet Anda terlebih dahulu.";
+            }
+        } catch (\Throwable $e) {
+            if ($isManual) {
+                $this->flashError = 'Gagal memeriksa status ke Midtrans: ' . $e->getMessage();
+            }
+        }
     }
 
     /**
@@ -110,6 +169,12 @@ class PayTopupPage extends Component
 
         if ($topup->status === 'berhasil') {
             $this->dispatch('topup-berhasil');
+            return;
+        }
+
+        // Jika topup masih menunggu dan Server Key aktif, coba sinkronisasi otomatis ke Midtrans
+        if (in_array($topup->status, ['menunggu', 'menunggu_pembayaran'], true) && filled(config('services.midtrans.server_key'))) {
+            $this->checkMidtransStatus(false);
         }
     }
 

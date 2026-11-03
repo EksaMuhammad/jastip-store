@@ -63,13 +63,45 @@ class KomisiService
                 // constraint di migration wallets menjamin tidak dobel).
                 $wallet = $jastiper->wallet()->firstOrCreate([], ['balance' => 0]);
 
-                $this->walletService->credit(
-                    $wallet,
-                    $netAmount,
-                    'order_completion',
-                    $order->id,
-                    "Pendapatan bersih order #{$order->id}"
-                );
+                if ($commissionAmount > 0) {
+                    // 1. Catat kredit pendapatan order (gross)
+                    $this->walletService->credit(
+                        $wallet,
+                        $grossAmount,
+                        'order_completion',
+                        $order->id,
+                        "Pendapatan order #{$order->id}"
+                    );
+
+                    // 2. Catat debit potongan komisi platform
+                    $this->walletService->debit(
+                        $wallet,
+                        $commissionAmount,
+                        'komisi',
+                        $order->id,
+                        "Potongan komisi platform ({$percentage}%) order #{$order->id}"
+                    );
+                } else {
+                    $this->walletService->credit(
+                        $wallet,
+                        $netAmount,
+                        'order_completion',
+                        $order->id,
+                        "Pendapatan bersih order #{$order->id}"
+                    );
+                }
+
+                // 3. Cairkan talangan belanja (DP barang) bila customer membayar DP barang di muka
+                $itemDp = max(0, round((float) ($order->downpayment_amount ?? 0) - $grossAmount, 2));
+                if ($itemDp > 0) {
+                    $this->walletService->credit(
+                        $wallet,
+                        $itemDp,
+                        'item_reimbursement',
+                        $order->id,
+                        "Penggantian talangan belanja (DP barang) order #{$order->id}"
+                    );
+                }
             }
 
             return $komisi;

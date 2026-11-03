@@ -159,8 +159,8 @@ class PaymentService
             ]);
 
             $order = $payment->order()->lockForUpdate()->first();
-            if ($order && $order->status === 'menunggu_pembayaran') {
-                if ($order->is_catalog_order) {
+            if ($order) {
+                if ($order->is_catalog_order && !$order->jastiper_id) {
                     $order->update(['status' => 'menunggu_tawaran']);
                 } else {
                     app(OrderDealService::class)->startProcessing($order);
@@ -209,10 +209,12 @@ class PaymentService
             ]);
 
             $order = $payment->order()->lockForUpdate()->first();
-            if ($order->is_catalog_order) {
-                $order->update(['status' => 'menunggu_tawaran']);
-            } else {
-                app(OrderDealService::class)->startProcessing($order);
+            if ($order) {
+                if ($order->is_catalog_order && !$order->jastiper_id) {
+                    $order->update(['status' => 'menunggu_tawaran']);
+                } else {
+                    app(OrderDealService::class)->startProcessing($order);
+                }
             }
 
             return $payment->fresh();
@@ -270,10 +272,12 @@ class PaymentService
                 ]);
 
                 $order = $payment->order()->lockForUpdate()->first();
-                if ($order->is_catalog_order) {
-                    $order->update(['status' => 'menunggu_tawaran']);
-                } else {
-                    app(OrderDealService::class)->startProcessing($order);
+                if ($order) {
+                    if ($order->is_catalog_order && !$order->jastiper_id) {
+                        $order->update(['status' => 'menunggu_tawaran']);
+                    } else {
+                        app(OrderDealService::class)->startProcessing($order);
+                    }
                 }
             });
         } elseif (in_array($status, ['expire', 'cancel', 'deny', 'failure'], true)) {
@@ -293,7 +297,7 @@ class PaymentService
      */
     public function submitManualProof(Payment $payment, UploadedFile $proof): Payment
     {
-        $path = $proof->store('payment-proofs', 'public');
+        $path = \App\Services\ImageUploadService::store($proof, 'payment-proofs', 'public');
 
         $payment->update(['proof_image' => $path]);
 

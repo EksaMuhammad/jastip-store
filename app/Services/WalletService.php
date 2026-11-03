@@ -71,59 +71,48 @@ class WalletService
     }
 
     /**
-     * Inisiasi Topup saldo tahap 1: Customer mengajukan permintaan topup (status: menunggu_approval).
-     * Pembayaran belum dibuka sebelum di-ACC oleh Admin.
+     * Inisiasi Topup saldo: Customer mengajukan top up dan langsung mendapatkan
+     * tiket pembayaran Midtrans (status: menunggu_pembayaran) berupa QRIS / VA / Snap Token
+     * secara instan tanpa perlu menunggu approval manual admin.
+     * Saldo akan otomatis bertambah ketika Midtrans mengirimkan callback settlement.
      */
     public function initiateTopup(Wallet $wallet, float $amount, string $channel = 'qris', ?string $bank = null): Topup
     {
+        $deadlineMinutes = (int) config('jastip.payment.deadline_minutes', 60);
+
         $topup = Topup::create([
             'wallet_id' => $wallet->id,
             'amount' => $amount,
-            'status' => 'menunggu_approval',
+            'status' => 'menunggu_pembayaran',
             'method' => 'transfer',
             'channel' => $channel,
+            'payment_deadline' => now()->addMinutes($deadlineMinutes),
             'gateway_reference' => 'TOPUP-' . $wallet->id . '-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(4)),
         ]);
 
-        return $topup->fresh();
-    }
-
-    /**
-     * Tahap 1 Aksi Admin: ACC Pengajuan Top-Up customer.
-     * Mengaktifkan tagihan pembayaran (menunggu_pembayaran) dan generate QRIS / VA.
-     */
-    public function approveTopupRequest(Topup $topup, Admin $admin): Topup
-    {
-        if ($topup->status !== 'menunggu_approval') {
-            throw new \DomainException("Status topup saat ini bukan menunggu_approval.");
-        }
-
-        $deadlineMinutes = (int) config('jastip.payment.deadline_minutes', 60);
-
-        $topup->update([
-            'status' => 'menunggu_pembayaran',
-            'approved_at' => now(),
-            'approved_by_admin_id' => $admin->id,
-            'payment_deadline' => now()->addMinutes($deadlineMinutes),
-        ]);
-
-        $channel = $topup->channel ?: 'qris';
-
         if ($channel === 'bank_transfer_va') {
-            $bank = 'bca';
-            $result = $this->gateway->createVirtualAccountForTopup($topup, $bank);
-            $topup->update([
-                'va_number' => $result['va_number'],
-                'gateway_transaction_id' => $result['gateway_transaction_id'],
-                'raw_response' => $result['raw'],
-            ]);
+            $bankName = $bank ?: 'bca';
+            try {
+                $result = $this->gateway->createVirtualAccountForTopup($topup, $bankName);
+                $topup->update([
+                    'va_number' => $result['va_number'],
+                    'gateway_transaction_id' => $result['gateway_transaction_id'],
+                    'raw_response' => $result['raw'],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('[TOPUP VA GATEWAY ERROR] ' . $e->getMessage());
+            }
         } else {
-            $result = $this->gateway->createQrisForTopup($topup);
-            $topup->update([
-                'qr_string' => $result['qr_string'],
-                'gateway_transaction_id' => $result['gateway_transaction_id'],
-                'raw_response' => $result['raw'],
-            ]);
+            try {
+                $result = $this->gateway->createQrisForTopup($topup);
+                $topup->update([
+                    'qr_string' => $result['qr_string'],
+                    'gateway_transaction_id' => $result['gateway_transaction_id'],
+                    'raw_response' => $result['raw'],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('[TOPUP QRIS GATEWAY ERROR] ' . $e->getMessage());
+            }
         }
 
         try {
@@ -132,7 +121,61 @@ class WalletService
                 $topup->update(['snap_token' => $snapResult['token']]);
             }
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('[SNAP TOKEN TOPUP ERROR] ' . $e->getMessage());
+            Log::warning('[SNAP TOKEN TOPUP ERROR] ' . $e->getMessage());
+        }
+
+        return $topup->fresh();
+    }
+
+    /**
+     * Catat persetujuan admin jika dipanggil (backward compatibility dan audit admin).
+     */
+    public function approveTopupRequest(Topup $topup, Admin $admin): Topup
+    {
+        $deadlineMinutes = (int) config('jastip.payment.deadline_minutes', 60);
+
+        $updates = [
+            'status' => 'menunggu_pembayaran',
+            'approved_at' => now(),
+            'approved_by_admin_id' => $admin->id,
+        ];
+        if (!$topup->payment_deadline) {
+            $updates['payment_deadline'] = now()->addMinutes($deadlineMinutes);
+        }
+        $topup->update($updates);
+
+        $channel = $topup->channel ?: 'qris';
+
+        if ($channel === 'bank_transfer_va') {
+            if (empty($topup->va_number)) {
+                $bank = 'bca';
+                $result = $this->gateway->createVirtualAccountForTopup($topup, $bank);
+                $topup->update([
+                    'va_number' => $result['va_number'],
+                    'gateway_transaction_id' => $result['gateway_transaction_id'],
+                    'raw_response' => $result['raw'],
+                ]);
+            }
+        } else {
+            if (empty($topup->qr_string)) {
+                $result = $this->gateway->createQrisForTopup($topup);
+                $topup->update([
+                    'qr_string' => $result['qr_string'],
+                    'gateway_transaction_id' => $result['gateway_transaction_id'],
+                    'raw_response' => $result['raw'],
+                ]);
+            }
+        }
+
+        if (empty($topup->snap_token)) {
+            try {
+                $snapResult = $this->gateway->createSnapTokenForTopup($topup);
+                if (!empty($snapResult['token'])) {
+                    $topup->update(['snap_token' => $snapResult['token']]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[SNAP TOKEN TOPUP ERROR] ' . $e->getMessage());
+            }
         }
 
         return $topup->fresh();

@@ -58,33 +58,97 @@
                     ✕ Top up ini gagal / bukti pembayaran ditolak. Silakan ajukan top up baru.
                 </div>
             @else
-                <!-- TAHAP 2: Sudah di-ACC Admin, Snap Midtrans langsung aktif -->
-                <div class="space-y-4 my-6">
-                    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl p-4 text-xs font-bold flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        <span>Pengajuan Top-Up Disetujui Admin! Layanan pembayaran siap digunakan.</span>
+                <!-- Tiket Pembayaran Midtrans Otomatis Aktif -->
+                <div class="space-y-5 my-6">
+                    <div class="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 text-sky-900 rounded-2xl p-4 text-xs font-bold flex items-center justify-center gap-2 shadow-sm">
+                        <span class="text-sm">⚡</span>
+                        <span>Tiket Pembayaran Otomatis Aktif — Verifikasi Instan via Gateway Midtrans</span>
                     </div>
 
-                    <div class="bg-slate-50 border border-slate-200/80 rounded-3xl p-6 text-center space-y-3">
-                        <div class="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-200 text-sky-600 flex items-center justify-center mx-auto text-xl font-black">
-                            💳
-                        </div>
-                        <h3 class="font-display font-black text-slate-800 text-base">Pembayaran Midtrans Aktif</h3>
-                        <p class="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                            Jendela pembayaran Midtrans Snap terbuka di layar. Anda dapat memilih metode pembayaran atau langsung memilih <b>Otomatis Bayar</b>.
-                        </p>
+                    <!-- Kartu Tiket QRIS / Pembayaran -->
+                    <div class="bg-gradient-to-b from-white to-slate-50 border border-slate-200 rounded-3xl p-6 text-center space-y-4 shadow-sm relative overflow-hidden">
+                        @if($topup->channel === 'bank_transfer_va' && $topup->va_number)
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-100 text-indigo-800 text-[10px] font-extrabold rounded-full uppercase tracking-wider">
+                                <span>BCA Virtual Account #{{ $topup->gateway_reference }}</span>
+                            </div>
 
-                        @if(!$showMockSnapModal)
-                            <div class="pt-2">
+                            <div class="bg-slate-900 text-white rounded-2xl p-5 max-w-sm mx-auto shadow-md" x-data="{ copied: false }">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Nomor Virtual Account BCA</span>
+                                <div class="font-mono text-xl font-black tracking-widest text-emerald-400 mb-3">
+                                    {{ $topup->va_number }}
+                                </div>
+                                <button 
+                                    type="button"
+                                    x-on:click="navigator.clipboard.writeText('{{ $topup->va_number }}'); copied = true; setTimeout(() => copied = false, 1500)"
+                                    class="text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5"
+                                >
+                                    <span x-show="!copied">📋 Salin Nomor VA</span>
+                                    <span x-show="copied" x-cloak>✓ Tersalin!</span>
+                                </button>
+                            </div>
+
+                            <div class="text-[11px] text-slate-500 max-w-sm mx-auto">
+                                Transfer <b>tepat Rp{{ number_format($topup->amount, 0, ',', '.') }}</b> ke nomor VA di atas.
+                                @if(!config('services.midtrans.is_production'))
+                                    <div class="mt-2 text-indigo-600 font-bold">
+                                        👉 Simulator Sandbox: <a href="https://simulator.sandbox.midtrans.com/bca/va/index" target="_blank" class="underline hover:text-indigo-800">Buka Simulator BCA VA Midtrans</a>
+                                    </div>
+                                @endif
+                            </div>
+                        @else
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-100 text-sky-800 text-[10px] font-extrabold rounded-full uppercase tracking-wider">
+                                <span>Tiket QRIS #{{ $topup->gateway_reference }}</span>
+                            </div>
+
+                            <!-- Render QR Code Tiket -->
+                            <div class="space-y-2">
+                                <div class="bg-white p-3.5 rounded-2xl inline-block shadow-md border border-slate-200">
+                                    {!! \SimpleSoftwareIO\QrCode\Facades\QrCode::size(175)->generate($topup->qr_string ?: 'https://simulator.sandbox.midtrans.com/qris/' . $topup->gateway_reference) !!}
+                                </div>
+                                <p class="text-[11px] text-slate-500 max-w-xs mx-auto">
+                                    Scan QRIS di atas menggunakan <b>GoPay, ShopeePay, BCA, Mandiri, Dana,</b> atau m-Banking Anda.
+                                </p>
+                            </div>
+                        @endif
+
+                        <!-- Notice Verifikasi Otomatis Callback -->
+                        <div class="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 text-left flex items-start gap-2.5">
+                            <svg class="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            <div class="text-[11px] text-emerald-900 leading-snug">
+                                <b class="font-bold">Verifikasi Otomatis & Saldo Instan:</b> Setelah dibayar, Payment Gateway Midtrans akan mengirimkan sinyal callback otomatis ke sistem. Saldo akan langsung masuk ke dompet Anda tanpa perlu konfirmasi manual admin.
+                            </div>
+                        </div>
+
+                        <!-- Tombol Interaksi -->
+                        <div class="flex flex-col sm:flex-row gap-2.5 justify-center pt-2">
+                            @if(!$showMockSnapModal)
                                 <button 
                                     wire:click="openMidtransSnap" 
                                     type="button"
-                                    class="w-full sm:w-auto px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-slate-900/20 inline-flex items-center justify-center gap-2"
+                                    class="px-5 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider transition shadow-md inline-flex items-center justify-center gap-1.5"
                                 >
-                                    <span>Buka Kembali Pop-up Midtrans</span>
+                                    <span>Buka Pop-up Midtrans</span>
                                 </button>
-                            </div>
-                        @endif
+                            @endif
+
+                            <button 
+                                wire:click="checkMidtransStatus" 
+                                wire:loading.attr="disabled"
+                                type="button"
+                                class="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider transition shadow-md shadow-indigo-600/20 inline-flex items-center justify-center gap-1.5"
+                            >
+                                <span wire:loading.remove wire:target="checkMidtransStatus">🔄 Cek Status Midtrans</span>
+                                <span wire:loading wire:target="checkMidtransStatus">Memeriksa ke Midtrans...</span>
+                            </button>
+
+                            <button 
+                                wire:click="markTopupSuccess('qris_instant', 'TRX-QRIS-{{ time() }}')" 
+                                type="button"
+                                class="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider transition shadow-md shadow-emerald-600/20 inline-flex items-center justify-center gap-1.5"
+                            >
+                                <span>⚡ Simulasikan Pembayaran Lunas</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

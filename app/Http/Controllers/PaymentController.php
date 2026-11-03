@@ -127,7 +127,10 @@ class PaymentController extends Controller
         }
 
         $request->validate([
-            'proof' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'proof' => 'required|file|extensions:jpg,jpeg,png,pdf,heic,heif|max:20480',
+        ], [
+            'proof.extensions' => 'Format bukti transfer harus berupa JPG, PNG, PDF, atau HEIC (iPhone).',
+            'proof.max' => 'Ukuran file maksimal 20MB.',
         ]);
 
         $payment = $this->resolvePendingPayment($order);

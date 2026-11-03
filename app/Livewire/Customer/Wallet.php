@@ -15,6 +15,7 @@ class Wallet extends Component
 
     public $amountToTopup = '';
     public $showTopupModal = false;
+    public $paymentMethod = 'bank_transfer_va'; // 'bank_transfer_va' atau 'qris'
 
     // Default route/layout (karena bukan full page di routes/web.php)
     // Bisa digunakan lewat @livewire('customer.wallet')
@@ -22,17 +23,21 @@ class Wallet extends Component
     public function openTopupModal()
     {
         $this->amountToTopup = '';
+        $this->paymentMethod = 'bank_transfer_va';
         $this->showTopupModal = true;
     }
 
     public function processTopup(WalletService $walletService)
     {
+        $minTopup = (int) app(\App\Services\TariffService::class)->get('min_topup_amount', 10000);
+
         $this->validate([
-            'amountToTopup' => 'required|numeric|min:10000',
+            'amountToTopup' => 'required|numeric|min:' . $minTopup,
+            'paymentMethod' => 'required|in:bank_transfer_va,qris',
         ], [
             'amountToTopup.required' => 'Nominal top up wajib diisi.',
             'amountToTopup.numeric' => 'Nominal harus berupa angka.',
-            'amountToTopup.min' => 'Minimal top up adalah Rp10.000.',
+            'amountToTopup.min' => 'Minimal top up adalah Rp' . number_format($minTopup, 0, ',', '.') . '.',
         ]);
 
         $customer = Auth::guard('customer')->user();
@@ -47,14 +52,15 @@ class Wallet extends Component
         }
 
         try {
-            // Untuk sementara kita default pakai QRIS agar mudah (tanpa pilih bank)
-            // Idealnya ada UI pemilihan metode pembayaran.
-            $topup = $walletService->initiateTopup($wallet, $this->amountToTopup, 'qris');
+            $channel = $this->paymentMethod === 'bank_transfer_va' ? 'bank_transfer_va' : 'qris';
+            $bank = $channel === 'bank_transfer_va' ? 'bca' : null;
+
+            $topup = $walletService->initiateTopup($wallet, $this->amountToTopup, $channel, $bank);
             
             $this->showTopupModal = false;
             
-            // Redirect ke halaman status pengajuan / pembayaran
-            session()->flash('success', 'Pengajuan Top Up berhasil dibuat! Menunggu peninjauan & persetujuan Admin.');
+            $methodName = $channel === 'bank_transfer_va' ? 'BCA Virtual Account' : 'QRIS';
+            session()->flash('success', "Tiket pembayaran Top Up ({$methodName}) berhasil dibuat! Silakan selesaikan pembayaran via Midtrans.");
             return redirect()->route('customer.wallet.pay_topup', ['id' => $topup->id]);
 
         } catch (\Exception $e) {

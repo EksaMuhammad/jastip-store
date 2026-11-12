@@ -60,6 +60,16 @@ class PaymentPage extends Component
 
     public bool $showMockSnapModal = false;
 
+    public bool $showInsufficientBalanceModal = false;
+
+    public float $shortageAmount = 0.0;
+
+    public float $currentBalance = 0.0;
+
+    public float $requiredAmount = 0.0;
+
+    public ?string $selectedMethod = null;
+
     private const SUPPORTED_BANKS = ['bca', 'bni', 'bri', 'permata', 'mandiri'];
 
     public function mount(int $orderId): void
@@ -68,6 +78,11 @@ class PaymentPage extends Component
 
         $order = $this->resolveOwnedOrder();
         abort_if(!$order, 404, 'Order tidak ditemukan atau bukan milik Anda.');
+
+        if (session()->has('return_order_payment_id') && session('return_order_payment_id') == $this->orderId) {
+            session()->forget('return_order_payment_id');
+            $this->flashSuccess = 'Top-Up saldo berhasil dikonfirmasi! Saldo e-wallet Anda sekarang telah bertambah. Silakan selesaikan pembayaran pesanan.';
+        }
 
         // Ambil payment terbaru — utamakan yang masih menunggu, fallback ke yang lunas
         $payment = Payment::where('order_id', $order->id)
@@ -88,10 +103,20 @@ class PaymentPage extends Component
     }
 
     /**
+     * Pilih / toggle metode pembayaran pada daftar pilihan.
+     */
+    public function selectMethod(string $method): void
+    {
+        $this->selectedMethod = $this->selectedMethod === $method ? null : $method;
+    }
+
+    /**
      * Buka pembayaran Midtrans Snap.
      */
     public function openMidtransSnap(): void
     {
+        $this->selectedMethod = 'midtrans';
+
         $payment = $this->requirePendingPayment();
         if (!$payment) {
             return;
@@ -293,16 +318,63 @@ class PaymentPage extends Component
         }
 
         $customer = Auth::guard('customer')->user();
+        $wallet = $customer?->wallet()->first();
+        $this->currentBalance = $wallet ? (float) $wallet->balance : 0.0;
+        $this->requiredAmount = (float) $payment->amount;
+
+        if ($this->currentBalance < $this->requiredAmount) {
+            $this->shortageAmount = $this->requiredAmount - $this->currentBalance;
+            $this->showInsufficientBalanceModal = true;
+            return;
+        }
 
         try {
             app(PaymentService::class)->payWithWallet($payment, $customer);
         } catch (InsufficientBalanceException $e) {
-            $this->flashError = $e->getMessage();
+            $this->shortageAmount = max(0, $this->requiredAmount - $this->currentBalance);
+            $this->showInsufficientBalanceModal = true;
             return;
         }
 
         $this->flashSuccess = 'Pembayaran berhasil, pesanan Anda akan segera diproses.';
         $this->dispatch('order-diproses');
+    }
+
+    public function closeInsufficientBalanceModal(): void
+    {
+        $this->showInsufficientBalanceModal = false;
+    }
+
+    /**
+     * Aksi langsung jika saldo kurang: Buat tiket top-up otomatis sejumlah kekurangan dan arahkan customer untuk top-up.
+     */
+    public function proceedToTopup(): void
+    {
+        $payment = $this->requirePendingPayment();
+        if (!$payment) {
+            return;
+        }
+
+        $customer = Auth::guard('customer')->user();
+        $wallet = $customer->wallet ?: $customer->wallet()->create([
+            'owner_role' => 'customer',
+            'balance' => 0,
+        ]);
+
+        $balance = (float) $wallet->balance;
+        $required = (float) $payment->amount;
+        $shortage = max(0, $required - $balance);
+
+        $minTopup = (int) app(\App\Services\TariffService::class)->get('min_topup_amount', 10000);
+        $amountToTopup = max($minTopup, ceil($shortage));
+
+        // Buat tiket topup otomatis dengan nominal kekurangan
+        $topup = app(\App\Services\WalletService::class)->initiateTopup($wallet, $amountToTopup, 'qris');
+
+        session()->flash('info', "Silakan selesaikan pembayaran Top-Up sebesar Rp " . number_format($amountToTopup, 0, ',', '.') . " untuk melunasi pesanan #{$this->orderId}.");
+        session()->put('return_order_payment_id', $this->orderId);
+
+        $this->redirect(route('customer.wallet.pay_topup', ['id' => $topup->id]));
     }
 
     public function uploadProof(): void
@@ -366,10 +438,23 @@ class PaymentPage extends Component
             ? Payment::find($this->paymentId)
             : Payment::where('order_id', $order->id)->latest('id')->first();
 
+        $customer = Auth::guard('customer')->user();
+        $wallet = $customer?->wallet()->first();
+        $walletBalance = $wallet ? (float) $wallet->balance : 0.0;
+        $requiredAmount = $payment ? (float) $payment->amount : (float) ($order->downpayment_amount ?? $order->agreed_fare ?? 0);
+        $shortage = max(0, $requiredAmount - $walletBalance);
+
+        $this->currentBalance = $walletBalance;
+        $this->requiredAmount = $requiredAmount;
+        $this->shortageAmount = $shortage;
+
         return view('livewire.customer.payment-page', [
             'order' => $order,
             'payment' => $payment,
             'supportedBanks' => self::SUPPORTED_BANKS,
+            'walletBalance' => $walletBalance,
+            'requiredAmount' => $requiredAmount,
+            'shortage' => $shortage,
         ]);
     }
 

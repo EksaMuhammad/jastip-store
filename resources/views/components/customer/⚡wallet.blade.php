@@ -40,7 +40,8 @@
                             <th class="px-4 py-3 rounded-tl-xl">Waktu</th>
                             <th class="px-4 py-3">Deskripsi</th>
                             <th class="px-4 py-3 text-right">Nominal</th>
-                            <th class="px-4 py-3 rounded-tr-xl text-center">Tipe</th>
+                            <th class="px-4 py-3 text-center">Tipe</th>
+                            <th class="px-4 py-3 rounded-tr-xl text-center">Nota / Bukti</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -64,6 +65,26 @@
                                         <span class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold px-2 py-1 rounded-full uppercase">Masuk</span>
                                     @else
                                         <span class="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold px-2 py-1 rounded-full uppercase">Keluar</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    @if($trx->reference_order_id)
+                                        <a href="{{ route('customer.orders.invoice', $trx->reference_order_id) }}" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 transition" title="Cetak Nota Invoice">
+                                            <span>📄</span> Nota
+                                        </a>
+                                    @elseif($trx->source === 'topup' || str_contains(strtolower($trx->description ?? ''), 'topup') || str_contains(strtolower($trx->description ?? ''), 'top-up'))
+                                        @php
+                                            $mTop = \App\Models\Topup::where('wallet_id', $trx->wallet_id)->where('amount', $trx->amount)->where('status', 'berhasil')->latest()->first();
+                                        @endphp
+                                        @if($mTop)
+                                            <a href="{{ route('customer.wallet.topup.invoice', $mTop->id) }}" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition" title="Cetak Bukti Top-Up">
+                                                <span>📄</span> Bukti
+                                            </a>
+                                        @else
+                                            <span class="text-slate-300 text-xs">-</span>
+                                        @endif
+                                    @else
+                                        <span class="text-slate-300 text-xs">-</span>
                                     @endif
                                 </td>
                             </tr>
@@ -98,11 +119,25 @@
                 <form wire:submit.prevent="processTopup">
                     <div class="mb-6">
                         <label class="block text-sm font-bold text-slate-700 mb-2">Nominal Top Up</label>
-                        <div class="relative">
+                        <div class="relative" x-data="{
+                            raw: @entangle('amountToTopup').live,
+                            format(val) {
+                                if (!val && val !== 0) return '';
+                                let num = val.toString().replace(/\D/g, '');
+                                return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                            },
+                            update(e) {
+                                let clean = e.target.value.replace(/\D/g, '');
+                                this.raw = clean;
+                                e.target.value = this.format(clean);
+                            }
+                        }">
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-500">Rp</span>
                             <input 
-                                type="number" 
-                                wire:model.live="amountToTopup" 
+                                type="text" 
+                                inputmode="numeric"
+                                :value="format(raw)"
+                                @input="update($event)"
                                 class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-2xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent font-medium"
                                 placeholder="100.000"
                             >

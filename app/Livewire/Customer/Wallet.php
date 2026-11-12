@@ -29,6 +29,7 @@ class Wallet extends Component
 
     public function processTopup(WalletService $walletService)
     {
+        $this->amountToTopup = preg_replace('/[^\d]/', '', (string) $this->amountToTopup);
         $minTopup = (int) app(\App\Services\TariffService::class)->get('min_topup_amount', 10000);
 
         $this->validate([

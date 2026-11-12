@@ -105,7 +105,12 @@ class PaymentController extends Controller
         try {
             $payment = $this->paymentService->payWithWallet($payment, $customer);
         } catch (InsufficientBalanceException $e) {
-            return $this->fail($request, $e->getMessage(), 422);
+            $wallet = $customer->wallet;
+            $balance = $wallet ? (float) $wallet->balance : 0.0;
+            $required = (float) $payment->amount;
+            $shortage = max(0, $required - $balance);
+            $msg = "Saldo e-wallet tidak mencukupi (Saldo: Rp " . number_format($balance, 0, ',', '.') . ", Tagihan: Rp " . number_format($required, 0, ',', '.') . "). Silakan lakukan top-up saldo minimal Rp " . number_format($shortage, 0, ',', '.') . " terlebih dahulu.";
+            return $this->fail($request, $msg, 422);
         }
 
         return $this->ok(

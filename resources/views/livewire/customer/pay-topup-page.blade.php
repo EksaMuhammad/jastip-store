@@ -1,9 +1,24 @@
 <div
     wire:poll.3s="refreshStatus"
-    x-on:topup-berhasil.window="setTimeout(() => { window.location = @js(route('customer.wallet')) }, 1200)"
+    x-on:topup-berhasil.window="setTimeout(() => { window.location = @js(session('return_order_payment_id') ? route('customer.orders.payment.page', session('return_order_payment_id')) : route('customer.wallet')) }, 1200)"
 >
     <div class="max-w-xl mx-auto mt-6 sm:mt-10 px-4 sm:px-0">
         <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 text-center">
+            @if(session('return_order_payment_id'))
+                <div class="mb-5 bg-sky-50 border border-sky-200 text-sky-800 rounded-2xl p-4 text-xs flex items-center justify-between gap-3 text-left">
+                    <div class="flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold text-sm shrink-0">🛍️</span>
+                        <div>
+                            <span class="font-bold text-sm block">Top-Up untuk Pesanan #{{ session('return_order_payment_id') }}</span>
+                            <span class="text-[11px] text-sky-600">Setelah pembayaran top-up ini selesai, Anda akan otomatis kembali ke pesanan untuk melanjutkan pembayaran.</span>
+                        </div>
+                    </div>
+                    <a href="{{ route('customer.orders.payment.page', session('return_order_payment_id')) }}" class="text-[11px] font-bold text-sky-700 hover:underline shrink-0 whitespace-nowrap">
+                        Kembali ke Order
+                    </a>
+                </div>
+            @endif
+
             <h2 class="text-xl sm:text-2xl font-bold text-slate-800 mb-2">Selesaikan Pembayaran</h2>
             <p class="text-sm sm:text-base text-slate-500 mb-6 sm:mb-8">Anda akan melakukan Top Up saldo E-Wallet sebesar <span class="font-bold text-slate-700">Rp{{ number_format($topup->amount, 0, ',', '.') }}</span></p>
 
@@ -52,6 +67,20 @@
                     <div class="text-3xl">🎉</div>
                     <div class="text-base">Top Up Berhasil Disetujui!</div>
                     <p class="text-xs text-emerald-600 font-normal">Saldo dompet sebesar <b>Rp{{ number_format($topup->amount, 0, ',', '.') }}</b> telah ditambahkan ke akun Anda.</p>
+                    <div class="pt-3 flex flex-wrap items-center justify-center gap-2">
+                        <a href="{{ route('customer.wallet.topup.invoice', $topup->id) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition shadow-sm">
+                            <span>📄</span> Cetak Bukti Top-Up
+                        </a>
+                        @if(session('return_order_payment_id'))
+                            <a href="{{ route('customer.orders.payment.page', session('return_order_payment_id')) }}" class="inline-block px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-md">
+                                Lanjutkan Pembayaran Pesanan #{{ session('return_order_payment_id') }} →
+                            </a>
+                        @else
+                            <a href="{{ route('customer.wallet') }}" class="inline-block px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+                                Kembali ke Dompet
+                            </a>
+                        @endif
+                    </div>
                 </div>
             @elseif($topup->status === 'gagal')
                 <div class="p-4 bg-rose-50 text-rose-700 rounded-xl mb-6 font-bold">

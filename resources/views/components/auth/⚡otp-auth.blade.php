@@ -102,15 +102,43 @@ new class extends Component
     {
         // Hapus karakter non-digit
         $cleaned = preg_replace('/\D/', '', $phone);
-        // Jika berawalan +62 atau 62, ubah ke 0
+        // Jika berawalan 62, hapus 62
         if (str_starts_with($cleaned, '62')) {
-            $cleaned = '0' . substr($cleaned, 2);
+            $cleaned = substr($cleaned, 2);
         }
-        // Jika berawalan 8, ubah ke 08
-        if (str_starts_with($cleaned, '8') && !str_starts_with($cleaned, '08')) {
-            $cleaned = '0' . $cleaned;
+        // Hapus semua awalan 0 agar seragam
+        $cleaned = ltrim($cleaned, '0');
+        // Tambahkan awalan 0 kembali jika tidak kosong
+        return $cleaned !== '' ? '0' . $cleaned : '';
+    }
+
+    /**
+     * Format nomor HP untuk tampilan bersama badge +62 (tanpa angka 0 di depan)
+     */
+    public function getDisplayPhone(): string
+    {
+        $cleaned = preg_replace('/\D/', '', $this->phone_number);
+        if (str_starts_with($cleaned, '62')) {
+            $cleaned = substr($cleaned, 2);
         }
-        return $cleaned;
+        return ltrim($cleaned, '0');
+    }
+
+    /**
+     * Livewire lifecycle hook saat input nomor HP diperbarui
+     */
+    public function updatedPhoneNumber($value): void
+    {
+        if (!$this->is_new_user && !$this->show_password_field) {
+            $cleaned = preg_replace('/\D/', '', (string) $value);
+            if (str_starts_with($cleaned, '62')) {
+                $cleaned = substr($cleaned, 2);
+            }
+            $trimmed = ltrim($cleaned, '0');
+            if ($trimmed !== (string) $value && $cleaned !== '') {
+                $this->phone_number = $trimmed;
+            }
+        }
     }
 
     /**
@@ -192,6 +220,8 @@ new class extends Component
     {
         $this->resetErrorBag();
         $this->error_message = '';
+
+        $this->phone_number = $this->normalizePhone($this->phone_number);
 
         $this->validate([
             'login_password' => ['required', 'string'],
@@ -366,15 +396,16 @@ new class extends Component
             $hashedPassword = Hash::make($this->password);
             
             if ($this->role === 'customer') {
-                Customer::create([
+                $user = Customer::create([
                     'phone_number' => $this->phone_number,
                     'name' => $this->name,
                     'password' => $hashedPassword,
                     'otp_code' => $otpCode,
                     'otp_expires_at' => $otpExpiresAt,
                 ]);
+                $user->wallet()->create(['balance' => 500000]);
             } else {
-                Jastiper::create([
+                $user = Jastiper::create([
                     'phone_number' => $this->phone_number,
                     'name' => $this->name,
                     'password' => $hashedPassword,
@@ -385,6 +416,7 @@ new class extends Component
                     'is_available' => true,
                     'verification_status' => 'belum',
                 ]);
+                $user->wallet()->create(['balance' => 250000]);
             }
         } else {
             // Update user terdaftar
@@ -423,6 +455,8 @@ new class extends Component
     {
         $this->resetErrorBag();
         $this->error_message = '';
+
+        $this->phone_number = $this->normalizePhone($this->phone_number);
 
         $this->validate([
             'otp_input' => ['required', 'string', 'size:6'],
@@ -499,17 +533,31 @@ new class extends Component
     }
 
     /**
+     * Ubah nomor HP saat di tahap pendaftaran baru atau input password
+     */
+    public function changePhoneNumber(): void
+    {
+        $this->is_new_user = false;
+        $this->show_password_field = false;
+        $this->phone_number = $this->getDisplayPhone();
+        $this->error_message = '';
+        $this->success_message = '';
+    }
+
+    /**
      * Reset / Kembali ke form HP awal
      */
     public function goBack()
     {
         if ($this->step === 2) {
             $this->step = 1;
+        } elseif ($this->is_new_user || $this->show_password_field) {
+            $this->is_new_user = false;
+            $this->show_password_field = false;
+            $this->phone_number = $this->getDisplayPhone();
         } else {
             $this->step = 0;
         }
-        $this->is_new_user = false;
-        $this->show_password_field = false;
         $this->otp_input = '';
         $this->password = '';
         $this->login_password = '';
@@ -536,10 +584,14 @@ new class extends Component
     },
     handleDigitInput(e, index) {
         const val = e.target.value.replace(/\D/g, '');
+        const container = e.target.closest('.grid') || e.target.parentElement;
+        const inputs = container ? container.querySelectorAll('input') : [];
         if (val.length > 0) {
             this.otpDigits[index] = val[val.length - 1];
-            if (index < 5) {
-                this.$refs['otpBox' + (index + 1)].focus();
+            e.target.value = this.otpDigits[index];
+            if (index < 5 && inputs[index + 1]) {
+                inputs[index + 1].focus();
+                inputs[index + 1].select();
             }
         } else {
             this.otpDigits[index] = '';
@@ -547,21 +599,35 @@ new class extends Component
         this.syncOtpToLivewire();
     },
     handleDigitKeydown(e, index) {
-        if (e.key === 'Backspace' && !this.otpDigits[index] && index > 0) {
-            this.$refs['otpBox' + (index - 1)].focus();
+        const container = e.target.closest('.grid') || e.target.parentElement;
+        const inputs = container ? container.querySelectorAll('input') : [];
+        if (e.key === 'Backspace') {
+            if (!this.otpDigits[index] && index > 0 && inputs[index - 1]) {
+                inputs[index - 1].focus();
+                this.otpDigits[index - 1] = '';
+                inputs[index - 1].value = '';
+                this.syncOtpToLivewire();
+            }
+        } else if (e.key === 'ArrowLeft' && index > 0 && inputs[index - 1]) {
+            inputs[index - 1].focus();
+        } else if (e.key === 'ArrowRight' && index < 5 && inputs[index + 1]) {
+            inputs[index + 1].focus();
         }
     },
     handleOtpPaste(e) {
         e.preventDefault();
         const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
         if (pasted) {
+            const container = e.target.closest('.grid') || e.target.parentElement;
+            const inputs = container ? container.querySelectorAll('input') : [];
             for (let i = 0; i < 6; i++) {
                 this.otpDigits[i] = pasted[i] || '';
+                if (inputs[i]) inputs[i].value = this.otpDigits[i];
             }
             this.syncOtpToLivewire();
             const focusIndex = Math.min(pasted.length, 5);
-            if (this.$refs['otpBox' + focusIndex]) {
-                this.$refs['otpBox' + focusIndex].focus();
+            if (inputs[focusIndex]) {
+                inputs[focusIndex].focus();
             }
         }
     }
@@ -650,7 +716,7 @@ new class extends Component
 
         <!-- MOBILE APP CONTAINER FRAME (Gojek Design Reference) -->
         <div class="lg:col-span-6 xl:col-span-5 max-w-md mx-auto w-full">
-            <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden min-h-[620px] flex flex-col justify-between relative">
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl min-h-[500px] sm:min-h-[620px] flex flex-col justify-between relative">
                 
                 <!-- TOP APPLICATION BAR -->
                 <div class="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-100">
@@ -761,12 +827,28 @@ new class extends Component
                             <form wire:submit.prevent="{{ $is_new_user ? 'registerAndSendOtp' : ($show_password_field ? 'loginWithPassword' : 'startOtpProcess') }}" class="space-y-5">
                                 
                                 <div>
-                                    <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">
-                                        Masukkan nomor HP
-                                    </h2>
-                                    <p class="text-xs text-slate-500 mt-1">
-                                        Nomor HP kamu akan dipakai untuk proses verifikasi dan masuk ke akun JastipKuy
-                                    </p>
+                                    @if ($is_new_user)
+                                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+                                            Lengkapi Pendaftaran
+                                        </h2>
+                                        <p class="text-xs text-slate-500 mt-1">
+                                            Nomor belum terdaftar. Silakan lengkapi data diri Anda untuk membuat akun baru
+                                        </p>
+                                    @elseif ($show_password_field)
+                                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+                                            Masuk ke Akun
+                                        </h2>
+                                        <p class="text-xs text-slate-500 mt-1">
+                                            Masukkan kata sandi untuk akun terdaftar Anda
+                                        </p>
+                                    @else
+                                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+                                            Masukkan nomor HP
+                                        </h2>
+                                        <p class="text-xs text-slate-500 mt-1">
+                                            Nomor HP kamu akan dipakai untuk proses verifikasi dan masuk ke akun JastipKuy
+                                        </p>
+                                    @endif
                                 </div>
 
                                 <!-- Role Selection Tabs (Customer vs Jastiper) -->
@@ -786,33 +868,91 @@ new class extends Component
                                     </div>
                                 @endif
 
-                                <!-- Phone Input Field (Gojek Style with Country Code Badge) -->
-                                <div>
-                                    <label for="phone_number" class="block text-xs font-bold text-slate-700 mb-2">Nomor HP<span class="text-rose-600">*</span></label>
-                                    
-                                    <div class="flex items-center gap-2.5">
-                                        <!-- Country Code Pill with SVG Flag -->
-                                        <div class="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-2xl px-3.5 py-3 text-slate-800 text-sm font-bold shrink-0">
-                                            <svg class="w-4 h-3 rounded-xs shadow-xs border border-slate-300" viewBox="0 0 640 480">
-                                                <g fill-rule="evenodd">
-                                                    <path fill="#e70011" d="M0 0h640v240H0z"/>
-                                                    <path fill="#ffffff" d="M0 240h640v240H0z"/>
-                                                </g>
-                                            </svg>
-                                            <span>+62</span>
+                                <!-- Phone Number Section -->
+                                @if ($is_new_user)
+                                    <!-- Ringkasan nomor terdaftar saat registrasi (tanpa kotak input ambigu) -->
+                                    <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl animate-fade-in">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                                            </div>
+                                            <div>
+                                                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Mendaftar dengan nomor:</div>
+                                                <div class="text-sm font-extrabold text-slate-900 font-mono tracking-tight">+62 {{ $this->getDisplayPhone() }}</div>
+                                            </div>
                                         </div>
-                                        
-                                        <!-- Clean Phone Input -->
-                                        <input type="text" id="phone_number" wire:model="phone_number" placeholder="81234567890" {{ ($is_new_user || $show_password_field) ? 'readonly' : '' }} class="w-full bg-slate-50 border border-slate-200 focus:border-rose-600 focus:bg-white text-slate-900 text-lg font-bold px-4 py-2.5 rounded-2xl outline-none focus:ring-4 focus:ring-rose-500/10 transition {{ ($is_new_user || $show_password_field) ? 'opacity-75 cursor-not-allowed bg-slate-100' : '' }}" autofocus>
-                                    </div>
-                                    @error('phone_number') <span class="text-rose-600 text-xs mt-1.5 block font-semibold">{{ $message }}</span> @enderror
-
-                                    <div class="mt-2 text-right">
-                                        <button type="button" onclick="showMaintenanceToast(event)" class="text-xs font-bold text-rose-600 hover:underline">
-                                            Ada kendala atau lupa nomor?
+                                        <button type="button" wire:click="changePhoneNumber" class="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline px-2.5 py-1 rounded-lg hover:bg-rose-50 transition">
+                                            Ubah
                                         </button>
                                     </div>
-                                </div>
+                                @elseif ($show_password_field)
+                                    <!-- Ringkasan nomor akun terdaftar saat login password -->
+                                    <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl animate-fade-in">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                            </div>
+                                            <div>
+                                                <div class="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Akun Terdaftar:</div>
+                                                <div class="text-sm font-extrabold text-slate-900 font-mono tracking-tight">+62 {{ $this->getDisplayPhone() }}</div>
+                                            </div>
+                                        </div>
+                                        <button type="button" wire:click="changePhoneNumber" class="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline px-2.5 py-1 rounded-lg hover:bg-rose-50 transition">
+                                            Ganti
+                                        </button>
+                                    </div>
+                                @else
+                                    <!-- Phone Input Field aktif (Gojek Style with Country Code Badge) -->
+                                    <div>
+                                        <label for="phone_number" class="block text-xs font-bold text-slate-700 mb-2">Nomor HP<span class="text-rose-600">*</span></label>
+                                        
+                                        <div class="flex items-center gap-2.5">
+                                            <!-- Country Code Pill with SVG Flag -->
+                                            <div class="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-2xl px-3.5 py-3 text-slate-800 text-sm font-bold shrink-0">
+                                                <svg class="w-4 h-3 rounded-xs shadow-xs border border-slate-300" viewBox="0 0 640 480">
+                                                    <g fill-rule="evenodd">
+                                                        <path fill="#e70011" d="M0 0h640v240H0z"/>
+                                                        <path fill="#ffffff" d="M0 240h640v240H0z"/>
+                                                    </g>
+                                                </svg>
+                                                <span>+62</span>
+                                            </div>
+                                            
+                                            <!-- Clean Phone Input (tanpa awalan 0) -->
+                                            <input 
+                                                type="tel" 
+                                                id="phone_number" 
+                                                wire:model.live.debounce.150ms="phone_number" 
+                                                x-on:keydown="if ($event.key === '0' && ($event.target.selectionStart === 0 || !$event.target.value)) { $event.preventDefault(); }"
+                                                x-on:input="
+                                                    let val = $event.target.value.replace(/\D/g, '');
+                                                    if (val.startsWith('62')) val = val.substring(2);
+                                                    val = val.replace(/^0+/, '');
+                                                    $event.target.value = val;
+                                                "
+                                                x-on:paste="
+                                                    setTimeout(() => {
+                                                        let val = $event.target.value.replace(/\D/g, '');
+                                                        if (val.startsWith('62')) val = val.substring(2);
+                                                        val = val.replace(/^0+/, '');
+                                                        $event.target.value = val;
+                                                        $wire.set('phone_number', val);
+                                                    }, 10);
+                                                "
+                                                placeholder="81234567890" 
+                                                class="w-full bg-slate-50 border border-slate-200 focus:border-rose-600 focus:bg-white text-slate-900 text-lg font-bold px-4 py-2.5 rounded-2xl outline-none focus:ring-4 focus:ring-rose-500/10 transition" 
+                                                autofocus
+                                            >
+                                        </div>
+                                        @error('phone_number') <span class="text-rose-600 text-xs mt-1.5 block font-semibold">{{ $message }}</span> @enderror
+
+                                        <div class="mt-2 text-right">
+                                            <button type="button" onclick="showMaintenanceToast(event)" class="text-xs font-bold text-rose-600 hover:underline">
+                                                Ada kendala atau lupa nomor?
+                                            </button>
+                                        </div>
+                                    </div>
+                                @endif
 
                                 <!-- LOGIN WITH PASSWORD FIELDS -->
                                 @if ($show_password_field)
@@ -912,7 +1052,7 @@ new class extends Component
                                         Masukkan kode OTP
                                     </h2>
                                     <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                                        Kode verifikasi 6 digit telah dikirim melalui WhatsApp ke <span class="font-extrabold text-slate-900">+62 {{ $phone_number }}</span>
+                                        Kode verifikasi 6 digit telah dikirim melalui WhatsApp ke <span class="font-extrabold text-slate-900">+62 {{ $this->getDisplayPhone() }}</span>
                                     </p>
                                 </div>
 
@@ -924,19 +1064,20 @@ new class extends Component
 
                                     <!-- 6 Square Box Input Grid -->
                                     <div class="grid grid-cols-6 gap-2 sm:gap-2.5 max-w-sm mx-auto">
-                                        <template x-for="(digit, index) in otpDigits" :key="index">
+                                        @for ($i = 0; $i < 6; $i++)
                                             <input 
                                                 type="text" 
                                                 inputmode="numeric" 
                                                 maxlength="1" 
-                                                :x-ref="'otpBox' + index" 
-                                                :value="digit"
-                                                @input="handleDigitInput($event, index)"
-                                                @keydown="handleDigitKeydown($event, index)"
+                                                x-ref="otpBox{{ $i }}" 
+                                                id="otpBox{{ $i }}"
+                                                :value="otpDigits[{{ $i }}]"
+                                                @input="handleDigitInput($event, {{ $i }})"
+                                                @keydown="handleDigitKeydown($event, {{ $i }})"
                                                 @paste="handleOtpPaste($event)"
                                                 class="w-full h-14 text-center font-black text-2xl text-slate-900 bg-slate-50 border-2 border-slate-300 rounded-2xl focus:border-rose-600 focus:bg-white focus:ring-4 focus:ring-rose-500/20 outline-none transition shadow-sm"
                                             />
-                                        </template>
+                                        @endfor
                                     </div>
 
                                     @error('otp_input') 
@@ -1000,7 +1141,7 @@ new class extends Component
                         <span class="text-[9px] text-slate-500">DEVELOPMENT MODE</span>
                     </div>
                     <div class="space-y-1">
-                        <div>Target HP: <span class="text-white font-bold">+62 {{ $phone_number }}</span></div>
+                        <div>Target HP: <span class="text-white font-bold">+62 {{ $this->getDisplayPhone() }}</span></div>
                         <div>Role: <span class="text-white font-bold">{{ strtoupper($role) }}</span></div>
                         <div class="bg-slate-950 p-2.5 border border-slate-800 text-center text-xl font-black text-emerald-400 tracking-widest mt-2 rounded-xl select-all cursor-pointer" title="Klik untuk menyalin">
                             {{ $debug_otp }}

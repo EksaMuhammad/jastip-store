@@ -143,4 +143,25 @@ class OtpAuthTest extends TestCase
             ->call('loginWithPassword')
             ->assertRedirect(route('customer.dashboard'));
     }
+
+    public function test_leading_zero_stripped_and_display_phone_without_zero()
+    {
+        $component = Livewire::test('auth.otp-auth')
+            ->set('phone_number', '081234567890');
+
+        // Nomor yang dimasukkan dengan awalan 0 otomatis ditrim menjadi 812...
+        $this->assertEquals('81234567890', $component->get('phone_number'));
+
+        // Saat lanjut, diproses dan dinormalisasi untuk database/pemeriksaan
+        $component->call('startOtpProcess')
+            ->assertSet('is_new_user', true);
+
+        // Helper getDisplayPhone selalu mengembalikan nomor tanpa awalan 0 untuk pendamping badge +62
+        $this->assertEquals('81234567890', $component->instance()->getDisplayPhone());
+
+        // Saat user ingin ganti nomor dari form registrasi
+        $component->call('changePhoneNumber')
+            ->assertSet('is_new_user', false)
+            ->assertSet('phone_number', '81234567890');
+    }
 }

@@ -3,6 +3,17 @@
 @section('title', 'Tanya Jawab (FAQ) - Layanan Jasa Titip On-Demand')
 
 @section('content')
+<!-- Top Back Navigation Bar -->
+<div class="bg-white border-b border-slate-200/80 sticky top-0 z-30 px-4 py-3 shadow-2xs">
+    <div class="max-w-4xl mx-auto flex items-center">
+        <a href="{{ route('customer.profile') }}" 
+           class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 px-3 py-1.5 rounded-xl transition group">
+            <svg class="w-4 h-4 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+            <span>Kembali ke Profil</span>
+        </a>
+    </div>
+</div>
+
 <!-- Hero Section -->
 <section class="relative bg-gradient-to-b from-rose-50/50 via-white to-transparent py-16 border-b border-slate-100">
     <div class="max-w-4xl mx-auto px-4 text-center space-y-4">

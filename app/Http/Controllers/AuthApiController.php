@@ -28,6 +28,7 @@ class AuthApiController extends Controller
         }
         return $cleaned;
     }
+    
 
     /**
      * Cek apakah nomor HP sudah terdaftar.
@@ -53,7 +54,7 @@ class AuthApiController extends Controller
         return response()->json([
             'success' => true,
             'exists' => $exists,
-            'phone_number' => $phone
+            'phone_number' => $phone 
         ]);
     }
 

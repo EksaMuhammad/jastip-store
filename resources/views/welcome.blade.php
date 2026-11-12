@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,6 +22,27 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 
+        <!-- PWA Meta & Manifest -->
+        <link rel="manifest" href="/manifest.json">
+        <meta name="theme-color" content="#EC0A23">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <meta name="apple-mobile-web-app-title" content="JastipKuy">
+        <link rel="apple-touch-icon" href="/images/icons/icon-192x192.png">
+        <link rel="apple-touch-icon" sizes="512x512" href="/images/icons/icon-512x512.png">
+
+        <!-- PWA Standalone Detection: Direct to Login -->
+        <script>
+            (function() {
+                var isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                                   window.navigator.standalone === true || 
+                                   document.referrer.includes('android-app://');
+                if (isStandalone) {
+                    window.location.replace('/login');
+                }
+            })();
+        </script>
+
         <!-- Styles / Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         
@@ -31,11 +52,11 @@
             }
         </style>
     </head>
-    <body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-rose-600 selection:text-white">
+    <body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-rose-600 selection:text-white min-h-screen flex flex-col">
 
         @include('layouts.header')
 
-        <main>
+        <main class="flex-grow">
             <!-- Hero Section -->
             <section id="hero" class="relative overflow-hidden py-16 lg:py-24 bg-white border-b border-slate-100">
                 <!-- Subtle Background Image Overlay -->
@@ -54,7 +75,7 @@
                             </p>
                             
                             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                                <a href="#calculator" id="btn-hero-cta" class="inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-base px-6 py-3.5 rounded-sm shadow-sm transition duration-150">
+                                <a href="{{ Auth::guard('customer')->check() ? route('customer.dashboard') : route('login') }}" id="btn-hero-cta" class="inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-base px-6 py-3.5 rounded-sm shadow-sm transition duration-150">
                                     Mulai Titip Sekarang
                                 </a>
                                 <a href="#cara-kerja" class="inline-flex items-center justify-center border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-semibold text-base px-6 py-3.5 rounded-sm transition">
@@ -82,10 +103,10 @@
                         <!-- Right Hero Mockup (Customer Dashboard) -->
                         <div class="lg:col-span-5 relative flex justify-center lg:justify-end">
                             <!-- Decorative blur elements -->
-                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4/5 h-4/5 bg-rose-400/20 blur-3xl rounded-full z-0"></div>
+                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4/5 h-4/5 bg-rose-400/20 blur-3xl rounded-full z-0 pointer-events-none"></div>
                             
-                            <!-- Phone Mockup Container -->
-                            <div class="relative z-10 w-full max-w-[320px] bg-slate-900 rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-slate-800 rotate-2 hover:rotate-0 transition-transform duration-500 group">
+                            <!-- Phone Mockup Container (Pure illustration preview: pointer-events-none prevents capturing mouse/trackpad wheel scrolls) -->
+                            <div class="relative z-10 w-full max-w-[320px] bg-slate-900 rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-slate-800 rotate-2 hover:rotate-0 transition-transform duration-500 group select-none pointer-events-none">
                                 <!-- Phone Notch/Island -->
                                 <div class="absolute top-4 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-20 flex justify-center items-center shadow-inner">
                                     <div class="w-1.5 h-1.5 bg-slate-700/50 rounded-full mr-2"></div>
@@ -118,8 +139,8 @@
                                         </div>
                                     </div>
 
-                                    <!-- Scrollable Content -->
-                                    <div class="flex-1 overflow-y-auto px-5 py-5 pb-24 no-scrollbar space-y-6">
+                                    <!-- Content (Non-scrollable container to avoid wheel hijacking) -->
+                                    <div class="flex-1 overflow-hidden px-5 py-5 pb-24 space-y-6">
                                         
                                         <!-- Promo Banner -->
                                         <div class="bg-gradient-to-r from-rose-600 to-rose-500 rounded-2xl p-4 text-white shadow-md shadow-rose-200 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform">
@@ -227,6 +248,45 @@
                             </div>
                         </div>
 
+                    </div>
+                </div>
+            </section>
+
+            <!-- Install Aplikasi Widget (Progressive Web App - Sesuai Contoh Referensi) -->
+            <section class="py-6 bg-slate-900 border-y border-slate-800">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700/80 rounded-2xl p-6 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl relative overflow-hidden group">
+                        <!-- Decorative glow background -->
+                        <div class="absolute -right-16 -top-16 w-56 h-56 bg-rose-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                        <div class="flex items-start sm:items-center gap-4 relative z-10">
+                            <!-- App Icon -->
+                            <div class="w-14 h-14 bg-rose-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-rose-600/30 border border-rose-400/30">
+                                <span class="font-display font-black text-white text-xl tracking-tighter">JK</span>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-display font-black text-lg sm:text-xl text-white">Install Aplikasi</h3>
+                                    <span class="bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">PWA App</span>
+                                </div>
+                                <p class="text-sm text-slate-300 mt-1 leading-relaxed">
+                                    Akses lebih cepat, langsung dari home screen kamu tanpa perlu buka browser.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons matching user screenshot -->
+                        <div class="flex items-center gap-3 relative z-10 shrink-0">
+                            <button type="button" 
+                                    onclick="window.triggerPwaInstall()" 
+                                    class="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-sm px-6 py-3 rounded-xl transition shadow-md shadow-rose-600/25 cursor-pointer flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                <span>Install</span>
+                            </button>
+                            <a href="#cara-kerja" class="text-slate-400 hover:text-white text-sm font-semibold px-3 py-3 transition">
+                                Nanti
+                            </a>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -362,8 +422,8 @@
                                 JastipKuy siap melayani berbagai kebutuhan belanja Anda. Pilih kategori yang sesuai, dan biarkan Jastiper terdekat kami mengurus sisanya.
                             </p>
                         </div>
-                        <a href="#calculator" class="text-rose-600 font-bold hover:text-rose-700 flex items-center gap-1.5 text-sm mt-4 md:mt-0 transition">
-                            Coba Kalkulator Jastip &rarr;
+                        <a href="{{ Auth::guard('customer')->check() ? route('customer.dashboard') : route('login') }}" class="text-rose-600 font-bold hover:text-rose-700 flex items-center gap-1.5 text-sm mt-4 md:mt-0 transition">
+                            Mulai Titip Sekarang &rarr;
                         </a>
                     </div>
 
@@ -638,10 +698,10 @@
                         Unduh aplikasi JastipKuy di ponsel Anda atau daftarkan akun sekarang melalui web untuk menikmati kemudahan jastip on-demand terbaik.
                     </p>
                     <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                        <a href="#calculator" class="w-full sm:w-auto inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-base px-8 py-4 rounded-sm shadow-sm transition">
+                        <a href="{{ Auth::guard('customer')->check() ? route('customer.dashboard') : route('login') }}" class="w-full sm:w-auto inline-flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold text-base px-8 py-4 rounded-sm shadow-sm transition">
                             Mulai Titip Pertama Anda
                         </a>
-                        <a href="#" class="w-full sm:w-auto inline-flex items-center justify-center border-2 border-white hover:bg-white hover:text-slate-900 text-white font-bold text-base px-8 py-3.5 rounded-sm transition">
+                        <a href="{{ route('login') }}" class="w-full sm:w-auto inline-flex items-center justify-center border-2 border-white hover:bg-white hover:text-slate-900 text-white font-bold text-base px-8 py-3.5 rounded-sm transition">
                             Gabung Menjadi Jastiper
                         </a>
                     </div>
@@ -650,28 +710,32 @@
         </main>
         @include('layouts.footer')
 
-        <!-- JS Calculator logic -->
+        <!-- Tab and interactive logic -->
         <script>
             function updateWeightLabel(value) {
-                document.getElementById('weight-label').innerText = value + ' kg';
+                const label = document.getElementById('weight-label');
+                if (label) label.innerText = value + ' kg';
             }
 
             function calculateEstimates() {
-                // Get form inputs
                 const wilayahSelect = document.getElementById('calc-wilayah');
                 const kategoriSelect = document.getElementById('calc-kategori');
-                const weightVal = parseFloat(document.getElementById('calc-weight').value);
-                const priceVal = parseFloat(document.getElementById('calc-price').value || 0);
+                const weightEl = document.getElementById('calc-weight');
+                const priceEl = document.getElementById('calc-price');
 
-                // Base values logic
-                let baseJastipFee = parseFloat(kategoriSelect.options[kategoriSelect.selectedIndex].getAttribute('data-fee') || 15000);
-                
-                // Add scale for item price (high value items incur slightly more trust fee)
-                if (priceVal > 500000) {
-                    baseJastipFee += Math.floor((priceVal - 500000) * 0.02); // 2% of value over 500k
+                if (!wilayahSelect || !kategoriSelect || !weightEl) {
+                    return;
                 }
 
-                // Delivery Fee Calculation (Base Fee + Price Per KM after 2km)
+                const weightVal = parseFloat(weightEl.value || 1);
+                const priceVal = parseFloat(priceEl ? priceEl.value || 0 : 0);
+
+                let baseJastipFee = parseFloat(kategoriSelect.options[kategoriSelect.selectedIndex].getAttribute('data-fee') || 15000);
+                
+                if (priceVal > 500000) {
+                    baseJastipFee += Math.floor((priceVal - 500000) * 0.02);
+                }
+
                 const selectedOption = wilayahSelect.options[wilayahSelect.selectedIndex];
                 const distance = parseFloat(selectedOption.getAttribute('data-radius') || 5);
                 
@@ -684,23 +748,26 @@
                     baseDeliveryFee += (distance - baseKmIncluded) * pricePerKm;
                 }
 
-                // Weight adjustment based on weight categories (ringan, sedang, berat)
                 let weightFee = 0;
                 if (weightVal > 1 && weightVal <= 5) {
-                    weightFee = 3000; // Sedang
+                    weightFee = 3000;
                 } else if (weightVal > 5) {
-                    weightFee = 7000; // Berat
+                    weightFee = 7000;
                 }
 
                 const deliveryFee = baseDeliveryFee + weightFee;
-                const platformFee = 5000; // Escrow fee fixed
+                const platformFee = 5000;
                 const totalEstimated = baseJastipFee + deliveryFee + platformFee;
 
-                // Update outputs in UI
-                document.getElementById('out-jastip-fee').innerText = formatRupiah(baseJastipFee);
-                document.getElementById('out-delivery-fee').innerText = formatRupiah(deliveryFee);
-                document.getElementById('out-platform-fee').innerText = formatRupiah(platformFee);
-                document.getElementById('out-total-fee').innerText = formatRupiah(totalEstimated);
+                const outJastip = document.getElementById('out-jastip-fee');
+                const outDelivery = document.getElementById('out-delivery-fee');
+                const outPlatform = document.getElementById('out-platform-fee');
+                const outTotal = document.getElementById('out-total-fee');
+
+                if (outJastip) outJastip.innerText = formatRupiah(baseJastipFee);
+                if (outDelivery) outDelivery.innerText = formatRupiah(deliveryFee);
+                if (outPlatform) outPlatform.innerText = formatRupiah(platformFee);
+                if (outTotal) outTotal.innerText = formatRupiah(totalEstimated);
             }
 
             function formatRupiah(number) {
@@ -713,35 +780,37 @@
                 const custContent = document.getElementById('tab-cust-content');
                 const jastipContent = document.getElementById('tab-jastip-content');
 
+                if (!custBtn || !jastipBtn || !custContent || !jastipContent) return;
+
                 if (role === 'cust') {
-                    // Active button styling
                     custBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'border', 'border-slate-200');
                     custBtn.classList.remove('text-slate-600', 'hover:text-slate-950');
 
                     jastipBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm', 'border', 'border-slate-200');
                     jastipBtn.classList.add('text-slate-600', 'hover:text-slate-950');
 
-                    // Show content
                     custContent.classList.remove('hidden');
                     jastipContent.classList.add('hidden');
                 } else {
-                    // Active button styling
                     jastipBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'border', 'border-slate-200');
                     jastipBtn.classList.remove('text-slate-600', 'hover:text-slate-950');
 
                     custBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm', 'border', 'border-slate-200');
                     custBtn.classList.add('text-slate-600', 'hover:text-slate-950');
 
-                    // Show content
                     jastipContent.classList.remove('hidden');
                     custContent.classList.add('hidden');
                 }
             }
 
-            // Run initial calculate on load
+            // Run initial calculate on load only if calculator inputs exist
             window.addEventListener('DOMContentLoaded', (event) => {
-                calculateEstimates();
+                if (document.getElementById('calc-wilayah')) {
+                    calculateEstimates();
+                }
             });
         </script>
+        <!-- PWA Component -->
+        @include('components.pwa-install')
     </body>
 </html>

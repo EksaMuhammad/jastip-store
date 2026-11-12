@@ -39,7 +39,7 @@
 @endsection
 
 @section('content')
-<div class="min-h-screen bg-[#F6F7F9] pb-24 text-slate-800" x-data="{
+<div class="min-h-screen bg-[#F6F7F9] pb-24 text-slate-800 overflow-x-hidden w-full max-w-full" x-data="{
     copied: false,
     copyOrderNumber(text) {
         if (navigator.clipboard) {
@@ -55,23 +55,55 @@
         this.copied = true;
         setTimeout(() => this.copied = false, 2500);
     },
+    showInvoiceModal: false,
+    copiedShare: false,
     shareOrder() {
+        this.showInvoiceModal = true;
+    },
+    shareInvoiceLink() {
+        const shareUrl = '{{ $order->public_receipt_url }}';
+        const shareData = {
+            title: 'Nota Transaksi JastipKuy #{{ $order->id }}',
+            text: 'Berikut nota transaksi resmi pesanan JastipKuy #{{ $order->id }}',
+            url: shareUrl
+        };
+
         if (navigator.share) {
-            navigator.share({
-                title: 'Rincian Pesanan JastipKuy',
-                text: 'Pesanan Jastip #{{ $order->id }}',
-                url: window.location.href
-            }).catch(() => {});
+            navigator.share(shareData).catch((err) => {
+                if (err.name !== 'AbortError') {
+                    this.fallbackCopyShareLink(shareUrl);
+                }
+            });
         } else {
-            this.copyOrderNumber(window.location.href);
-            alert('Tautan pesanan disalin ke papan klip!');
+            this.fallbackCopyShareLink(shareUrl);
         }
     },
-    showHelp: false
-}" @order-price-adjusted.window="setTimeout(() => window.location.reload(), 1000)">
+    fallbackCopyShareLink(url) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(() => {
+                this.copiedShare = true;
+                setTimeout(() => this.copiedShare = false, 3500);
+            }).catch(() => {
+                prompt('Salin link nota berikut:', url);
+            });
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = url;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            this.copiedShare = true;
+            setTimeout(() => this.copiedShare = false, 3500);
+        }
+    },
+    showHelp: false,
+    previewImage: null,
+    previewTitle: ''
+}" x-init="$watch('showInvoiceModal', val => { document.body.style.overflow = val ? 'hidden' : ''; })" @order-price-adjusted.window="setTimeout(() => window.location.reload(), 1000)">
 
     <!-- Mobile-First Header (Inspired by ShopeeFood Reference) -->
-    <div class="sticky top-0 z-40 bg-white border-b border-slate-100 shadow-xs">
+    <div class="sticky top-0 z-40 bg-white border-b border-slate-100 shadow-xs w-full overflow-x-hidden">
         <div class="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
             <a href="{{ route('customer.activity') }}" class="text-slate-700 hover:text-rose-600 transition p-1.5 -ml-1.5 rounded-full hover:bg-slate-50">
                 <svg class="w-6 h-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -82,7 +114,7 @@
             <h1 class="font-extrabold text-base text-slate-900 tracking-tight">Rincian Pesananmu</h1>
             
             <div class="flex items-center gap-1 -mr-1.5">
-                <button type="button" @click="shareOrder()" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-full transition" title="Bagikan">
+                <button type="button" @click="showInvoiceModal = true" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-full transition" title="Lihat & Bagikan Nota">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
                     </svg>
@@ -98,7 +130,7 @@
     </div>
 
     <!-- Main Container -->
-    <div class="max-w-md mx-auto px-3.5 sm:px-4 pt-3.5 space-y-3.5">
+    <div class="max-w-md mx-auto px-3.5 sm:px-4 pt-3.5 space-y-3.5 w-full overflow-x-hidden">
 
         <!-- Flash Notice / Toast Copy notification -->
         <div x-show="copied" x-transition.opacity class="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
@@ -133,9 +165,14 @@
                     <p class="text-[10px] text-slate-500 truncate">Jastiper siap mengantar dengan aman</p>
                 </div>
             </div>
-            <a href="{{ route('customer.dashboard') }}" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition shrink-0 shadow-2xs">
-                Beranda
-            </a>
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button type="button" @click="showInvoiceModal = true" class="bg-slate-900 hover:bg-slate-800 active:scale-95 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition shadow-2xs flex items-center gap-1 cursor-pointer">
+                    <span>📄</span> Nota
+                </button>
+                <a href="{{ route('customer.dashboard') }}" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition shadow-2xs">
+                    Beranda
+                </a>
+            </div>
         </div>
 
         @php
@@ -311,9 +348,387 @@
         </div>
         @endif
 
+        <!-- CARD: Progres Multi-Stop Titik Singgah Belanja (Step-by-step Realtime) -->
+        @if(is_array($order->multi_stops) && count($order->multi_stops) > 1)
+        <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs">📦</span>
+                    <div>
+                        <h2 class="font-extrabold text-xs text-slate-900 tracking-tight">Progres Belanja Multi-Toko</h2>
+                        <p class="text-[10px] text-slate-400">Jastiper mengambil barang satu per satu per toko</p>
+                    </div>
+                </div>
+                @php
+                    $doneStopsCount = collect($order->multi_stops)->where('status', 'completed')->count();
+                    $totalStops = count($order->multi_stops);
+                @endphp
+                <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full {{ $doneStopsCount === $totalStops ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
+                    {{ $doneStopsCount }} dari {{ $totalStops }} Selesai
+                </span>
+            </div>
+
+            <div class="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                @php
+                    $foundActive = false;
+                @endphp
+                @foreach($order->multi_stops as $mIdx => $st)
+                    @php
+                        $isStopDone = ($st['status'] ?? '') === 'completed';
+                        $isStopCurrent = false;
+                        if (!$isStopDone && !$foundActive && in_array($order->status, ['diproses', 'barang_diambil', 'deal'])) {
+                            $isStopCurrent = true;
+                            $foundActive = true;
+                        }
+                        $stopNum = $st['stop_number'] ?? ($mIdx + 1);
+
+                        // Format waktu rinci per stop
+                        if (!empty($st['completed_at'])) {
+                            $stopTimeBadge = [
+                                'type' => 'done',
+                                'label' => date('H:i', strtotime($st['completed_at'])) . ' WIB',
+                                'sub' => 'Selesai Belanja',
+                                'class' => 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            ];
+                        } elseif ($isStopDone) {
+                            $timeDone = $order->pickup_time ?: $order->updated_at;
+                            $stopTimeBadge = [
+                                'type' => 'done',
+                                'label' => $timeDone->format('H:i') . ' WIB',
+                                'sub' => 'Selesai Belanja',
+                                'class' => 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            ];
+                        } elseif ($isStopCurrent) {
+                            $stopTimeBadge = [
+                                'type' => 'active',
+                                'label' => 'Mulai ' . $order->updated_at->format('H:i') . ' WIB',
+                                'sub' => 'Sedang Diproses',
+                                'class' => 'bg-rose-100 text-rose-700 border border-rose-200'
+                            ];
+                        } else {
+                            $estTime = $order->created_at->addMinutes(($mIdx + 1) * 15);
+                            $stopTimeBadge = [
+                                'type' => 'queue',
+                                'label' => 'Est. ' . $estTime->format('H:i') . ' WIB',
+                                'sub' => 'Antrean #' . $stopNum,
+                                'class' => 'bg-slate-100 text-slate-600 border border-slate-200'
+                            ];
+                        }
+                    @endphp
+                    <div class="relative">
+                        <!-- Step Pin Indicator -->
+                        <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full flex items-center justify-center font-black text-[9px] shadow-xs {{ $isStopDone ? 'bg-emerald-500 text-white' : ($isStopCurrent ? 'bg-rose-600 text-white ring-4 ring-rose-100 animate-pulse' : 'bg-slate-200 text-slate-500') }}">
+                            {{ $isStopDone ? '✓' : $stopNum }}
+                        </div>
+
+                        <div class="bg-slate-50 border {{ $isStopDone ? 'border-emerald-200 bg-emerald-50/40' : ($isStopCurrent ? 'border-rose-300 bg-rose-50/40 ring-1 ring-rose-200' : 'border-slate-100') }} rounded-xl p-3 space-y-1.5">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <span class="text-[9px] font-black uppercase tracking-wider {{ $isStopDone ? 'text-emerald-700' : ($isStopCurrent ? 'text-rose-700' : 'text-slate-400') }}">
+                                        Stop #{{ $stopNum }}: {{ $isStopDone ? 'Selesai Belanja' : ($isStopCurrent ? 'Sedang Berbelanja...' : 'Menunggu Antrean') }}
+                                    </span>
+                                    <h4 class="font-bold text-xs text-slate-800 leading-tight mt-0.5">{{ $st['name'] ?? 'Toko Singgah' }}</h4>
+                                    <p class="text-[10px] text-slate-500 leading-tight mt-0.5">{{ $st['address'] ?? '-' }}</p>
+                                </div>
+                                
+                                <!-- Time Badge -->
+                                <div class="shrink-0 text-right">
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono {{ $stopTimeBadge['class'] }} shadow-2xs">
+                                        @if($stopTimeBadge['type'] === 'done')
+                                            <svg class="w-2.5 h-2.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                        @elseif($stopTimeBadge['type'] === 'active')
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                        @else
+                                            <span class="text-[9px]">⏳</span>
+                                        @endif
+                                        <span>{{ $stopTimeBadge['label'] }}</span>
+                                    </span>
+                                    <span class="text-[9px] text-slate-400 block mt-0.5 font-medium">{{ $stopTimeBadge['sub'] }}</span>
+                                </div>
+                            </div>
+
+                            @if(!empty($st['photo']))
+                                <div class="pt-1.5 flex items-center gap-2 border-t border-slate-200/60">
+                                    <img src="{{ Storage::url($st['photo']) }}" alt="Foto Bukti Stop" class="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0">
+                                    <div class="min-w-0">
+                                        <span class="text-[10px] font-bold text-slate-800 block">Bukti Foto Barang Stop #{{ $stopNum }}</span>
+                                        <button type="button" @click="previewImage = '{{ Storage::url($st['photo']) }}'; previewTitle = 'Bukti Pembelian Stop #{{ $stopNum }} - {{ addslashes($st['name'] ?? 'Toko') }}'" class="text-[10px] font-black text-rose-600 hover:underline">
+                                            Lihat Foto Penuh →
+                                        </button>
+                                    </div>
+                                </div>
+                            @elseif($isStopCurrent)
+                                <p class="text-[10px] text-rose-700 font-medium italic">
+                                    Jastiper sedang berada di lokasi ini dan akan mengunggah foto bukti belanja.
+                                </p>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+
+                <!-- Titik Akhir: Pengantaran -->
+                @php
+                    $isDelivered = in_array($order->status, ['selesai', 'tiba_tujuan']);
+                    $isDelivering = in_array($order->status, ['sedang_diantar', 'diantar']);
+                    if ($isDelivered) {
+                        $destTimeDone = $order->delivered_at ?: $order->updated_at;
+                        $destBadge = [
+                            'type' => 'done',
+                            'label' => $destTimeDone->format('H:i') . ' WIB',
+                            'sub' => 'Tiba di Tujuan',
+                            'class' => 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        ];
+                    } elseif ($isDelivering) {
+                        $destBadge = [
+                            'type' => 'active',
+                            'label' => 'Est. ' . $order->updated_at->addMinutes(15)->format('H:i') . ' WIB',
+                            'sub' => 'Dalam Pengantaran',
+                            'class' => 'bg-blue-100 text-blue-800 border border-blue-200'
+                        ];
+                    } else {
+                        $estDestTime = $order->created_at->addMinutes(($totalStops + 1) * 15);
+                        $destBadge = [
+                            'type' => 'queue',
+                            'label' => 'Est. ' . $estDestTime->format('H:i') . ' WIB',
+                            'sub' => 'Tujuan Akhir',
+                            'class' => 'bg-slate-100 text-slate-600 border border-slate-200'
+                        ];
+                    }
+                @endphp
+                <div class="relative">
+                    <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full flex items-center justify-center font-black text-[9px] shadow-xs {{ $isDelivered ? 'bg-emerald-500 text-white' : ($isDelivering ? 'bg-blue-600 text-white ring-4 ring-blue-100 animate-pulse' : 'bg-slate-200 text-slate-500') }}">
+                        📍
+                    </div>
+                    <div class="bg-slate-50 border {{ $isDelivered ? 'border-emerald-200 bg-emerald-50/40' : ($isDelivering ? 'border-blue-200 bg-blue-50/40' : 'border-slate-100') }} rounded-xl p-3 space-y-1.5">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0 flex-1">
+                                <span class="text-[9px] font-black uppercase tracking-wider {{ $isDelivered ? 'text-emerald-700' : ($isDelivering ? 'text-blue-700' : 'text-slate-400') }}">
+                                    {{ $isDelivered ? 'Tiba di Tujuan Akhir' : ($isDelivering ? 'Sedang Diantar ke Anda' : 'Tujuan Akhir (Antar ke Alamat Anda)') }}
+                                </span>
+                                <p class="font-bold text-xs text-slate-800 leading-tight mt-0.5">{{ $order->destination_address ?? '-' }}</p>
+                            </div>
+                            <div class="shrink-0 text-right">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono {{ $destBadge['class'] }} shadow-2xs">
+                                    @if($destBadge['type'] === 'done')
+                                        <svg class="w-2.5 h-2.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                    @elseif($destBadge['type'] === 'active')
+                                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                                    @else
+                                        <span class="text-[9px]">⏳</span>
+                                    @endif
+                                    <span>{{ $destBadge['label'] }}</span>
+                                </span>
+                                <span class="text-[9px] text-slate-400 block mt-0.5 font-medium">{{ $destBadge['sub'] }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        <!-- CARD: Riwayat Status & Waktu Perjalanan Pesanan (Order Journey Timeline) -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3.5" x-data="{ showAllLogs: false }">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs">⏱️</span>
+                    <div>
+                        <h2 class="font-extrabold text-xs text-slate-900 tracking-tight">Riwayat Status & Waktu Perjalanan</h2>
+                        <p class="text-[10px] text-slate-400">Waktu terverifikasi setiap tahapan pesanan Anda</p>
+                    </div>
+                </div>
+                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full {{ $order->status === 'selesai' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-50 text-rose-700' }}">
+                    {{ strtoupper(str_replace('_', ' ', $order->status)) }}
+                </span>
+            </div>
+
+            <!-- Vertical Timeline Stepper with Exact Timestamps -->
+            <div class="relative pl-6 space-y-3.5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 text-xs">
+                
+                <!-- 1. Waktu Pemesanan Dibuat -->
+                <div class="relative">
+                    <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[9px] shadow-xs">
+                        ✓
+                    </div>
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="font-bold text-slate-800 leading-tight text-xs">Pesanan Berhasil Dibuat</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">Pesanan masuk ke sistem antrean JastipKuy</p>
+                        </div>
+                        <span class="text-[10px] font-bold font-mono text-slate-700 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                            {{ $order->created_at->format('H:i') }} WIB
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 2. Waktu Pembayaran Terverifikasi -->
+                @php
+                    $payTime = $latestPayment?->verified_at ?: ($latestPayment?->created_at ?: ($isPaid ? $order->created_at : null));
+                @endphp
+                <div class="relative">
+                    <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full {{ $isPaid ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500' }} flex items-center justify-center font-bold text-[9px] shadow-xs">
+                        {{ $isPaid ? '✓' : '2' }}
+                    </div>
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="font-bold text-slate-800 leading-tight text-xs">Pembayaran Escrow Terverifikasi</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">{{ $isPaid ? 'Dana aman di rekening bersama JastipKuy' : 'Menunggu verifikasi pembayaran' }}</p>
+                        </div>
+                        @if($payTime)
+                            <span class="text-[10px] font-bold font-mono text-emerald-800 shrink-0 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                {{ $payTime->format('H:i') }} WIB
+                            </span>
+                        @else
+                            <span class="text-[10px] font-mono text-slate-400 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                Menunggu
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- 3. Jastiper Mengambil & Menuju Toko -->
+                @php
+                    $hasJastiper = !empty($order->jastiper);
+                    $jastiperTime = $order->jastiper_assigned_at ?: ($hasJastiper ? ($order->updated_at ?: $order->created_at) : null);
+                @endphp
+                <div class="relative">
+                    <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full {{ $hasJastiper ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500' }} flex items-center justify-center font-bold text-[9px] shadow-xs">
+                        {{ $hasJastiper ? '✓' : '3' }}
+                    </div>
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="font-bold text-slate-800 leading-tight text-xs">Jastiper Ditugaskan</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">{{ $hasJastiper ? 'Mitra ' . $order->jastiper->name . ' menuju lokasi belanja' : 'Sedang mencari mitra terdekat' }}</p>
+                        </div>
+                        @if($hasJastiper && $jastiperTime)
+                            <span class="text-[10px] font-bold font-mono text-slate-700 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                {{ $jastiperTime->format('H:i') }} WIB
+                            </span>
+                        @else
+                            <span class="text-[10px] font-mono text-slate-400 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                Mencari
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- 4. Proses Belanja / Ambil Barang Selesai -->
+                @php
+                    $isPickedUp = in_array($order->status, ['barang_diambil', 'sedang_diantar', 'tiba_tujuan', 'selesai']) || !empty($order->pickup_photo);
+                    $pickupTime = $order->pickup_time ?: ($isPickedUp ? $order->updated_at : null);
+                @endphp
+                <div class="relative">
+                    <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full {{ $isPickedUp ? 'bg-emerald-500 text-white' : (in_array($order->status, ['diproses', 'deal']) ? 'bg-rose-600 text-white ring-4 ring-rose-100 animate-pulse' : 'bg-slate-200 text-slate-500') }} flex items-center justify-center font-bold text-[9px] shadow-xs">
+                        {{ $isPickedUp ? '✓' : '4' }}
+                    </div>
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="font-bold text-slate-800 leading-tight text-xs">Belanja di Toko Selesai</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">{{ $isPickedUp ? 'Barang telah dibeli & diverifikasi struk/foto' : 'Jastiper membelikan pesanan di toko' }}</p>
+                        </div>
+                        @if($pickupTime)
+                            <span class="text-[10px] font-bold font-mono text-slate-700 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                {{ $pickupTime->format('H:i') }} WIB
+                            </span>
+                        @elseif(in_array($order->status, ['diproses', 'deal']))
+                            <span class="text-[10px] font-bold font-mono text-rose-700 shrink-0 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                Sedang Belanja
+                            </span>
+                        @else
+                            <span class="text-[10px] font-mono text-slate-400 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                Antrean
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- 5. Sedang Diantar ke Tujuan -->
+                @php
+                    $isDeparted = in_array($order->status, ['sedang_diantar', 'tiba_tujuan', 'selesai']);
+                    $departedTime = $order->delivery_time ?: ($isDeparted ? $order->updated_at : null);
+                @endphp
+                <div class="relative">
+                    <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full {{ $isDeparted ? 'bg-emerald-500 text-white' : ($order->status === 'barang_diambil' ? 'bg-blue-600 text-white ring-4 ring-blue-100 animate-pulse' : 'bg-slate-200 text-slate-500') }} flex items-center justify-center font-bold text-[9px] shadow-xs">
+                        {{ $isDeparted ? '✓' : '5' }}
+                    </div>
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="font-bold text-slate-800 leading-tight text-xs">Pengantaran ke Alamat Anda</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">{{ $isDeparted ? 'Jastiper sedang dalam perjalanan mengantar' : 'Menunggu belanja selesai' }}</p>
+                        </div>
+                        @if($departedTime)
+                            <span class="text-[10px] font-bold font-mono text-slate-700 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                {{ $departedTime->format('H:i') }} WIB
+                            </span>
+                        @else
+                            <span class="text-[10px] font-mono text-slate-400 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                Menunggu
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- 6. Pesanan Selesai Diterima -->
+                @php
+                    $isOrderComplete = $order->status === 'selesai';
+                    $completeTime = $order->delivered_at ?: ($isOrderComplete ? $order->updated_at : null);
+                @endphp
+                <div class="relative">
+                    <div class="absolute -left-6 top-0.5 w-5 h-5 rounded-full {{ $isOrderComplete ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500' }} flex items-center justify-center font-bold text-[9px] shadow-xs">
+                        {{ $isOrderComplete ? '✓' : '6' }}
+                    </div>
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="font-bold text-slate-800 leading-tight text-xs">Pesanan Selesai & Diterima</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">{{ $isOrderComplete ? 'Serah terima barang selesai dengan sukses' : 'Konfirmasi setelah barang diterima' }}</p>
+                        </div>
+                        @if($completeTime)
+                            <span class="text-[10px] font-bold font-mono text-emerald-800 shrink-0 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                {{ $completeTime->format('H:i') }} WIB
+                            </span>
+                        @else
+                            <span class="text-[10px] font-mono text-slate-400 shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">
+                                -
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
         <!-- CARD 1: Rincian Pesanan (Exact Reference Form) -->
-        <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-4">
+        <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-4 overflow-hidden">
             <h2 class="font-extrabold text-sm text-slate-900 tracking-tight">Rincian Pesanan</h2>
+
+            <!-- Foto Referensi Barang dari Customer jika ada -->
+            @if($order->reference_photo_url)
+                <div class="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-2xs">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-12 h-12 min-w-[3rem] max-w-[3rem] rounded-xl bg-white border border-amber-300 overflow-hidden shrink-0 shadow-xs flex items-center justify-center">
+                            <img src="{{ $order->reference_photo_url }}" 
+                                 alt="Foto Referensi" 
+                                 class="w-full h-full object-cover cursor-pointer hover:opacity-90 transition max-w-full"
+                                 @click="previewImage = '{{ $order->reference_photo_url }}'; previewTitle = 'Foto Referensi Barang: #ORD-{{ str_pad($order->id, 5, '0', STR_PAD_LEFT) }}'"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-full bg-amber-50 flex items-center justify-center text-amber-600 font-bold text-xs\'>📸</div>';">
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-amber-900">📸 Foto Referensi Barang</span>
+                                <span class="text-[8px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">Customer</span>
+                            </div>
+                            <p class="text-[10px] text-amber-800/80 truncate mt-0.5">Diberikan ke jastiper sebagai contoh barang</p>
+                        </div>
+                    </div>
+                    <button type="button" 
+                            @click="previewImage = '{{ $order->reference_photo_url }}'; previewTitle = 'Foto Referensi Barang: #ORD-{{ str_pad($order->id, 5, '0', STR_PAD_LEFT) }}'" 
+                            class="shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-[10px] rounded-xl shadow-2xs transition cursor-pointer flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        <span>Lihat Foto</span>
+                    </button>
+                </div>
+            @endif
 
             <!-- Item List -->
             <div class="space-y-3 divide-y divide-slate-50">
@@ -321,16 +736,20 @@
                     @foreach($items as $item)
                         @php
                             $itemPrice = $item->actual_price ?: $item->estimated_price;
-                            $productImage = $item->product?->image;
+                            $productImage = $item->image_url ?: ($order->reference_photo_url ?? null);
                             $itemAdj = $item->priceAdjustment;
                             $hasApprovedAdj = $itemAdj && $itemAdj->status === 'approved';
                             $hasPendingAdj = $itemAdj && $itemAdj->status === 'pending';
                         @endphp
-                        <div class="pt-2.5 first:pt-0 flex items-start gap-3">
+                        <div class="pt-2.5 first:pt-0 flex items-start gap-3 min-w-0">
                             <!-- Thumbnail -->
-                            <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 flex items-center justify-center">
+                            <div class="w-12 h-12 sm:w-14 sm:h-14 min-w-[3rem] sm:min-w-[3.5rem] max-w-[3rem] sm:max-w-[3.5rem] rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 flex items-center justify-center">
                                 @if($productImage)
-                                    <img src="{{ $productImage }}" alt="{{ $item->name }}" class="w-full h-full object-cover">
+                                    <img src="{{ $productImage }}" 
+                                         alt="{{ $item->clean_name }}" 
+                                         class="w-full h-full object-cover cursor-pointer hover:opacity-90 max-w-full" 
+                                         @click="previewImage = '{{ $productImage }}'; previewTitle = '{{ addslashes($item->clean_name) }}'"
+                                         onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-full bg-rose-50 flex items-center justify-center text-rose-500 font-bold text-xs\'>JK</div>';">
                                 @else
                                     <div class="w-full h-full bg-rose-50 flex items-center justify-center text-rose-500 font-bold text-xs">
                                         JK
@@ -340,11 +759,11 @@
 
                             <!-- Name & Qty -->
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="min-w-0">
-                                        <p class="text-xs font-bold text-slate-800 leading-snug">
+                                <div class="flex items-start justify-between gap-2 min-w-0">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-xs font-bold text-slate-800 leading-snug break-words">
                                             <span class="text-slate-500 font-semibold mr-1">{{ $item->quantity }} x</span>
-                                            {{ preg_replace('/\[.*?\]/', '', $item->name) }}
+                                            {{ trim(preg_replace('/\[.*?\]/', '', $item->name)) }}
                                         </p>
 
                                         @if($hasApprovedAdj)
@@ -367,7 +786,7 @@
                                         @endif
 
                                         @if($item->notes)
-                                            <p class="text-[10px] text-slate-400 mt-0.5 line-clamp-1 italic">
+                                            <p class="text-[10px] text-slate-400 mt-0.5 line-clamp-2 italic break-words">
                                                 Catatan: {{ $item->notes }}
                                             </p>
                                         @endif
@@ -383,13 +802,13 @@
                     @endforeach
                 @else
                     <!-- Fallback Jastip Request Row -->
-                    <div class="flex items-start gap-3">
-                        <div class="w-13 h-13 rounded-xl bg-rose-50 border border-rose-100 overflow-hidden shrink-0 flex items-center justify-center text-rose-600 font-bold text-xs">
+                    <div class="flex items-start gap-3 min-w-0">
+                        <div class="w-12 h-12 sm:w-14 sm:h-14 min-w-[3rem] sm:min-w-[3.5rem] max-w-[3rem] sm:max-w-[3.5rem] rounded-xl bg-rose-50 border border-rose-100 overflow-hidden shrink-0 flex items-center justify-center text-rose-600 font-bold text-xs">
                             JK
                         </div>
                         <div class="flex-1 min-w-0 flex items-start justify-between gap-2">
-                            <div>
-                                <p class="text-xs font-bold text-slate-800 leading-snug">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-xs font-bold text-slate-800 leading-snug break-words">
                                     <span class="text-slate-500 font-semibold mr-1">1 x</span>
                                     {{ $order->description }}
                                 </p>
@@ -510,16 +929,26 @@
                 <!-- Waktu Pemesanan -->
                 <div class="flex justify-between items-center gap-2">
                     <span class="text-slate-500 font-medium">Waktu Pemesanan</span>
-                    <span class="text-slate-800 font-semibold">{{ $order->created_at->format('d M Y H:i') }}</span>
+                    <span class="text-slate-800 font-semibold font-mono">{{ $order->created_at->format('d M Y H:i') }} WIB</span>
                 </div>
 
                 <!-- Waktu Pembayaran -->
                 <div class="flex justify-between items-center gap-2">
                     <span class="text-slate-500 font-medium">Waktu Pembayaran</span>
-                    <span class="text-slate-800 font-semibold">
-                        {{ $latestPayment?->verified_at ? $latestPayment->verified_at->format('d M Y H:i') : ($latestPayment?->created_at && $isPaid ? $latestPayment->created_at->format('d M Y H:i') : '-') }}
+                    <span class="text-slate-800 font-semibold font-mono">
+                        {{ $latestPayment?->verified_at ? $latestPayment->verified_at->format('d M Y H:i') . ' WIB' : ($latestPayment?->created_at && $isPaid ? $latestPayment->created_at->format('d M Y H:i') . ' WIB' : '-') }}
                     </span>
                 </div>
+
+                @if($order->status === 'selesai')
+                <!-- Waktu Selesai Diterima -->
+                <div class="flex justify-between items-center gap-2">
+                    <span class="text-slate-500 font-medium">Waktu Selesai</span>
+                    <span class="text-emerald-700 font-bold font-mono">
+                        {{ $order->delivered_at ? $order->delivered_at->format('d M Y H:i') . ' WIB' : $order->updated_at->format('d M Y H:i') . ' WIB' }}
+                    </span>
+                </div>
+                @endif
 
                 <!-- Pembayaran -->
                 <div class="flex justify-between items-center gap-2">
@@ -624,7 +1053,13 @@
         @endif
 
         <!-- Bottom Contextual Action Buttons -->
-        <div class="pt-2">
+        <div class="pt-2 space-y-2">
+            <!-- Tombol Cetak / Unduh Nota Invoice -->
+            <a href="{{ route('customer.orders.invoice', $order->id) }}" target="_blank" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl transition tracking-wide shadow-sm flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                <span>Cetak / Unduh Nota Invoice</span>
+            </a>
+
             @if(in_array($order->status, ['menunggu_tawaran', 'ada_tawaran']))
                 <!-- Batalkan Pesanan (Clean Shopee outline button style) -->
                 <form action="{{ route('customer.orders.cancel', $order->id) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')">
@@ -670,6 +1105,114 @@
 
     </div>
 
+    <!-- Nota Transaksi Preview Modal (View Nota + Secondary Actions) -->
+    <div x-show="showInvoiceModal" 
+         x-cloak 
+         class="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center sm:items-center bg-slate-900/80 backdrop-blur-sm p-0 sm:p-4 overflow-hidden"
+         @keydown.escape.window="showInvoiceModal = false">
+        
+        <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-3xl h-[100dvh] sm:h-[90vh] sm:max-h-[90vh] shadow-2xl flex flex-col min-h-0 overflow-hidden border border-slate-200" 
+             @click.away="showInvoiceModal = false">
+            
+            <!-- Modal Header (Pinned at Top, Mobile & Desktop Friendly) -->
+            <div class="px-4 py-3 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-30 shadow-xs">
+                <button type="button" 
+                        @click="showInvoiceModal = false" 
+                        class="inline-flex items-center gap-1 text-slate-700 hover:text-rose-600 font-bold text-xs p-1.5 -ml-1 rounded-xl hover:bg-slate-50 transition cursor-pointer">
+                    <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    <span class="sm:hidden">Kembali</span>
+                </button>
+
+                <div class="text-center min-w-0 px-2 flex-1 sm:text-left sm:flex sm:items-center sm:gap-2">
+                    <div class="flex items-center justify-center sm:justify-start gap-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-600 hidden sm:inline-block"></span>
+                        <h3 class="font-black text-slate-900 text-xs sm:text-sm truncate">Pratinjau Nota Transaksi</h3>
+                    </div>
+                    <span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md inline-block">
+                        #ORD-{{ str_pad($order->id, 5, '0', STR_PAD_LEFT) }}
+                    </span>
+                </div>
+
+                <button type="button" 
+                        @click="showInvoiceModal = false" 
+                        class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-extrabold text-xs rounded-xl transition cursor-pointer flex items-center gap-1 shrink-0"
+                        title="Tutup Pratinjau">
+                    <span>Tutup</span>
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Desktop Action Bar (Hidden on Mobile, as Mobile has Sticky Bottom Bar) -->
+            <div class="hidden sm:flex px-4 py-2.5 bg-slate-50 border-b border-slate-200/70 items-center justify-between gap-2 shrink-0 z-20">
+                <div class="flex items-center gap-2 flex-1">
+                    <!-- Aksi 1: Bagikan (Web Share API / Salin Link) -->
+                    <button type="button" 
+                            @click="shareInvoiceLink()" 
+                            class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+                        </svg>
+                        <span>Bagikan Nota</span>
+                    </button>
+
+                    <!-- Aksi 2: Cetak / Simpan PDF -->
+                    <a href="{{ $order->public_receipt_url }}?print=1" 
+                       target="_blank" 
+                       class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        <span>Cetak / PDF</span>
+                    </a>
+                </div>
+
+                <span class="text-[11px] text-slate-500 font-medium">
+                    Tautan read-only siap dibagikan ke siapapun tanpa perlu login.
+                </span>
+            </div>
+
+            <!-- Toast Link Disalin di dalam Modal -->
+            <div x-show="copiedShare" x-transition.opacity class="bg-emerald-600 text-white text-[11px] font-bold px-4 py-2 text-center flex items-center justify-center gap-1.5 shrink-0 z-20">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                <span>Tautan nota read-only berhasil disalin! Siap dibagikan tanpa perlu login.</span>
+            </div>
+
+            <!-- Modal Body: Nota Sheet Lengkap (Scrollable Flex Item dengan min-h-0) -->
+            <div class="overflow-y-auto p-3 sm:p-5 bg-slate-100/70 flex-1 min-h-0 overscroll-contain">
+                @include('customer.orders.partials.invoice-sheet', [
+                    'order' => $order,
+                    'customer' => $customer ?? $order->customer,
+                    'latestPayment' => $latestPayment ?? $order->payments->first()
+                ])
+            </div>
+
+            <!-- Modal Footer (Mobile Sticky Action Bar - Selalu Muncul di Bawah) -->
+            <div class="p-3 bg-white border-t border-slate-200 flex sm:hidden items-center gap-2 shrink-0 z-30 shadow-lg">
+                <button type="button" 
+                        @click="shareInvoiceLink()" 
+                        class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                    <span>Bagikan Nota</span>
+                </button>
+                <a href="{{ $order->public_receipt_url }}?print=1" 
+                   target="_blank" 
+                   class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center justify-center shadow-xs">
+                    <span>PDF</span>
+                </a>
+                <button type="button" 
+                        @click="showInvoiceModal = false" 
+                        class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-extrabold text-xs rounded-xl border border-slate-200 transition">
+                    ✕
+                </button>
+            </div>
+
+        </div>
+    </div>
+
     <!-- Help Modal Dialog -->
     <div x-show="showHelp" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
         <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-xl space-y-4" @click.away="showHelp = false">
@@ -693,6 +1236,22 @@
                     Tutup
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Image Lightbox Modal -->
+    <div x-show="previewImage" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs" @click="previewImage = null">
+        <div class="bg-white rounded-3xl p-4 max-w-sm w-full shadow-2xl space-y-3" @click.stop>
+            <div class="flex items-center justify-between">
+                <h4 class="font-extrabold text-xs text-slate-900 truncate" x-text="previewTitle"></h4>
+                <button type="button" @click="previewImage = null" class="text-slate-400 hover:text-slate-600 p-1">✕</button>
+            </div>
+            <div class="rounded-2xl overflow-hidden bg-slate-100 max-h-80 flex items-center justify-center">
+                <img :src="previewImage" class="w-full h-full object-contain">
+            </div>
+            <button type="button" @click="previewImage = null" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 rounded-xl transition">
+                Tutup
+            </button>
         </div>
     </div>
 

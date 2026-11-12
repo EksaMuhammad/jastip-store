@@ -45,10 +45,22 @@ class Order extends Model
         'cancelled_by_role',
         'cancelled_by_id',
         'cancellation_reason',
+        'has_insurance',
+        'insurance_fee',
+        'insurance_claimed',
+        'insurance_claim_amount',
+        'jastiper_debt_amount',
+        'merchant_markup_profit',
     ];
 
     protected $casts = [
         'is_catalog_order' => 'boolean',
+        'has_insurance' => 'boolean',
+        'insurance_claimed' => 'boolean',
+        'insurance_fee' => 'decimal:2',
+        'insurance_claim_amount' => 'decimal:2',
+        'merchant_markup_profit' => 'decimal:2',
+        'jastiper_debt_amount' => 'decimal:2',
         'estimated_fare' => 'decimal:2',
         'agreed_fare' => 'decimal:2',
         'origin_lat' => 'decimal:8',
@@ -192,5 +204,56 @@ class Order extends Model
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class, 'order_id')->orderBy('created_at', 'asc');
+    }
+
+    /**
+     * Token aman untuk akses nota publik tanpa login.
+     */
+    public function getReceiptShareTokenAttribute(): string
+    {
+        $ts = $this->created_at ? $this->created_at->timestamp : 0;
+        $salt = config('app.key') ?: 'jastipkuy-receipt-secret-salt';
+        return substr(hash_hmac('sha256', "order-receipt-{$this->id}-{$ts}", $salt), 0, 24);
+    }
+
+    /**
+     * URL nota transaksi publik read-only tanpa login.
+     */
+    public function getPublicReceiptUrlAttribute(): string
+    {
+        return route('orders.public_receipt', [
+            'order' => $this->id,
+            'token' => $this->receipt_share_token,
+        ]);
+    }
+
+    /**
+     * URL absolut foto referensi barang (dari order langsung atau item titip beli).
+     */
+    public function getReferencePhotoUrlAttribute(): ?string
+    {
+        $photo = $this->reference_photo;
+        if (empty($photo)) {
+            $firstWithImage = $this->orderItems?->first(fn($it) => !empty($it->product?->image));
+            $photo = $firstWithImage?->product?->image;
+        }
+
+        if (empty($photo)) {
+            return null;
+        }
+
+        if (str_starts_with($photo, 'http://') || str_starts_with($photo, 'https://') || str_starts_with($photo, 'data:')) {
+            return $photo;
+        }
+
+        if (str_starts_with($photo, '/storage/')) {
+            return asset(ltrim($photo, '/'));
+        }
+
+        if (str_starts_with($photo, 'storage/')) {
+            return asset($photo);
+        }
+
+        return asset('storage/' . ltrim($photo, '/'));
     }
 }

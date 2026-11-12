@@ -187,4 +187,172 @@ class CustomerOrderDetailsTest extends TestCase
         $response->assertSee('m'); // Real distance in meters
         $response->assertSee('GPS Terhubung');
     }
+
+    public function test_customer_order_details_has_nota_preview_modal_and_share_view()
+    {
+        $order = Order::create([
+            'customer_id' => $this->customer->id,
+            'merchant_id' => $this->merchant->id,
+            'wilayah_id' => $this->wilayah->id,
+            'category' => 'beli-antar',
+            'weight_category' => 'ringan',
+            'description' => 'Pesanan French Fries Bangor',
+            'origin_address' => 'Jl. Raya Tlogomas No. 45, Malang',
+            'destination_address' => 'Jl. MT Haryono No. 10, Malang',
+            'recipient_name' => 'Budi Customer',
+            'recipient_phone' => '081234567890',
+            'estimated_fare' => 8000,
+            'agreed_fare' => 8000,
+            'status' => 'deal',
+        ]);
+
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'name' => 'French Fries',
+            'quantity' => 2,
+            'estimated_price' => 20000,
+            'actual_price' => 20000,
+        ]);
+
+        $response = $this->actingAs($this->customer, 'customer')
+            ->get(route('customer.orders.show', $order->id));
+
+        $response->assertStatus(200);
+        $response->assertSee('showInvoiceModal: false', false);
+        $response->assertSee('Pratinjau Nota Transaksi');
+        $response->assertSee('Bagikan');
+        $response->assertSee('Cetak / PDF');
+        $response->assertSee('Tutup');
+        $response->assertSee('shareInvoiceLink()', false);
+    }
+
+    public function test_guest_can_view_public_receipt_with_valid_token()
+    {
+        $order = Order::create([
+            'customer_id' => $this->customer->id,
+            'merchant_id' => $this->merchant->id,
+            'wilayah_id' => $this->wilayah->id,
+            'category' => 'beli-antar',
+            'weight_category' => 'ringan',
+            'description' => 'Pesanan French Fries Bangor',
+            'origin_address' => 'Jl. Raya Tlogomas No. 45, Malang',
+            'destination_address' => 'Jl. MT Haryono No. 10, Malang',
+            'recipient_name' => 'Budi Customer',
+            'recipient_phone' => '081234567890',
+            'estimated_fare' => 8000,
+            'agreed_fare' => 8000,
+            'status' => 'deal',
+        ]);
+
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'name' => 'French Fries',
+            'quantity' => 2,
+            'estimated_price' => 20000,
+            'actual_price' => 20000,
+        ]);
+
+        // Akses sebagai tamu (guest / tanpa login)
+        $publicUrl = $order->public_receipt_url;
+        $response = $this->get($publicUrl);
+
+        $response->assertStatus(200);
+        $response->assertSee('FAKTUR / NOTA TRANSAKSI');
+        $response->assertSee('PT JASTIPKUY SOLUSI INDONESIA');
+        $response->assertSee('French Fries');
+        $response->assertSee('Bagikan');
+        $response->assertSee('Cetak / PDF');
+        $response->assertSee('Bukti Transaksi Resmi');
+    }
+
+    public function test_guest_cannot_view_public_receipt_with_invalid_or_missing_token()
+    {
+        $order = Order::create([
+            'customer_id' => $this->customer->id,
+            'merchant_id' => $this->merchant->id,
+            'wilayah_id' => $this->wilayah->id,
+            'category' => 'beli-antar',
+            'weight_category' => 'ringan',
+            'description' => 'Pesanan French Fries Bangor',
+            'origin_address' => 'Jl. Raya Tlogomas No. 45, Malang',
+            'destination_address' => 'Jl. MT Haryono No. 10, Malang',
+            'recipient_name' => 'Budi Customer',
+            'recipient_phone' => '081234567890',
+            'estimated_fare' => 8000,
+            'agreed_fare' => 8000,
+            'status' => 'deal',
+        ]);
+
+        // Tanpa token
+        $responseNoToken = $this->get(route('orders.public_receipt', ['order' => $order->id]));
+        $responseNoToken->assertStatus(403);
+
+        // Token salah
+        $responseWrongToken = $this->get(route('orders.public_receipt', ['order' => $order->id, 'token' => 'invalid-token-12345']));
+        $responseWrongToken->assertStatus(403);
+    }
+
+    public function test_reference_photo_url_attribute_and_jastiper_feed_inclusion()
+    {
+        $order = Order::create([
+            'customer_id' => $this->customer->id,
+            'merchant_id' => $this->merchant->id,
+            'wilayah_id' => $this->wilayah->id,
+            'category' => 'beli-antar',
+            'weight_category' => 'ringan',
+            'description' => 'Titip Bolu Raja Coklat Keju',
+            'reference_photo' => 'orders/references/bolu_sample.jpg',
+            'origin_address' => 'Jl. Raya Tlogomas No. 45, Malang',
+            'origin_lat' => -7.9839,
+            'origin_lng' => 112.6214,
+            'destination_address' => 'Jl. MT Haryono No. 10, Malang',
+            'destination_lat' => -7.9850,
+            'destination_lng' => 112.6220,
+            'recipient_name' => 'Budi Customer',
+            'recipient_phone' => '081234567890',
+            'estimated_fare' => 12000,
+            'status' => 'menunggu_tawaran',
+        ]);
+
+        $item = OrderItem::create([
+            'order_id' => $order->id,
+            'name' => '[Titip Beli] Bolu Raja Coklat Keju',
+            'quantity' => 2,
+            'estimated_price' => 35000,
+        ]);
+
+        // Model Accessor assertions
+        $this->assertNotNull($order->reference_photo_url);
+        $this->assertStringContainsString('bolu_sample.jpg', $order->reference_photo_url);
+        $this->assertNotNull($item->image_url);
+        $this->assertStringContainsString('bolu_sample.jpg', $item->image_url);
+
+        // Jastiper Feed assertion
+        $jastiper = \App\Models\Jastiper::create([
+            'name' => 'Jastiper Test',
+            'phone_number' => '089999888777',
+            'password' => bcrypt('secret123'),
+            'wilayah_id' => $this->wilayah->id,
+            'verification_status' => 'approved',
+            'work_status' => 'tersedia',
+            'current_lat' => -7.9839,
+            'current_lng' => 112.6214,
+            'radius_km' => 20,
+        ]);
+
+        $feedResponse = $this->actingAs($jastiper, 'jastiper')->getJson(route('jastiper.orders.feed'));
+        $feedResponse->assertStatus(200);
+        $feedResponse->assertJsonFragment([
+            'reference_photo_url' => $order->reference_photo_url,
+        ]);
+
+        // Customer Order Details view assertions
+        $showResponse = $this->actingAs($this->customer, 'customer')->get(route('customer.orders.show', $order->id));
+        $showResponse->assertStatus(200);
+        $showResponse->assertSee('Foto Referensi Barang');
+        $showResponse->assertSee('min-h-0');
+        $showResponse->assertSee('Pratinjau Nota Transaksi');
+    }
 }

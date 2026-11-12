@@ -11,6 +11,8 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Wilayah;
 use App\Services\DistanceService;
+use App\Services\InsuranceService;
+use App\Services\TariffService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -84,16 +86,31 @@ class CartController extends Controller
             $destAddress = $fallbackAddr;
         }
 
+        // Tentukan estimasi kategori beban muatan secara otomatis dari isi keranjang
+        $weightCategory = $this->determineWeightCategory($cart);
+
         // Hitung rute berantai seluruh titik: Stop 1 -> Stop 2 -> ... -> Tujuan
-        $routeCalculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng);
+        $routeCalculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng, [], $weightCategory);
+
+        // Konfigurasi Proteksi Asuransi Barang
+        $tariffService = app(TariffService::class);
+        $insuranceEnabled = (bool) $tariffService->get('insurance_enabled', 1);
+        $insuranceThreshold = (float) $tariffService->get('insurance_min_order_threshold', 200000);
+        $insuranceFee = (float) $tariffService->get('insurance_fee', 2000);
 
         // Kalkulasi Total Harga Barang
         $totalCatalogPrice = $catalogItems->sum(fn($it) => ($it->product->final_price ?? 0) * $it->quantity);
         $totalCustomPrice = $customBuyItems->sum(fn($it) => ($it->estimated_price ?? 0) * $it->quantity);
         $totalItemsPrice = $totalCatalogPrice + $totalCustomPrice;
+        $isInsuranceEligible = $insuranceEnabled && ($totalItemsPrice >= $insuranceThreshold);
+
         $estimatedFare = $routeCalculation['estimated_fare'];
-        $dpAmount = ($totalItemsPrice * 0.5) + $estimatedFare;
-        $grandTotal = $totalItemsPrice + $estimatedFare;
+        $initialInsuranceFee = $isInsuranceEligible ? $insuranceFee : 0;
+        $dpAmount = ($totalItemsPrice * 0.5) + $estimatedFare + $initialInsuranceFee;
+        $grandTotal = $totalItemsPrice + $estimatedFare + $initialInsuranceFee;
+
+        $customer = Auth::guard('customer')->user();
+        $savedAddresses = \App\Http\Controllers\DashboardController::getCustomerSavedAddresses($customer);
 
         return view('customer.cart.index', compact(
             'cart',
@@ -112,14 +129,20 @@ class CartController extends Controller
             'totalItemsPrice',
             'estimatedFare',
             'dpAmount',
-            'grandTotal'
+            'grandTotal',
+            'insuranceEnabled',
+            'insuranceThreshold',
+            'insuranceFee',
+            'isInsuranceEligible',
+            'weightCategory',
+            'savedAddresses'
         ));
     }
 
     /**
      * Tambahkan produk katalog ke keranjang belanja (Mendukung Multi-Merchant / Toko Berbeda).
      */
-    public function add(Request $request, Product $product): JsonResponse
+    public function add(Request $request, Product $product): JsonResponse|RedirectResponse
     {
         $cart = Cart::firstOrCreate(
             ['customer_id' => Auth::guard('customer')->id()]
@@ -145,11 +168,18 @@ class CartController extends Controller
             ]);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => "{$product->name} berhasil ditambahkan ke keranjang belanja.",
-            'cart_count' => $cart->cartItems()->sum('quantity'),
-        ]);
+        $totalCount = $cart->cartItems()->sum('quantity');
+
+        // Hanya kembalikan JSON jika dipanggil via AJAX/Fetch dan tidak mengharapkan halaman HTML penuh
+        if (($request->ajax() || $request->isJson() || $request->wantsJson()) && !$request->acceptsHtml()) {
+            return response()->json([
+                'success' => true,
+                'message' => "{$product->name} berhasil ditambahkan ke keranjang belanja.",
+                'cart_count' => $totalCount,
+            ]);
+        }
+
+        return redirect()->back()->with('success', "{$product->name} berhasil ditambahkan ke keranjang belanja.");
     }
 
     /**
@@ -174,10 +204,11 @@ class CartController extends Controller
 
         $allStops = $this->collectStops($cart, $merchants);
         $destAddr = $request->input('destination_address', 'Alamat Pengantaran Utama');
+        $weightCategory = $this->determineWeightCategory($cart);
         $calculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng, [
             'name' => 'Alamat Pengantaran Utama',
             'address' => $destAddr,
-        ]);
+        ], $weightCategory);
 
         $totalCatalogPrice = $catalogItems->sum(fn($it) => ($it->product->final_price ?? 0) * $it->quantity);
         $totalCustomPrice = $cart->customBuyItems->sum(fn($it) => ($it->estimated_price ?? 0) * $it->quantity);
@@ -190,6 +221,9 @@ class CartController extends Controller
             'total_items_price' => $totalItemsPrice,
             'dp_amount' => $dpAmount,
             'grand_total' => $grandTotal,
+            'weight_category' => $weightCategory,
+            'weight_fare' => $calculation['weight_fare'] ?? 0,
+            'weight_fare_formatted' => number_format($calculation['weight_fare'] ?? 0, 0, ',', '.'),
             'total_items_price_formatted' => number_format($totalItemsPrice, 0, ',', '.'),
             'estimated_fare_formatted' => number_format($estimatedFare, 0, ',', '.'),
             'dp_amount_formatted' => number_format($dpAmount, 0, ',', '.'),
@@ -210,8 +244,60 @@ class CartController extends Controller
         }
 
         $cartItem->update(['quantity' => (int) $request->input('quantity')]);
+        $cart->load(['cartItems.product.merchant', 'cartItems.merchant']);
 
-        return response()->json(['success' => true]);
+        $unitPrice = ($cartItem->item_type === 'catalog' && $cartItem->product)
+            ? (float) ($cartItem->product->final_price ?? 0)
+            : (float) ($cartItem->estimated_price ?? 0);
+        $itemSubtotal = $unitPrice * $cartItem->quantity;
+
+        $catalogItems = $cart->catalogItems;
+        $totalCatalogPrice = $catalogItems->sum(fn($it) => ($it->product->final_price ?? 0) * $it->quantity);
+        $totalCustomPrice = $cart->customBuyItems->sum(fn($it) => ($it->estimated_price ?? 0) * $it->quantity);
+        $totalItemsPrice = $totalCatalogPrice + $totalCustomPrice;
+
+        // Recalculate weight category & fare
+        $weightCategory = $this->determineWeightCategory($cart);
+
+        $merchantIds = $catalogItems->pluck('product.merchant_id')->filter()->unique()->values();
+        $merchants = Merchant::whereIn('id', $merchantIds)->get()->keyBy('id');
+        $allStops = $this->collectStops($cart, $merchants);
+
+        $firstItemWithDest = $cart->cartItems->filter(fn($it) => !empty($it->destination_lat))->first();
+        $destLat = (float) $request->input('destination_lat', $firstItemWithDest?->destination_lat ?? -7.9839);
+        $destLng = (float) $request->input('destination_lng', $firstItemWithDest?->destination_lng ?? 112.6214);
+        $destAddr = $request->input('destination_address', 'Alamat Pengantaran Utama');
+
+        $calculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng, [
+            'name' => 'Alamat Pengantaran Utama',
+            'address' => $destAddr,
+        ], $weightCategory);
+
+        $estimatedFare = $calculation['estimated_fare'];
+        $grandTotal = $totalItemsPrice + $estimatedFare;
+        $dpAmount = ($totalItemsPrice * 0.5) + $estimatedFare;
+
+        return response()->json([
+            'success' => true,
+            'cart_item_id' => $cartItem->id,
+            'quantity' => $cartItem->quantity,
+            'unit_price' => $unitPrice,
+            'item_subtotal' => $itemSubtotal,
+            'item_subtotal_formatted' => number_format($itemSubtotal, 0, ',', '.'),
+            'total_items_price' => $totalItemsPrice,
+            'total_items_price_formatted' => number_format($totalItemsPrice, 0, ',', '.'),
+            'total_cart_count' => $cart->cartItems()->sum('quantity'),
+            'weight_category' => $weightCategory,
+            'weight_fare' => $calculation['weight_fare'] ?? 0,
+            'weight_fare_formatted' => number_format($calculation['weight_fare'] ?? 0, 0, ',', '.'),
+            'estimated_fare' => $estimatedFare,
+            'estimated_fare_formatted' => number_format($estimatedFare, 0, ',', '.'),
+            'grand_total' => $grandTotal,
+            'grand_total_formatted' => number_format($grandTotal, 0, ',', '.'),
+            'dp_amount' => $dpAmount,
+            'dp_amount_formatted' => number_format($dpAmount, 0, ',', '.'),
+            'route_calculation' => $calculation,
+        ]);
     }
 
     /**
@@ -271,13 +357,16 @@ class CartController extends Controller
         $recipientName = $request->input('recipient_name') ?: Auth::guard('customer')->user()->name;
         $recipientPhone = $request->input('recipient_phone') ?: Auth::guard('customer')->user()->phone_number;
 
+        // Tentukan estimasi kategori beban muatan secara otomatis dari kuantitas & jenis item keranjang
+        $weightCategory = $this->determineWeightCategory($cart);
+
         // Hitung rute multi-stop berantai (Stop 1 ➔ Stop 2 ➔ ... ➔ Alamat Tujuan)
         $routeCalculation = DistanceService::calculateMultiStoreRoute($allStops, $destLat, $destLng, [
             'name' => 'Alamat Pengantaran Utama',
             'address' => $destAddress,
             'recipient_name' => $recipientName,
             'recipient_phone' => $recipientPhone,
-        ]);
+        ], $weightCategory);
         $totalDistance = $routeCalculation['total_distance_km'];
         $deliveryFee = $routeCalculation['estimated_fare'];
         $orderedStops = $routeCalculation['ordered_stops'];
@@ -292,8 +381,17 @@ class CartController extends Controller
         $totalCustomPrice = $customBuyItems->sum(fn($it) => ($it->estimated_price ?? 0) * $it->quantity);
         $estimatedItemsPrice = $totalCatalogPrice + $totalCustomPrice;
 
-        // Skema DP: 50% barang + full ongkir
-        $dpAmount = ($estimatedItemsPrice * 0.5) + $deliveryFee;
+        // Konfigurasi & verifikasi proteksi asuransi pesanan
+        $tariffService = app(TariffService::class);
+        $insuranceEnabled = (bool) $tariffService->get('insurance_enabled', 1);
+        $insuranceThreshold = (float) $tariffService->get('insurance_min_order_threshold', 200000);
+        $insuranceFee = (float) $tariffService->get('insurance_fee', 2000);
+
+        $hasInsurance = $request->boolean('has_insurance') && $insuranceEnabled && ($estimatedItemsPrice >= $insuranceThreshold);
+        $appliedInsuranceFee = $hasInsurance ? $insuranceFee : 0;
+
+        // Skema DP: 50% barang + full ongkir + premi asuransi (jika dipilih)
+        $dpAmount = ($estimatedItemsPrice * 0.5) + $deliveryFee + $appliedInsuranceFee;
 
         // Tentukan kategori order & primary merchant
         $hasMultiDropoff = $routeCalculation['has_multi_dropoff'] ?? false;
@@ -442,7 +540,7 @@ class CartController extends Controller
             'is_catalog_order' => $catalogItems->isNotEmpty(),
             'wilayah_id' => $wilayahId,
             'category' => $category,
-            'weight_category' => 'ringan',
+            'weight_category' => $weightCategory,
             'description' => $descTitle,
             'reference_photo' => $refPhoto,
             'origin_address' => $originAddress,
@@ -456,31 +554,79 @@ class CartController extends Controller
             'estimated_fare' => $deliveryFee,
             'downpayment_amount' => $dpAmount,
             'cash_amount' => 0,
+            'has_insurance' => $hasInsurance,
+            'insurance_fee' => $appliedInsuranceFee,
             'multi_stops' => $multiStops,
             'status' => 'menunggu_tawaran',
         ]);
 
+        // Catat premi asuransi ke buku kas pool Dana Asuransi jika proteksi aktif
+        if ($hasInsurance && $appliedInsuranceFee > 0) {
+            app(InsuranceService::class)->recordPremium($order, $appliedInsuranceFee);
+        }
+
         // Simpan Order Items
-        // 1. Produk Katalog
+        // 1. Produk Katalog (Simpan HPP Toko & Margin Markup Platform)
+        $totalMarkupProfit = 0.0;
         foreach ($catalogItems as $item) {
             $merchantLabel = $item->product->merchant->name ?? 'Toko';
+            $finalPrice = (float) $item->product->final_price;
+            $hppPrice = (float) $item->product->effective_hpp_price;
+            $markupAmount = max(0, round(($finalPrice - $hppPrice) * $item->quantity, 2));
+            $totalMarkupProfit += $markupAmount;
+
             OrderItem::create([
                 'order_id' => $order->id,
                 'product_id' => $item->product_id,
                 'name' => "{$item->product->name} [{$merchantLabel}]",
                 'quantity' => $item->quantity,
-                'estimated_price' => $item->product->final_price,
-                'actual_price' => $item->product->final_price,
+                'hpp_price' => $hppPrice,
+                'markup_amount' => $markupAmount,
+                'estimated_price' => $finalPrice,
+                'actual_price' => $finalPrice,
                 'notes' => null,
             ]);
+        }
+
+        if ($totalMarkupProfit > 0) {
+            $order->update(['merchant_markup_profit' => $totalMarkupProfit]);
         }
 
         // 2. Titip Beli Kustom (Non-Katalog)
         foreach ($customBuyItems as $item) {
             $storeTag = $item->merchant ? " [{$item->merchant->name}]" : "";
+            $productId = $item->product_id;
+
+            // Jika belum terhubung ke produk tapi memiliki toko, daftarkan/hubungkan otomatis
+            if (!$productId && $item->merchant_id) {
+                $pPrice = (float) ($item->estimated_price ?: 0);
+                $pName = trim(strtok($item->description ?: $item->name, "\n"));
+                if (empty($pName)) {
+                    $pName = 'Menu Titip ' . ($item->merchant->name ?? 'Toko');
+                } elseif (strlen($pName) > 90) {
+                    $pName = \Illuminate\Support\Str::limit($pName, 85);
+                }
+
+                $prod = \App\Models\Product::firstOrCreate(
+                    ['merchant_id' => $item->merchant_id, 'name' => $pName],
+                    [
+                        'description' => $item->description,
+                        'hpp_price' => $pPrice,
+                        'estimated_price' => $pPrice,
+                        'image' => $item->reference_photo,
+                        'is_available' => true,
+                        'is_auto_markup' => false,
+                    ]
+                );
+                if (!empty($item->reference_photo) && empty($prod->image)) {
+                    $prod->update(['image' => $item->reference_photo]);
+                }
+                $productId = $prod->id;
+            }
+
             OrderItem::create([
                 'order_id' => $order->id,
-                'product_id' => null,
+                'product_id' => $productId,
                 'name' => "[Titip Beli] {$item->name}{$storeTag}",
                 'quantity' => $item->quantity ?: 1,
                 'estimated_price' => $item->estimated_price ?: 0,
@@ -681,5 +827,41 @@ class CartController extends Controller
         }
 
         return $stops;
+    }
+
+    /**
+     * Tentukan kategori beban muatan secara cerdas & otomatis berdasarkan isi keranjang.
+     * Aturan:
+     * - 'berat': Jika ada item yang dipilih 'berat' ATAU total kuantitas barang >= 12 item/cup (est. >= 7-10 kg)
+     * - 'sedang': Jika ada item 'sedang' ATAU total kuantitas barang 5..11 item/cup (est. 3-6 kg)
+     * - 'ringan': 1..4 item/cup (est. < 3 kg)
+     */
+    public function determineWeightCategory(Cart $cart): string
+    {
+        $cartItems = $cart->cartItems ?? collect();
+        if ($cartItems->isEmpty()) {
+            return 'ringan';
+        }
+
+        // 1. Cek jika ada item kustom/jasa yang secara spesifik diset 'berat'
+        if ($cartItems->contains(fn($it) => $it->weight_category === 'berat')) {
+            return 'berat';
+        }
+
+        // 2. Cek jika ada item kustom/jasa yang diset 'sedang'
+        $hasExplicitSedang = $cartItems->contains(fn($it) => $it->weight_category === 'sedang');
+
+        // 3. Hitung akumulasi total kuantitas barang fisik (produk katalog + kustom)
+        $totalQuantity = (int) $cartItems->sum('quantity');
+
+        if ($totalQuantity >= 12) {
+            return 'berat';
+        }
+
+        if ($totalQuantity >= 5 || $hasExplicitSedang) {
+            return 'sedang';
+        }
+
+        return 'ringan';
     }
 }

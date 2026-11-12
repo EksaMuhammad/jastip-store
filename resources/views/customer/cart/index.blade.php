@@ -39,6 +39,21 @@
 @endsection
 
 @section('content')
+@php
+    $resolveImageUrl = function($path) {
+        if (empty($path)) return null;
+        if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://', 'data:'])) {
+            return $path;
+        }
+        if (\Illuminate\Support\Str::startsWith($path, '/storage/')) {
+            return asset(ltrim($path, '/'));
+        }
+        if (\Illuminate\Support\Str::startsWith($path, 'storage/')) {
+            return asset($path);
+        }
+        return asset('storage/' . ltrim($path, '/'));
+    };
+@endphp
 <div class="min-h-screen bg-[#F6F7F9] pb-32">
     
     <!-- Top Header (Inspired by Image 3: ← Keranjangku) -->
@@ -129,12 +144,25 @@
                     @php
                         $merchant = $merchants->get($merchantId);
                         $merchantName = $merchant ? $merchant->name : 'Toko Rekanan Jastip';
+                        $mCoords = $merchant ? $merchant->getCoordinates() : null;
+                        $mLat = (float) ($mCoords['lat'] ?? 0);
+                        $mLng = (float) ($mCoords['lng'] ?? 0);
+                        $merchantDistKm = ($mLat != 0 && $mLng != 0 && $destLat != 0 && $destLng != 0) 
+                            ? round(\App\Services\DistanceService::haversine($mLat, $mLng, $destLat, $destLng), 1) 
+                            : null;
+                        $merchantLogo = $merchant ? $resolveImageUrl($merchant->image) : null;
                     @endphp
                     <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3">
                         <!-- Merchant Header -->
                         <div class="flex items-center justify-between border-b border-slate-50 pb-2.5">
-                            <a href="{{ $merchant ? route('customer.merchant.show', $merchant->id) : '#' }}" class="flex items-center gap-2 group min-w-0">
-                                <span class="text-base shrink-0">🏪</span>
+                            <a href="{{ $merchant ? route('customer.merchant.show', $merchant->id) : '#' }}" class="flex items-center gap-2.5 group min-w-0">
+                                <div class="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 border border-slate-200/80 shrink-0 flex items-center justify-center">
+                                    @if($merchantLogo)
+                                        <img src="{{ $merchantLogo }}" alt="{{ $merchantName }}" class="w-full h-full object-cover">
+                                    @else
+                                        <span class="text-sm">🏪</span>
+                                    @endif
+                                </div>
                                 <h3 class="font-bold text-xs sm:text-sm text-slate-800 group-hover:text-rose-600 transition truncate">
                                     {{ $merchantName }}
                                 </h3>
@@ -142,9 +170,17 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                 </svg>
                             </a>
-                            <span class="text-[10px] font-bold text-slate-400 hover:text-slate-600 cursor-pointer">
-                                Ubah
-                            </span>
+                            <div class="flex items-center gap-2 shrink-0">
+                                @if($merchantDistKm !== null)
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                                        <svg class="w-3 h-3 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                                        {{ $merchantDistKm }} KM
+                                    </span>
+                                @endif
+                                <span class="text-[10px] font-bold text-slate-400 hover:text-slate-600 cursor-pointer">
+                                    Ubah
+                                </span>
+                            </div>
                         </div>
 
                         <!-- Product Items in Merchant -->
@@ -152,13 +188,13 @@
                             @foreach($items as $item)
                                 @php
                                     $price = $item->product->final_price ?? $item->estimated_price;
-                                    $productImg = $item->product->image ?? null;
+                                    $productImg = $resolveImageUrl($item->product->image ?? ($merchant->image ?? null));
                                 @endphp
                                 <div class="pt-2.5 first:pt-0 flex items-start gap-3">
                                     <!-- Product Image -->
                                     <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 flex items-center justify-center">
                                         @if($productImg)
-                                            <img src="{{ $productImg }}" alt="{{ $item->product->name }}" class="w-full h-full object-cover">
+                                            <img src="{{ $productImg }}" alt="{{ $item->product->name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-full bg-rose-50 flex items-center justify-center text-rose-500 font-black text-xs\'>JK</div>';">
                                         @else
                                             <div class="w-full h-full bg-rose-50 flex items-center justify-center text-rose-500 font-bold text-xs">
                                                 JK
@@ -169,9 +205,17 @@
                                     <!-- Product Details -->
                                     <div class="flex-1 min-w-0 flex flex-col justify-between self-stretch">
                                         <div class="flex items-start justify-between gap-1">
-                                            <h4 class="font-bold text-xs text-slate-800 leading-snug line-clamp-2">
-                                                {{ $item->product->name }}
-                                            </h4>
+                                            <div>
+                                                <h4 class="font-bold text-xs text-slate-800 leading-snug line-clamp-2">
+                                                    {{ $item->product->name }}
+                                                </h4>
+                                                @if($merchantDistKm !== null)
+                                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 mt-0.5">
+                                                        <svg class="w-3 h-3 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                                                        <span>{{ $merchantDistKm }} KM dari toko</span>
+                                                    </span>
+                                                @endif
+                                            </div>
                                             <button type="button" onclick="removeCartItem({{ $item->id }})" class="text-slate-300 hover:text-rose-500 p-0.5 shrink-0 transition" title="Hapus">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                             </button>
@@ -179,19 +223,19 @@
 
                                         <div class="flex items-center justify-between mt-2">
                                             <div class="flex items-center gap-2">
-                                                <span class="text-xs text-slate-500 font-semibold">{{ $item->quantity }} x</span>
-                                                <span class="text-rose-600 font-extrabold text-xs sm:text-sm">
+                                                <span class="text-xs text-slate-500 font-semibold" id="item-multiplier-{{ $item->id }}">{{ $item->quantity }} x</span>
+                                                <span class="text-rose-600 font-extrabold text-xs sm:text-sm" id="item-subtotal-{{ $item->id }}">
                                                     Rp{{ number_format($price * $item->quantity, 0, ',', '.') }}
                                                 </span>
                                             </div>
 
                                             <!-- Qty Stepper -->
                                             <div class="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50/50">
-                                                <button type="button" onclick="updateCartItemQty({{ $item->id }}, {{ $item->quantity - 1 }})" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">
+                                                <button type="button" onclick="changeCartItemQty({{ $item->id }}, -1)" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">
                                                     -
                                                 </button>
-                                                <span class="w-7 text-center text-xs font-bold text-slate-800">{{ $item->quantity }}</span>
-                                                <button type="button" onclick="updateCartItemQty({{ $item->id }}, {{ $item->quantity + 1 }})" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">
+                                                <span class="w-7 text-center text-xs font-bold text-slate-800" id="item-qty-{{ $item->id }}">{{ $item->quantity }}</span>
+                                                <button type="button" onclick="changeCartItemQty({{ $item->id }}, 1)" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">
                                                     +
                                                 </button>
                                             </div>
@@ -226,10 +270,18 @@
 
                     <div class="space-y-3 divide-y divide-slate-50">
                         @foreach($customBuyItems as $item)
+                            @php
+                                $cLat = (float) ($item->origin_lat ?? ($item->merchant->latitude ?? 0));
+                                $cLng = (float) ($item->origin_lng ?? ($item->merchant->longitude ?? 0));
+                                $cDistKm = ($cLat != 0 && $cLng != 0 && $destLat != 0 && $destLng != 0) 
+                                    ? round(\App\Services\DistanceService::haversine($cLat, $cLng, $destLat, $destLng), 1) 
+                                    : null;
+                                $customImg = $resolveImageUrl($item->reference_photo ?? ($item->merchant->image ?? ($item->product->image ?? null)));
+                            @endphp
                             <div class="pt-2.5 first:pt-0 flex items-start gap-3">
                                 <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 flex items-center justify-center">
-                                    @if($item->reference_photo)
-                                        <img src="{{ $item->reference_photo }}" class="w-full h-full object-cover">
+                                    @if($customImg)
+                                        <img src="{{ $customImg }}" alt="{{ $item->name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-full bg-amber-50 flex items-center justify-center text-amber-500 font-black text-xs\'>TB</div>';">
                                     @else
                                         <div class="w-full h-full bg-amber-50 flex items-center justify-center text-amber-500 font-bold text-xs">
                                             TB
@@ -241,6 +293,12 @@
                                         <div>
                                             <h4 class="font-bold text-xs text-slate-800 leading-snug">{{ $item->name }}</h4>
                                             <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">Beli di: {{ $item->origin_address }}</p>
+                                            @if($cDistKm !== null)
+                                                <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 mt-0.5">
+                                                    <svg class="w-3 h-3 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                                                    <span>{{ $cDistKm }} KM ke titik antar</span>
+                                                </span>
+                                            @endif
                                         </div>
                                         <button type="button" onclick="removeCartItem({{ $item->id }})" class="text-slate-300 hover:text-rose-500 p-0.5 shrink-0 transition">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -248,15 +306,15 @@
                                     </div>
                                     <div class="flex items-center justify-between mt-2">
                                         <div class="flex items-center gap-2">
-                                            <span class="text-xs text-slate-500 font-semibold">{{ $item->quantity }} x</span>
-                                            <span class="text-rose-600 font-extrabold text-xs sm:text-sm">
+                                            <span class="text-xs text-slate-500 font-semibold" id="item-multiplier-{{ $item->id }}">{{ $item->quantity }} x</span>
+                                            <span class="text-rose-600 font-extrabold text-xs sm:text-sm" id="item-subtotal-{{ $item->id }}">
                                                 Rp{{ number_format($item->estimated_price * $item->quantity, 0, ',', '.') }}
                                             </span>
                                         </div>
                                         <div class="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50/50">
-                                            <button type="button" onclick="updateCartItemQty({{ $item->id }}, {{ $item->quantity - 1 }})" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">-</button>
-                                            <span class="w-7 text-center text-xs font-bold text-slate-800">{{ $item->quantity }}</span>
-                                            <button type="button" onclick="updateCartItemQty({{ $item->id }}, {{ $item->quantity + 1 }})" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">+</button>
+                                            <button type="button" onclick="changeCartItemQty({{ $item->id }}, -1)" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">-</button>
+                                            <span class="w-7 text-center text-xs font-bold text-slate-800" id="item-qty-{{ $item->id }}">{{ $item->quantity }}</span>
+                                            <button type="button" onclick="changeCartItemQty({{ $item->id }}, 1)" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold transition">+</button>
                                         </div>
                                     </div>
                                 </div>
@@ -279,10 +337,20 @@
 
                     <div class="space-y-3 divide-y divide-slate-50">
                         @foreach($deliveryServiceItems as $item)
+                            @php
+                                $dLat = (float) ($item->origin_lat ?? 0);
+                                $dLng = (float) ($item->origin_lng ?? 0);
+                                $targetLat = (float) ($item->destination_lat ?: $destLat);
+                                $targetLng = (float) ($item->destination_lng ?: $destLng);
+                                $dDistKm = ($dLat != 0 && $dLng != 0 && $targetLat != 0 && $targetLng != 0) 
+                                    ? round(\App\Services\DistanceService::haversine($dLat, $dLng, $targetLat, $targetLng), 1) 
+                                    : null;
+                                $deliveryImg = $resolveImageUrl($item->reference_photo);
+                            @endphp
                             <div class="pt-2.5 first:pt-0 flex items-start gap-3">
                                 <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 flex items-center justify-center">
-                                    @if($item->reference_photo)
-                                        <img src="{{ $item->reference_photo }}" class="w-full h-full object-cover">
+                                    @if($deliveryImg)
+                                        <img src="{{ $deliveryImg }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-full bg-blue-50 flex items-center justify-center text-blue-500 font-black text-xs\'>JP</div>';">
                                     @else
                                         <div class="w-full h-full bg-blue-50 flex items-center justify-center text-blue-500 font-bold text-xs">
                                             JP
@@ -296,6 +364,12 @@
                                             <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">Jemput: {{ $item->origin_address }}</p>
                                             @if($item->destination_address)
                                                 <p class="text-[10px] text-slate-500 line-clamp-1 mt-0.5 font-medium">Antar: {{ $item->destination_address }} ({{ $item->recipient_name }})</p>
+                                            @endif
+                                            @if($dDistKm !== null)
+                                                <span class="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 mt-0.5">
+                                                    <svg class="w-3 h-3 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                                                    <span>{{ $dDistKm }} KM jarak antar</span>
+                                                </span>
                                             @endif
                                         </div>
                                         <button type="button" onclick="removeCartItem({{ $item->id }})" class="text-slate-300 hover:text-rose-500 p-0.5 shrink-0 transition">
@@ -392,13 +466,22 @@
                     </span>
                 </div>
 
-                <!-- Tabs: GPS vs Manual -->
-                <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold">
-                    <button type="button" id="tab-btn-gps" onclick="switchLocationMode('gps')" class="py-1.5 px-2 rounded-lg transition flex items-center justify-center gap-1 bg-white text-rose-600 shadow-2xs">
-                        <span>Lokasi Saya (GPS)</span>
+                <!-- Tabs: GPS vs Alamat Tersimpan vs Manual -->
+                @php
+                    $savedAddresses = $savedAddresses ?? \App\Http\Controllers\DashboardController::getCustomerSavedAddresses(Auth::guard('customer')->user());
+                @endphp
+                <div class="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+                    <button type="button" id="tab-btn-gps" onclick="switchLocationMode('gps')" class="py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 bg-white text-rose-600 shadow-2xs">
+                        <span>📍 Lokasi GPS</span>
                     </button>
-                    <button type="button" id="tab-btn-manual" onclick="switchLocationMode('manual')" class="py-1.5 px-2 rounded-lg transition flex items-center justify-center gap-1 text-slate-500 hover:text-slate-800">
-                        <span>Kirim ke Tempat Lain</span>
+                    <button type="button" id="tab-btn-saved" onclick="switchLocationMode('saved')" class="py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 text-slate-500 hover:text-slate-800">
+                        <span>📋 Tersimpan</span>
+                        @if(!empty($savedAddresses) && count($savedAddresses) > 0)
+                            <span class="bg-rose-500 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full">{{ count($savedAddresses) }}</span>
+                        @endif
+                    </button>
+                    <button type="button" id="tab-btn-manual" onclick="switchLocationMode('manual')" class="py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 text-slate-500 hover:text-slate-800">
+                        <span>🔍 Tempat Lain</span>
                     </button>
                 </div>
 
@@ -407,10 +490,74 @@
                     <div class="relative">
                         <textarea id="delivery_location_gps" rows="2" class="w-full border border-slate-200 rounded-xl text-xs p-2.5 bg-slate-50/50 focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="Alamat otomatis via GPS...">{{ $destAddress }}</textarea>
                     </div>
-                    <button type="button" onclick="detectDeviceLocation()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                        <span id="btn-gps-refresh-label">Perbarui Lokasi GPS</span>
-                    </button>
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <button type="button" onclick="detectDeviceLocation()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            <span id="btn-gps-refresh-label">Perbarui Lokasi GPS</span>
+                        </button>
+                    </div>
+
+                    @if(!empty($savedAddresses) && count($savedAddresses) > 0)
+                        <!-- Quick Chips Alamat Tersimpan di GPS Panel -->
+                        <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pilih Cepat:</span>
+                            @foreach(array_slice($savedAddresses, 0, 3) as $sAddr)
+                                <button type="button" 
+                                        onclick="selectSavedCartAddress('{{ addslashes($sAddr['id'] ?? '') }}', '{{ addslashes($sAddr['address'] ?? '') }}', {{ (float)($sAddr['latitude'] ?? 0) }}, {{ (float)($sAddr['longitude'] ?? 0) }})"
+                                        class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition cursor-pointer text-slate-700 shadow-2xs">
+                                    <span>{{ stripos($sAddr['label'] ?? '', 'kantor') !== false ? '🏢' : '🏠' }}</span>
+                                    <span>{{ $sAddr['label'] }}</span>
+                                </button>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+
+                <!-- Panel Alamat Tersimpan -->
+                <div id="panel-location-saved" class="space-y-2 hidden">
+                    @if(!empty($savedAddresses) && count($savedAddresses) > 0)
+                        <div class="space-y-2 max-h-60 overflow-y-auto pr-0.5">
+                            @foreach($savedAddresses as $sAddr)
+                                <div onclick="selectSavedCartAddress('{{ addslashes($sAddr['id'] ?? '') }}', '{{ addslashes($sAddr['address'] ?? '') }}', {{ (float)($sAddr['latitude'] ?? 0) }}, {{ (float)($sAddr['longitude'] ?? 0) }})"
+                                     data-address-id="{{ $sAddr['id'] ?? '' }}"
+                                     class="saved-cart-address-card p-3 rounded-xl border border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/40 transition cursor-pointer flex items-start justify-between gap-2.5">
+                                    <div class="flex items-start gap-2.5 min-w-0">
+                                        <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 text-sm font-bold mt-0.5">
+                                            @if(stripos($sAddr['label'] ?? '', 'kantor') !== false) 🏢
+                                            @elseif(stripos($sAddr['label'] ?? '', 'kos') !== false) 🏠
+                                            @elseif(stripos($sAddr['label'] ?? '', 'toko') !== false) 🏪
+                                            @else 📍 @endif
+                                        </div>
+                                        <div class="min-w-0 space-y-0.5">
+                                            <div class="flex items-center gap-1.5">
+                                                <h4 class="font-extrabold text-xs text-slate-800">{{ $sAddr['label'] }}</h4>
+                                                <span class="saved-check-badge hidden text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded">✓ Terpilih</span>
+                                            </div>
+                                            <p class="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">{{ $sAddr['address'] }}</p>
+                                            @if(!empty($sAddr['notes']))
+                                                <p class="text-[10px] text-slate-400 italic">Patokan: {{ $sAddr['notes'] }}</p>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <button type="button" class="shrink-0 text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition mt-0.5">
+                                        Pilih
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="pt-1 text-center">
+                            <a href="{{ route('customer.address') }}" class="text-[11px] font-bold text-rose-600 hover:underline">
+                                + Kelola / Tambah Alamat Baru
+                            </a>
+                        </div>
+                    @else
+                        <div class="p-4 border border-dashed border-slate-200 rounded-xl text-center space-y-2">
+                            <p class="text-xs text-slate-500 font-medium">Belum ada alamat tersimpan di akun Anda.</p>
+                            <a href="{{ route('customer.address') }}" class="inline-block bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-xs">
+                                + Tambah Alamat Sekarang
+                            </a>
+                        </div>
+                    @endif
                 </div>
 
                 <!-- Manual Panel -->
@@ -452,6 +599,38 @@
                 <input type="hidden" name="destination_lng" id="destination_lng" value="{{ $destLng }}">
                 <input type="hidden" name="delivery_fee" id="delivery_fee_input" value="{{ $estimatedFare }}">
             </div>
+
+            <!-- 5.5. PROTEKSI ASURANSI BARANG / TALANGAN PLATFORM -->
+            @if(!empty($insuranceEnabled) && !empty($isInsuranceEligible))
+            <div class="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-indigo-500/10 rounded-2xl p-4 border border-rose-200/80 shadow-xs">
+                <div class="flex items-start gap-3">
+                    <div class="mt-0.5">
+                        <input type="checkbox" name="has_insurance" id="has_insurance" value="1" checked
+                               onchange="toggleInsuranceProtection(this.checked)"
+                               class="w-5 h-5 text-rose-600 bg-white border-slate-300 rounded focus:ring-rose-500 cursor-pointer">
+                    </div>
+                    <label for="has_insurance" class="cursor-pointer select-none flex-1">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="font-black text-xs sm:text-sm text-slate-900 flex items-center gap-1">
+                                    🛡️ Proteksi Asuransi Barang
+                                </span>
+                                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-600 text-white shadow-2xs">
+                                    +Rp {{ number_format($insuranceFee, 0, ',', '.') }}
+                                </span>
+                            </div>
+                            <span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                                Order &ge; Rp {{ number_format($insuranceThreshold, 0, ',', '.') }}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-slate-600 mt-1 leading-snug">
+                            Jaminan ganti rugi 100% jika makanan/barang rusak, tumpah, atau hilang saat diantar jastiper. 
+                            <strong>Dana langsung ditalangi kas asuransi platform</strong> tanpa menunggu ganti rugi jastiper.
+                        </p>
+                    </label>
+                </div>
+            </div>
+            @endif
 
             <!-- 6. RINCIAN PERHITUNGAN BIAYA & TARIF ONGKIR BERANTAI -->
             <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3" x-data="{ openBreakdown: true }">
@@ -519,7 +698,24 @@
                             <span class="font-bold text-slate-800" id="bd-dropoffs-fare">Rp{{ number_format($routeCalculation['extra_dropoffs_fare'] ?? 0, 0, ',', '.') }}</span>
                         </div>
                         @endif
+
+                        <!-- Tambahan Beban Muatan (Weight Category) -->
+                        <div id="bd-weight-fare-row" class="flex items-center justify-between {{ ($routeCalculation['weight_fare'] ?? 0) > 0 ? '' : 'hidden' }}">
+                            <span>• Beban Muatan (<span id="bd-weight-label" class="capitalize font-bold">{{ ucfirst($routeCalculation['weight_category'] ?? $weightCategory ?? 'ringan') }}</span>)</span>
+                            <span class="font-bold text-slate-800" id="bd-weight-fare">Rp{{ number_format($routeCalculation['weight_fare'] ?? 0, 0, ',', '.') }}</span>
+                        </div>
                     </div>
+
+                    <!-- Proteksi Asuransi Row -->
+                    @if(!empty($insuranceEnabled) && !empty($isInsuranceEligible))
+                    <div id="breakdown-insurance-row" class="flex items-center justify-between text-slate-600 pt-2 border-t border-dashed border-slate-100">
+                        <span class="flex items-center gap-1 font-semibold text-slate-700">
+                            <span>🛡️ Proteksi Asuransi Barang</span>
+                            <span class="text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">Aktif</span>
+                        </span>
+                        <span class="font-extrabold text-slate-800" id="breakdown-insurance-fee">Rp{{ number_format($insuranceFee, 0, ',', '.') }}</span>
+                    </div>
+                    @endif
 
                     <!-- Total Akhir -->
                     <div class="pt-2 border-t border-slate-200 flex items-center justify-between font-black text-sm text-slate-900">
@@ -569,10 +765,42 @@ let currentDestLat = {{ $destLat ?? -7.9839 }};
 let currentDestLng = {{ $destLng ?? 112.6214 }};
 let currentDestAddr = @json($destAddress ?? '');
 
+const INSURANCE_ENABLED = {{ (!empty($insuranceEnabled) && !empty($isInsuranceEligible)) ? 'true' : 'false' }};
+const INSURANCE_FEE = {{ (!empty($insuranceEnabled) && !empty($isInsuranceEligible)) ? (int)$insuranceFee : 0 }};
+let isInsuranceActive = {{ (!empty($insuranceEnabled) && !empty($isInsuranceEligible)) ? 'true' : 'false' }};
+let currentDeliveryFare = {{ (int)($estimatedFare ?? 0) }};
+
 let cartMap = null;
 let cartMarkersGroup = null;
 let cartRoutePolyline = null;
 let currentMode = 'gps';
+
+function toggleInsuranceProtection(checked) {
+    isInsuranceActive = checked;
+    const insRow = document.getElementById('breakdown-insurance-row');
+    if (insRow) {
+        insRow.style.display = checked ? 'flex' : 'none';
+    }
+    refreshTotalDisplays();
+}
+
+function refreshTotalDisplays() {
+    const insuranceAddon = (INSURANCE_ENABLED && isInsuranceActive) ? INSURANCE_FEE : 0;
+    const grandTotal = TOTAL_ITEMS_PRICE + currentDeliveryFare + insuranceAddon;
+    const dpTotal = (TOTAL_ITEMS_PRICE * 0.5) + currentDeliveryFare + insuranceAddon;
+
+    const stickyTotal = document.getElementById('sticky-total-dp');
+    if (stickyTotal) stickyTotal.innerText = formatRupiah(grandTotal);
+
+    const bdPreview = document.getElementById('breakdown-preview-total');
+    if (bdPreview) bdPreview.innerText = formatRupiah(grandTotal);
+
+    const bdGrand = document.getElementById('breakdown-grand-total');
+    if (bdGrand) bdGrand.innerText = formatRupiah(grandTotal);
+
+    const billingDp = document.getElementById('billing-total-dp-display');
+    if (billingDp) billingDp.innerText = formatRupiah(dpTotal);
+}
 
 function dismissFlashNotice(id) {
     const el = document.getElementById(id);
@@ -587,13 +815,48 @@ setTimeout(() => {
     dismissFlashNotice('flash-error-alert');
 }, 3800);
 
-function updateCartItemQty(cartItemId, newQty) {
+
+let qtyUpdateTimers = {};
+
+function changeCartItemQty(cartItemId, delta) {
+    const qtyEl = document.getElementById(`item-qty-${cartItemId}`);
+    if (!qtyEl) return;
+
+    let currentQty = parseInt(qtyEl.innerText.trim(), 10) || 1;
+    let newQty = currentQty + delta;
+
     if (newQty < 1) {
         if (confirm('Hapus item ini dari keranjang?')) {
             removeCartItem(cartItemId);
         }
         return;
     }
+
+    // 1. Optimistic Instant UI Update (0ms, no jumping/bouncing!)
+    qtyEl.innerText = newQty;
+    const multEl = document.getElementById(`item-multiplier-${cartItemId}`);
+    if (multEl) multEl.innerText = `${newQty} x`;
+
+    // 2. Debounce server sync
+    if (qtyUpdateTimers[cartItemId]) {
+        clearTimeout(qtyUpdateTimers[cartItemId]);
+    }
+
+    qtyUpdateTimers[cartItemId] = setTimeout(() => {
+        executeCartQtyServerUpdate(cartItemId, newQty);
+    }, 200);
+}
+
+function updateCartItemQty(cartItemId, newQty) {
+    const qtyEl = document.getElementById(`item-qty-${cartItemId}`);
+    let currentQty = qtyEl ? (parseInt(qtyEl.innerText.trim(), 10) || 1) : 1;
+    changeCartItemQty(cartItemId, newQty - currentQty);
+}
+
+function executeCartQtyServerUpdate(cartItemId, newQty) {
+    const destLatInput = document.getElementById('destination_lat');
+    const destLngInput = document.getElementById('destination_lng');
+    const destAddrInput = document.getElementById('destination_address');
 
     fetch(`/customer/cart/update-qty/${cartItemId}`, {
         method: 'POST',
@@ -602,19 +865,73 @@ function updateCartItemQty(cartItemId, newQty) {
             'X-CSRF-TOKEN': CSRF_TOKEN,
             'Accept': 'application/json',
         },
-        body: JSON.stringify({ quantity: newQty })
+        body: JSON.stringify({
+            quantity: newQty,
+            destination_lat: destLatInput ? destLatInput.value : currentDestLat,
+            destination_lng: destLngInput ? destLngInput.value : currentDestLng,
+            destination_address: destAddrInput ? destAddrInput.value : currentDestAddr
+        })
     })
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            window.location.reload();
+            // Update item row subtotal
+            const subtotalEl = document.getElementById(`item-subtotal-${cartItemId}`);
+            if (subtotalEl) {
+                subtotalEl.innerText = `Rp${data.item_subtotal_formatted}`;
+            }
+
+            // Update Total Items Subtotal in breakdown
+            TOTAL_ITEMS_PRICE = data.total_items_price;
+            const itemsSubtotalEl = document.getElementById('breakdown-items-subtotal');
+            if (itemsSubtotalEl) {
+                itemsSubtotalEl.innerText = `Rp${data.total_items_price_formatted}`;
+            }
+
+            // Update Delivery Fare
+            if (data.estimated_fare !== undefined) {
+                currentDeliveryFare = data.estimated_fare;
+                const fareEl = document.getElementById('breakdown-fare-total');
+                if (fareEl) fareEl.innerText = `Rp${data.estimated_fare_formatted}`;
+
+                const fareInput = document.getElementById('delivery_fee_input');
+                if (fareInput) fareInput.value = data.estimated_fare;
+            }
+
+            // Update Weight Category & Weight Fare
+            if (data.weight_category) {
+                const weightLabel = document.getElementById('bd-weight-label');
+                if (weightLabel) weightLabel.innerText = data.weight_category.charAt(0).toUpperCase() + data.weight_category.slice(1);
+
+                const weightRow = document.getElementById('bd-weight-fare-row');
+                const weightFareEl = document.getElementById('bd-weight-fare');
+                if (weightRow && weightFareEl) {
+                    weightFareEl.innerText = `Rp${data.weight_fare_formatted}`;
+                    if (data.weight_fare > 0) {
+                        weightRow.classList.remove('hidden');
+                    } else {
+                        weightRow.classList.add('hidden');
+                    }
+                }
+            }
+
+            // Update cart badges in header and nav
+            if (data.total_cart_count !== undefined) {
+                const badges = document.querySelectorAll('.cart-badge, [id*="cart-count"], nav a[href*="cart"] span.bg-rose-600');
+                badges.forEach(b => {
+                    b.innerText = data.total_cart_count;
+                    if (data.total_cart_count > 0) b.classList.remove('hidden');
+                });
+            }
+
+            // Refresh Sticky Bar & Breakdown Grand Totals
+            refreshTotalDisplays();
         } else {
             alert(data.error || 'Gagal mengubah kuantitas.');
         }
     })
     .catch(err => {
-        console.error(err);
-        alert('Terjadi kesalahan jaringan.');
+        console.error('Qty update error:', err);
     });
 }
 
@@ -631,36 +948,83 @@ function formatRupiah(num) {
 function switchLocationMode(mode) {
     currentMode = mode;
     const tabGps = document.getElementById('tab-btn-gps');
+    const tabSaved = document.getElementById('tab-btn-saved');
     const tabManual = document.getElementById('tab-btn-manual');
     const panelGps = document.getElementById('panel-location-gps');
+    const panelSaved = document.getElementById('panel-location-saved');
     const panelManual = document.getElementById('panel-location-manual');
     const hiddenLocation = document.getElementById('delivery_location');
     const hiddenDestAddr = document.getElementById('destination_address');
     const routeDestDisplay = document.getElementById('route-dest-display');
 
+    [tabGps, tabSaved, tabManual].forEach(t => {
+        if (t) t.className = 'py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 text-slate-500 hover:text-slate-800';
+    });
+
+    if (panelGps) panelGps.classList.add('hidden');
+    if (panelSaved) panelSaved.classList.add('hidden');
+    if (panelManual) panelManual.classList.add('hidden');
+
     if (mode === 'gps') {
-        tabGps.className = 'py-1.5 px-2 rounded-lg transition flex items-center justify-center gap-1 bg-white text-rose-600 shadow-2xs';
-        tabManual.className = 'py-1.5 px-2 rounded-lg transition flex items-center justify-center gap-1 text-slate-500 hover:text-slate-800';
-        
-        panelGps.classList.remove('hidden');
-        panelManual.classList.add('hidden');
+        if (tabGps) tabGps.className = 'py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 bg-white text-rose-600 shadow-2xs';
+        if (panelGps) panelGps.classList.remove('hidden');
 
         setTimeout(() => { if (cartMap) cartMap.invalidateSize(); }, 200);
 
-        const gpsAddr = document.getElementById('delivery_location_gps').value;
-        if (hiddenLocation) hiddenLocation.value = gpsAddr;
-        if (hiddenDestAddr) hiddenDestAddr.value = gpsAddr;
-        if (routeDestDisplay) routeDestDisplay.innerText = gpsAddr || 'Alamat Lokasi GPS';
+        const gpsAddr = document.getElementById('delivery_location_gps')?.value;
+        if (hiddenLocation && gpsAddr) hiddenLocation.value = gpsAddr;
+        if (hiddenDestAddr && gpsAddr) hiddenDestAddr.value = gpsAddr;
+        if (routeDestDisplay && gpsAddr) routeDestDisplay.innerText = gpsAddr || 'Alamat Lokasi GPS';
 
         detectDeviceLocation(true);
-    } else {
-        tabManual.className = 'py-1.5 px-2 rounded-lg transition flex items-center justify-center gap-1 bg-white text-rose-600 shadow-2xs';
-        tabGps.className = 'py-1.5 px-2 rounded-lg transition flex items-center justify-center gap-1 text-slate-500 hover:text-slate-800';
-
-        panelManual.classList.remove('hidden');
-        panelGps.classList.add('hidden');
+    } else if (mode === 'saved') {
+        if (tabSaved) tabSaved.className = 'py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 bg-white text-rose-600 shadow-2xs';
+        if (panelSaved) panelSaved.classList.remove('hidden');
 
         setTimeout(() => { if (cartMap) cartMap.invalidateSize(); }, 200);
+    } else {
+        if (tabManual) tabManual.className = 'py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 bg-white text-rose-600 shadow-2xs';
+        if (panelManual) panelManual.classList.remove('hidden');
+
+        setTimeout(() => { if (cartMap) cartMap.invalidateSize(); }, 200);
+    }
+}
+
+function selectSavedCartAddress(id, address, lat, lng) {
+    const hiddenLocation = document.getElementById('delivery_location');
+    const hiddenDestAddr = document.getElementById('destination_address');
+    const inputLat = document.getElementById('destination_lat');
+    const inputLng = document.getElementById('destination_lng');
+    const routeDestDisplay = document.getElementById('route-dest-display');
+    const gpsTextarea = document.getElementById('delivery_location_gps');
+    const manualTextarea = document.getElementById('delivery_location_manual');
+    const badge = document.getElementById('manual-status-badge');
+
+    if (hiddenLocation) hiddenLocation.value = address;
+    if (hiddenDestAddr) hiddenDestAddr.value = address;
+    if (gpsTextarea) gpsTextarea.value = address;
+    if (manualTextarea) manualTextarea.value = address;
+    if (routeDestDisplay) routeDestDisplay.innerText = address;
+    if (badge) badge.classList.remove('hidden');
+
+    document.querySelectorAll('.saved-cart-address-card').forEach(card => {
+        if (card.dataset.addressId === String(id)) {
+            card.classList.add('border-rose-500', 'bg-rose-50/70', 'ring-1', 'ring-rose-500');
+            card.classList.remove('border-slate-200', 'bg-white');
+            const check = card.querySelector('.saved-check-badge');
+            if (check) check.classList.remove('hidden');
+        } else {
+            card.classList.remove('border-rose-500', 'bg-rose-50/70', 'ring-1', 'ring-rose-500');
+            card.classList.add('border-slate-200', 'bg-white');
+            const check = card.querySelector('.saved-check-badge');
+            if (check) check.classList.add('hidden');
+        }
+    });
+
+    if (lat && lng && Number(lat) !== 0 && Number(lng) !== 0) {
+        if (inputLat) inputLat.value = lat;
+        if (inputLng) inputLng.value = lng;
+        recalculateRoute(lat, lng);
     }
 }
 
@@ -804,7 +1168,8 @@ function recalculateRoute(lat, lng) {
         const totalDist = data.total_distance_km;
         const estimatedFare = data.estimated_fare;
         const totalItems = data.total_items_price !== undefined ? data.total_items_price : TOTAL_ITEMS_PRICE;
-        const grandTotal = totalItems + estimatedFare;
+        TOTAL_ITEMS_PRICE = totalItems;
+        currentDeliveryFare = estimatedFare;
 
         const inputFee = document.getElementById('delivery_fee_input');
         if (inputFee) inputFee.value = estimatedFare;
@@ -812,24 +1177,16 @@ function recalculateRoute(lat, lng) {
         const routeBadge = document.getElementById('route-total-distance-badge');
         if (routeBadge) routeBadge.innerText = `${totalDist} KM Total`;
 
-        const stickyTotal = document.getElementById('sticky-total-dp');
-        if (stickyTotal) stickyTotal.innerText = formatRupiah(grandTotal);
-
         const stickyDist = document.getElementById('sticky-distance-summary');
         if (stickyDist) stickyDist.innerText = `Termasuk ongkir (${totalDist} KM)`;
 
-        // Update Breakdown Elements
-        const bdPreview = document.getElementById('breakdown-preview-total');
-        if (bdPreview) bdPreview.innerText = formatRupiah(grandTotal);
+        refreshTotalDisplays();
 
         const bdItems = document.getElementById('breakdown-items-subtotal');
         if (bdItems) bdItems.innerText = formatRupiah(totalItems);
 
         const bdFare = document.getElementById('breakdown-fare-total');
         if (bdFare) bdFare.innerText = formatRupiah(estimatedFare);
-
-        const bdGrand = document.getElementById('breakdown-grand-total');
-        if (bdGrand) bdGrand.innerText = formatRupiah(grandTotal);
 
         const bdExtraKm = document.getElementById('bd-extra-km');
         if (bdExtraKm && data.extra_km_distance !== undefined) bdExtraKm.innerText = data.extra_km_distance;
@@ -857,6 +1214,23 @@ function recalculateRoute(lat, lng) {
 
         const bdDropoffsFare = document.getElementById('bd-dropoffs-fare');
         if (bdDropoffsFare && data.extra_dropoffs_fare !== undefined) bdDropoffsFare.innerText = formatRupiah(data.extra_dropoffs_fare);
+
+        const bdWeightRow = document.getElementById('bd-weight-fare-row');
+        const bdWeightLabel = document.getElementById('bd-weight-label');
+        const bdWeightFare = document.getElementById('bd-weight-fare');
+        if (bdWeightRow && data.weight_fare !== undefined) {
+            if (data.weight_fare > 0) {
+                bdWeightRow.classList.remove('hidden');
+                if (bdWeightLabel && data.weight_category) {
+                    bdWeightLabel.innerText = data.weight_category.charAt(0).toUpperCase() + data.weight_category.slice(1);
+                }
+                if (bdWeightFare) {
+                    bdWeightFare.innerText = formatRupiah(data.weight_fare);
+                }
+            } else {
+                bdWeightRow.classList.add('hidden');
+            }
+        }
 
         if (data.ordered_stops) {
             CURRENT_ORDERED_STOPS = data.ordered_stops;

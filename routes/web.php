@@ -25,6 +25,9 @@ Route::view('/tentang-kami', 'about')->name('about');
 // Live Autocomplete Place & Merchant Search
 Route::get('/api/search-places', [\App\Http\Controllers\Customer\SearchController::class, 'searchPlaces'])->name('api.search.places');
 
+// Public Read-Only Receipt / Nota Transaksi (Dapat diakses penerima tanpa login melalui token)
+Route::get('/orders/receipt/{order}', [DashboardController::class, 'publicOrderReceipt'])->name('orders.public_receipt');
+
 // Authentication Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
@@ -44,13 +47,21 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/jastiper/{id}/availability', [DashboardController::class, 'customerJastiperAvailability'])->name('customer.jastiper.availability');
     Route::get('/customer/activity', [DashboardController::class, 'customerActivity'])->name('customer.activity');
     Route::get('/customer/chats', [DashboardController::class, 'customerChats'])->name('customer.chats');
+    Route::post('/customer/chats/mark-all-read', [DashboardController::class, 'customerMarkAllChatsRead'])->name('customer.chats.mark-all-read');
     Route::get('/customer/profile', [DashboardController::class, 'customerProfile'])->name('customer.profile');
     Route::put('/customer/profile', [DashboardController::class, 'updateCustomerProfile'])->name('customer.profile.update');
+    Route::get('/customer/address', [DashboardController::class, 'customerAddress'])->name('customer.address');
+    Route::post('/customer/address', [DashboardController::class, 'saveCustomerAddress'])->name('customer.address.save');
+    Route::post('/customer/address/delete/{id}', [DashboardController::class, 'deleteCustomerAddress'])->name('customer.address.delete');
+    Route::delete('/customer/address/{id}', [DashboardController::class, 'deleteCustomerAddress'])->name('customer.address.destroy');
+    Route::get('/customer/security', [DashboardController::class, 'customerSecurity'])->name('customer.security');
+    Route::put('/customer/security/password', [DashboardController::class, 'updateCustomerPassword'])->name('customer.security.password');
     Route::post('/customer/location', [\App\Http\Controllers\Customer\LocationController::class, 'update'])->name('customer.location.update');
 
     // ===== Bidding & Deal (Halaman Tawaran & Deal) =====
     // Catalog / GoFood & GoMart Routes
     Route::get('/customer/search', [\App\Http\Controllers\Customer\SearchController::class, 'index'])->name('customer.search');
+    Route::get('/customer/search/live', [\App\Http\Controllers\Customer\SearchController::class, 'liveSearch'])->name('customer.search.live');
     Route::get('/customer/food', [\App\Http\Controllers\Customer\MerchantController::class, 'food'])->name('customer.food');
     Route::get('/customer/food/index', [\App\Http\Controllers\Customer\MerchantController::class, 'food'])->name('customer.food.index');
     Route::get('/customer/food/sekitarmu', [\App\Http\Controllers\Customer\MerchantController::class, 'nearby'])->name('customer.food.nearby');
@@ -59,7 +70,7 @@ Route::middleware('auth:customer')->group(function () {
     
     // Cart Routes
     Route::get('/customer/cart', [\App\Http\Controllers\Customer\CartController::class, 'index'])->name('customer.cart.index');
-    Route::post('/customer/cart/add/{product}', [\App\Http\Controllers\Customer\CartController::class, 'add'])->name('customer.cart.add');
+    Route::match(['get', 'post'], '/customer/cart/add/{product}', [\App\Http\Controllers\Customer\CartController::class, 'add'])->name('customer.cart.add');
     Route::post('/customer/cart/checkout', [\App\Http\Controllers\Customer\CartController::class, 'checkout'])->name('customer.cart.checkout');
     Route::post('/customer/cart/calculate-route', [\App\Http\Controllers\Customer\CartController::class, 'calculateRoute'])->name('customer.cart.calculate-route');
     Route::post('/customer/cart/update-qty/{cartItem}', [\App\Http\Controllers\Customer\CartController::class, 'updateQuantity'])->name('customer.cart.update-qty');
@@ -68,11 +79,13 @@ Route::middleware('auth:customer')->group(function () {
     
     Route::get('/customer/orders/active-feed', [DashboardController::class, 'customerActiveOrdersFeed'])->name('customer.orders.active-feed');
     Route::get('/customer/orders/{id}', [DashboardController::class, 'customerOrderDetail'])->name('customer.orders.show');
+    Route::get('/customer/orders/{id}/invoice', [DashboardController::class, 'customerOrderInvoice'])->name('customer.orders.invoice');
     Route::post('/customer/offers/{id}/accept', [DashboardController::class, 'customerAcceptOffer'])->name('customer.offers.accept');
     Route::post('/customer/orders/{id}/expand-radius', [DashboardController::class, 'customerExpandOrderRadius'])->name('customer.orders.expand-radius');
     Route::post('/customer/orders/{id}/cancel', [OrderCancellationController::class, 'cancelOrder'])->name('customer.orders.cancel');
     Route::post('/customer/orders/{id}/confirm', [DashboardController::class, 'customerConfirmDelivery'])->name('customer.orders.confirmation');
     Route::get('/customer/orders/{id}/report', [\App\Http\Controllers\OrderReportController::class, 'create'])->name('customer.orders.report');
+    Route::get('/customer/orders/{id}/report-status', [\App\Http\Controllers\OrderReportController::class, 'status'])->name('customer.orders.report.status');
     Route::post('/customer/orders/{id}/report', [\App\Http\Controllers\OrderReportController::class, 'store'])->name('customer.orders.report.store');
 
     // ===== Chat Personal per Order =====
@@ -100,6 +113,7 @@ Route::middleware('auth:customer')->group(function () {
     Route::get('/customer/wallet', function() {
         return view('customer.wallet');
     })->name('customer.wallet');
+    Route::get('/customer/wallet/topup/{id}/invoice', [DashboardController::class, 'customerTopupInvoice'])->name('customer.wallet.topup.invoice');
     Route::get('/customer/wallet/pay-topup/{id}', function($id) {
         $topup = \App\Models\Topup::findOrFail($id);
         if ($topup->wallet->owner_id !== auth()->guard('customer')->id()) {
@@ -130,6 +144,7 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::post('/jastiper/orders/{id}/offer', [DashboardController::class, 'jastiperSubmitOffer'])->name('jastiper.orders.offer');
     Route::post('/jastiper/orders/multi-offer', [DashboardController::class, 'jastiperMultiSubmitOffer'])->name('jastiper.orders.multi-offer');
     Route::post('/jastiper/orders/{id}/start-process', [DashboardController::class, 'jastiperStartProcessOrder'])->name('jastiper.orders.start-process');
+    Route::post('/jastiper/orders/{id}/stops/{stop_number}/complete', [DashboardController::class, 'jastiperCompleteStop'])->name('jastiper.orders.stop.complete');
     Route::post('/jastiper/orders/{id}/update-status', [DashboardController::class, 'jastiperUpdateOrderStatus'])->name('jastiper.orders.update-status');
     Route::post('/jastiper/orders/{id}/complete', [DashboardController::class, 'jastiperCompleteOrder'])->name('jastiper.orders.complete');
 
@@ -146,7 +161,8 @@ Route::middleware('auth:jastiper')->group(function () {
     Route::get('/jastiper/earnings/data', [EarningsController::class, 'recapData'])->name('jastiper.earnings.data');
     Route::post('/jastiper/earnings/withdraw', [EarningsController::class, 'requestWithdraw'])->name('jastiper.earnings.withdraw');
 
-    // ===== Profil Jastiper =====
+    // ===== Profil & Riwayat Jastiper =====
+    Route::get('/jastiper/history', [DashboardController::class, 'jastiperHistory'])->name('jastiper.history');
     Route::get('/jastiper/profile', [DashboardController::class, 'jastiperProfile'])->name('jastiper.profile');
 });
 
@@ -171,6 +187,7 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/withdraws/{id}/reject', [AdminWithdrawController::class, 'reject'])->name('admin.withdraws.reject');
 
     // ===== Master Data Mutasi Keseluruhan (Arus Kas & Ledger Saldo) =====
+    Route::get('/admin/mutations/print', [\App\Http\Controllers\AdminMutationController::class, 'print'])->name('admin.mutations.print');
     Route::get('/admin/mutations', [\App\Http\Controllers\AdminMutationController::class, 'index'])->name('admin.mutations.index');
 
     // ===== Log & Monitoring Aktivitas Seluruh Pengguna (Audit Trail) =====
@@ -220,12 +237,23 @@ Route::middleware('auth:admin')->group(function () {
     ]);
 
     // ===== Daftar Pelanggan (Customer) & Mitra Jastiper (Admin) =====
+    Route::get('/admin/customers/print', [\App\Http\Controllers\AdminCustomerController::class, 'print'])->name('admin.customers.print');
     Route::get('/admin/customers', [\App\Http\Controllers\AdminCustomerController::class, 'index'])->name('admin.customers.index');
+    Route::get('/admin/jastipers/print', [\App\Http\Controllers\AdminJastiperController::class, 'print'])->name('admin.jastipers.print');
     Route::get('/admin/jastipers', [\App\Http\Controllers\AdminJastiperController::class, 'index'])->name('admin.jastipers.index');
+
+    // ===== Tim & Monitor Customer Service (CS Management & Live Queue) =====
+    Route::get('/admin/cs-officers', [\App\Http\Controllers\Admin\AdminCsOfficerController::class, 'index'])->name('admin.cs.index');
+    Route::post('/admin/cs-officers', [\App\Http\Controllers\Admin\AdminCsOfficerController::class, 'store'])->name('admin.cs.store');
+    Route::put('/admin/cs-officers/{id}', [\App\Http\Controllers\Admin\AdminCsOfficerController::class, 'update'])->name('admin.cs.update');
+    Route::delete('/admin/cs-officers/{id}', [\App\Http\Controllers\Admin\AdminCsOfficerController::class, 'destroy'])->name('admin.cs.destroy');
+    Route::post('/admin/cs-officers/{id}/toggle-status', [\App\Http\Controllers\Admin\AdminCsOfficerController::class, 'toggleActive'])->name('admin.cs.toggle-status');
+    Route::get('/admin/cs-officers/monitoring', [\App\Http\Controllers\Admin\AdminCsOfficerController::class, 'monitoringApi'])->name('admin.cs.monitoring');
 
     // ===== Pengaduan & Sengketa Pesanan (Dispute Resolution) =====
     Route::get('/admin/reports', [\App\Http\Controllers\Admin\AdminReportController::class, 'index'])->name('admin.reports.index');
     Route::get('/admin/reports/{id}', [\App\Http\Controllers\Admin\AdminReportController::class, 'show'])->name('admin.reports.show');
+    Route::get('/admin/reports/{id}/status', [\App\Http\Controllers\Admin\AdminReportController::class, 'status'])->name('admin.reports.status');
     Route::post('/admin/reports/{id}/resolve', [\App\Http\Controllers\Admin\AdminReportController::class, 'resolve'])->name('admin.reports.resolve');
 
     // ===== Live Chat Bantuan & Customer Support (Admin Desk) =====
@@ -262,6 +290,38 @@ Route::prefix('merchant')->name('merchant.')->group(function () {
         Route::post('/categories', [\App\Http\Controllers\Merchant\MerchantCategoryController::class, 'store'])->name('categories.store');
         Route::put('/categories/{category}', [\App\Http\Controllers\Merchant\MerchantCategoryController::class, 'update'])->name('categories.update');
         Route::delete('/categories/{category}', [\App\Http\Controllers\Merchant\MerchantCategoryController::class, 'destroy'])->name('categories.destroy');
+    });
+});
+
+// ===== PORTAL PETUGAS CUSTOMER SERVICE (CS Workspace & Support Desk) =====
+Route::prefix('cs')->name('cs.')->group(function () {
+    // Guest Routes (Login CS)
+    Route::get('/login', [\App\Http\Controllers\Cs\CsAuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [\App\Http\Controllers\Cs\CsAuthController::class, 'login'])->name('login.submit');
+
+    // Authenticated CS Routes
+    Route::middleware('auth:cs')->group(function () {
+        Route::post('/logout', [\App\Http\Controllers\Cs\CsAuthController::class, 'logout'])->name('logout');
+
+        // Dashboard & Status Ketersediaan
+        Route::get('/dashboard', [\App\Http\Controllers\Cs\CsDashboardController::class, 'index'])->name('dashboard');
+        Route::post('/status/update', [\App\Http\Controllers\Cs\CsDashboardController::class, 'updateStatus'])->name('status.update');
+        Route::post('/heartbeat', [\App\Http\Controllers\Cs\CsDashboardController::class, 'heartbeat'])->name('heartbeat');
+
+        // Live Chat Bantuan & Tiket Pelanggan
+        Route::get('/chats', [\App\Http\Controllers\Cs\CsSupportChatController::class, 'index'])->name('chats.index');
+        Route::get('/chats/conversations', [\App\Http\Controllers\Cs\CsSupportChatController::class, 'fetchConversations'])->name('chats.conversations');
+        Route::get('/chats/{customer_id}/messages', [\App\Http\Controllers\Cs\CsSupportChatController::class, 'fetchMessages'])->name('chats.messages');
+        Route::post('/chats/{customer_id}/send', [\App\Http\Controllers\Cs\CsSupportChatController::class, 'sendMessage'])->name('chats.send');
+        Route::post('/chats/{customer_id}/claim', [\App\Http\Controllers\Cs\CsSupportChatController::class, 'claim'])->name('chats.claim');
+        Route::post('/chats/{customer_id}/close', [\App\Http\Controllers\Cs\CsSupportChatController::class, 'close'])->name('chats.close');
+
+        // Tiket Pengaduan & Sengketa Pesanan
+        Route::get('/reports', [\App\Http\Controllers\Cs\CsReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/{id}', [\App\Http\Controllers\Cs\CsReportController::class, 'show'])->name('reports.show');
+        Route::get('/reports/{id}/status', [\App\Http\Controllers\Cs\CsReportController::class, 'status'])->name('reports.status');
+        Route::post('/reports/{id}/claim', [\App\Http\Controllers\Cs\CsReportController::class, 'claim'])->name('reports.claim');
+        Route::post('/reports/{id}/resolve', [\App\Http\Controllers\Cs\CsReportController::class, 'resolve'])->name('reports.resolve');
     });
 });
 

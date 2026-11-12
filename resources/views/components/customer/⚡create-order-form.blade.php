@@ -60,6 +60,10 @@ new class extends Component
     public ?int $jastiper_id = null;
     public ?string $direct_jastiper_name = null;
 
+    // Customer saved addresses
+    public array $saved_addresses = [];
+    public ?string $selected_saved_address_id = null;
+
     // Messages
     public string $success_message = '';
     public string $error_message = '';
@@ -99,7 +103,7 @@ new class extends Component
             'destination_address' => ['required', 'string', 'min:5'],
             'recipient_name' => ['required', 'string', 'min:2'],
             'recipient_phone' => ['required', 'string', 'min:9'],
-            'reference_photo' => ['nullable', 'image', 'max:2048'], // Max 2MB
+            'reference_photo' => ['nullable', 'image', 'max:25600'], // Max 25MB untuk kamera HP modern
         ];
 
         if (in_array($this->category, ['beli-antar', 'ambil-antar', 'toko-kirim'])) {
@@ -122,7 +126,7 @@ new class extends Component
             'destination_address.min' => 'Alamat tujuan minimal berisi 5 karakter.',
             'recipient_name.required' => 'Nama penerima wajib diisi.',
             'recipient_phone.required' => 'No HP penerima wajib diisi.',
-            'reference_photo.max' => 'Ukuran foto maksimal 2MB.',
+            'reference_photo.max' => 'Ukuran foto maksimal 25MB.',
         ];
     }
 
@@ -138,6 +142,15 @@ new class extends Component
         if ($customer) {
             $this->recipient_name = $customer->name;
             $this->recipient_phone = $customer->phone_number;
+            $this->saved_addresses = \App\Http\Controllers\DashboardController::getCustomerSavedAddresses($customer);
+        } else {
+            $this->saved_addresses = session()->get('customer_saved_addresses', []);
+        }
+
+        // Cek jika ada request query saved_address_id
+        $requestedSavedId = request()->query('saved_address_id');
+        if ($requestedSavedId) {
+            $this->selectSavedAddress($requestedSavedId);
         }
 
         // Tangkap parameter query kategori
@@ -224,6 +237,29 @@ new class extends Component
             $this->origin_lat = $this->cart_reference_merchant_lat;
             $this->origin_lng = $this->cart_reference_merchant_lng;
             $this->calculateFare();
+        }
+    }
+
+    /**
+     * Pilih alamat pengantaran dari daftar alamat tersimpan customer
+     */
+    public function selectSavedAddress($addressId)
+    {
+        $this->selected_saved_address_id = (string) $addressId;
+        $found = collect($this->saved_addresses)->first(fn($a) => (string)($a['id'] ?? '') === (string)$addressId);
+        if ($found) {
+            $this->destination_address = $found['address'];
+            if (!empty($found['latitude']) && !empty($found['longitude'])) {
+                $this->destination_lat = (float) $found['latitude'];
+                $this->destination_lng = (float) $found['longitude'];
+            }
+            $this->calculateFare();
+            $this->dispatch('saved-address-selected', [
+                'address' => $found['address'],
+                'lat' => $this->destination_lat,
+                'lng' => $this->destination_lng,
+                'label' => $found['label'] ?? '',
+            ]);
         }
     }
 
@@ -378,7 +414,7 @@ new class extends Component
             $categoryTitles = [
                 'beli-antar' => 'Titip Beli: ' . \Illuminate\Support\Str::limit($this->description, 35),
                 'ambil-antar' => 'Ambil & Antar: ' . \Illuminate\Support\Str::limit($this->description, 35),
-                'toko-kirim' => 'Toko Kirim: ' . ($this->origin_address ?: \Illuminate\Support\Str::limit($this->description, 30)),
+                'toko-kirim' => 'Belanja Retail: ' . ($this->origin_address ?: \Illuminate\Support\Str::limit($this->description, 30)),
                 'dokumen' => 'Antar Dokumen: ' . \Illuminate\Support\Str::limit($this->description, 35),
                 'multi-stop' => 'Multi-Stop: ' . count($this->stops) . ' Titik',
                 'kirim-pihak-ketiga' => 'Ekspedisi ' . $this->courier_agency . ': ' . \Illuminate\Support\Str::limit($this->description, 30),
@@ -388,6 +424,8 @@ new class extends Component
             // Auto-register toko/warung baru ke tabel merchants jika belum ada di database
             $createdMerchantId = null;
             $createdStoreName = null;
+            $createdProductId = null;
+
             if (in_array($this->category, ['beli-antar', 'toko-kirim'])) {
                 $rawStoreName = trim($this->store_name);
                 if (empty($rawStoreName) && !empty($this->origin_address)) {
@@ -423,12 +461,48 @@ new class extends Component
                     }
                     $createdMerchantId = $matchedMerchant->id;
                     $createdStoreName = $matchedMerchant->name;
+
+                    // Auto-register produk baru dengan harga transaksi sebagai acuan katalog toko
+                    $productPrice = (float) ($this->estimated_item_price ?? 0.0);
+                    $rawProductName = trim(strtok($this->description, "\n"));
+                    if (empty($rawProductName)) {
+                        $rawProductName = 'Menu Titip ' . $matchedMerchant->name;
+                    } elseif (strlen($rawProductName) > 90) {
+                        $rawProductName = \Illuminate\Support\Str::limit($rawProductName, 85);
+                    }
+
+                    $matchedProduct = \App\Models\Product::where('merchant_id', $matchedMerchant->id)
+                        ->where('name', $rawProductName)
+                        ->first();
+
+                    if (!$matchedProduct) {
+                        $matchedProduct = \App\Models\Product::create([
+                            'merchant_id' => $matchedMerchant->id,
+                            'category_id' => null,
+                            'name' => $rawProductName,
+                            'description' => $this->description,
+                            'hpp_price' => $productPrice,
+                            'estimated_price' => $productPrice,
+                            'image' => $photoPath,
+                            'is_available' => true,
+                            'is_auto_markup' => false,
+                        ]);
+                    } elseif ($productPrice > 0 && ($matchedProduct->estimated_price <= 0 || !$matchedProduct->hpp_price)) {
+                        $matchedProduct->update([
+                            'hpp_price' => $productPrice,
+                            'estimated_price' => $productPrice,
+                        ]);
+                    }
+
+                    if ($matchedProduct) {
+                        $createdProductId = $matchedProduct->id;
+                    }
                 }
             }
 
             \App\Models\CartItem::create([
                 'cart_id' => $cart->id,
-                'product_id' => null,
+                'product_id' => $createdProductId,
                 'merchant_id' => $createdMerchantId,
                 'item_type' => $itemType,
                 'category' => $this->category,
@@ -548,7 +622,7 @@ new class extends Component
                     </div>
                 </button>
 
-                <!-- Toko Kirim -->
+                <!-- Belanja Retail (Minimarket / Pasar) -->
                 <button 
                     type="button" 
                     wire:click="$set('category', 'toko-kirim')"
@@ -556,10 +630,10 @@ new class extends Component
                     style="{{ $category === 'toko-kirim' ? 'border-color: #e11d48; background-color: #fff1f2; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.08);' : 'border-color: #e2e8f0; background-color: white;' }}"
                 >
                     <div class="flex items-center justify-start">
-                        <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Toko Kirim" class="w-12 h-10 sm:w-14 sm:h-12 object-contain group-hover:scale-105 transition-transform drop-shadow-xs">
+                        <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Belanja Retail" class="w-12 h-10 sm:w-14 sm:h-12 object-contain group-hover:scale-105 transition-transform drop-shadow-xs">
                     </div>
                     <div>
-                        <h5 class="text-xs font-bold text-slate-800">Toko Kirim</h5>
+                        <h5 class="text-xs font-bold text-slate-800">Belanja Retail</h5>
                         <span class="text-[9px] text-slate-400 block mt-0.5 leading-tight">Belanja Minimarket / Pasar</span>
                     </div>
                 </button>
@@ -601,23 +675,43 @@ new class extends Component
                 </div>
 
                 @if(in_array($category, ['beli-antar', 'toko-kirim']))
-                    <div class="space-y-1.5 bg-amber-50/60 border border-amber-200/60 p-3.5 rounded-2xl">
-                        <label for="estimated_item_price" class="block text-xs font-bold text-amber-900 uppercase tracking-wider">
+                    <div class="space-y-1.5 bg-amber-50/60 border border-amber-200/60 p-3.5 rounded-2xl"
+                         x-data="{
+                             priceVal: @entangle('estimated_item_price'),
+                             displayVal: '',
+                             formatRupiah(val) {
+                                 if (!val || val == 0) return '';
+                                 return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                             },
+                             init() {
+                                 if (this.priceVal && this.priceVal > 0) {
+                                     this.displayVal = this.formatRupiah(this.priceVal);
+                                 }
+                             },
+                             onInput(e) {
+                                 let raw = e.target.value.replace(/[^0-9]/g, '');
+                                 let num = raw ? parseInt(raw, 10) : 0;
+                                 this.priceVal = num;
+                                 this.displayVal = num > 0 ? this.formatRupiah(num) : '';
+                             }
+                         }">
+                        <label for="estimated_item_price_input" class="block text-xs font-bold text-amber-900 uppercase tracking-wider">
                             Perkiraan Total Harga Barang Belanjaan (Rp, Opsional)
                         </label>
                         <div class="relative">
                             <span class="absolute left-3.5 top-2.5 text-xs font-bold text-amber-700">Rp</span>
                             <input 
-                                type="number" 
-                                id="estimated_item_price" 
-                                wire:model.live="estimated_item_price"
-                                min="0"
+                                type="text"
+                                inputmode="numeric"
+                                id="estimated_item_price_input" 
+                                x-model="displayVal"
+                                @input="onInput($event)"
                                 placeholder="35.000 (tulis kisaran total harga barang jika sudah tahu)"
                                 class="w-full bg-white border border-amber-200 text-slate-800 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:border-amber-500 transition duration-150 text-xs font-bold"
                             >
-                            @if(!empty($estimated_item_price) && (float)$estimated_item_price > 0)
-                                <span class="text-[10px] font-bold text-amber-800 block mt-1">Estimasi Barang: Rp {{ number_format((float) $estimated_item_price, 0, ',', '.') }}</span>
-                            @endif
+                            <span x-show="priceVal > 0" x-cloak class="text-[10px] font-bold text-amber-800 block mt-1">
+                                Estimasi Barang: Rp <span x-text="displayVal"></span>
+                            </span>
                         </div>
                         <p class="text-[10px] text-amber-700/80 mt-0.5">Estimasi ini akan dihitung pada subtotal belanjaan di keranjang Anda dan dapat disesuaikan bukti nota nanti.</p>
                     </div>
@@ -737,17 +831,6 @@ new class extends Component
                                     </div>
                                     @endif
 
-                                    <!-- Indikator Koordinat Stop -->
-                                    <div class="flex items-center justify-between text-[10px] {{ $isDropoff ? 'bg-indigo-50/80 border-indigo-200/60 text-indigo-800' : 'bg-purple-50/80 border-purple-200/60 text-purple-800' }} border rounded-xl px-2.5 py-1 font-mono">
-                                        <span class="flex items-center gap-1">
-                                            <span class="{{ $isDropoff ? 'text-indigo-600' : 'text-purple-600' }} font-bold">📍 Koordinat Stop {{ $idx + 1 }}:</span>
-                                            <span id="disp-stop-coords-{{ $idx }}">Lat: {{ $stop['lat'] ? number_format($stop['lat'], 5) : '-' }}, Lng: {{ $stop['lng'] ? number_format($stop['lng'], 5) : '-' }}</span>
-                                        </span>
-                                        <button type="button" onclick="copyStopCoords({{ $idx }})" class="text-[10px] {{ $isDropoff ? 'text-indigo-700 hover:text-indigo-900' : 'text-purple-700 hover:text-purple-900' }} font-bold underline cursor-pointer">
-                                            Salin
-                                        </button>
-                                    </div>
-
                                     @error('stops.'.$idx.'.address') <span class="text-rose-600 text-[9px] font-semibold block">{{ $message }}</span> @enderror
                                 </div>
                             @endforeach
@@ -770,18 +853,85 @@ new class extends Component
                     </div>
 
                     <!-- Destination -->
-                    <div class="space-y-1.5">
-                        <div class="flex items-center justify-between">
+                    <div class="space-y-1.5" x-data="{ openSavedMulti: false }">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
                             <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat Tujuan Pengantaran Akhir</label>
-                            <button 
-                                type="button" 
-                                id="btn-gps-dest-1"
-                                onclick="detectCustomerCurrentLocation()"
-                                class="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
-                            >
-                                📍 Pakai Lokasi Saya (GPS)
-                            </button>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <button 
+                                    type="button" 
+                                    id="btn-gps-dest-1"
+                                    onclick="detectCustomerCurrentLocation()"
+                                    class="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition flex items-center gap-1 cursor-pointer"
+                                    title="Gunakan lokasi GPS saya saat ini"
+                                >
+                                    📍 Lokasi Saya (GPS)
+                                </button>
+
+                                @if(!empty($saved_addresses) && count($saved_addresses) > 0)
+                                    <div class="relative">
+                                        <button 
+                                            type="button"
+                                            @click="openSavedMulti = !openSavedMulti"
+                                            @click.outside="openSavedMulti = false"
+                                            class="text-[11px] font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-0.5 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <span>📋 Alamat Tersimpan</span>
+                                            <span class="bg-rose-500 text-white text-[9px] font-extrabold px-1 rounded-full">{{ count($saved_addresses) }}</span>
+                                            <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </button>
+
+                                        <!-- Dropdown List Alamat Tersimpan -->
+                                        <div x-show="openSavedMulti" 
+                                             x-cloak
+                                             x-transition:enter="transition ease-out duration-150"
+                                             x-transition:enter-start="opacity-0 scale-95"
+                                             x-transition:enter-end="opacity-100 scale-100"
+                                             class="absolute right-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 divide-y divide-slate-100">
+                                            <div class="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                                                <span>Pilih Alamat Tersimpan</span>
+                                                <a href="{{ route('customer.address') }}" class="text-rose-600 hover:underline capitalize font-bold">+ Kelola</a>
+                                            </div>
+                                            <div class="max-h-56 overflow-y-auto divide-y divide-slate-50">
+                                                @foreach($saved_addresses as $sAddr)
+                                                    <button type="button" 
+                                                            wire:click="selectSavedAddress('{{ $sAddr['id'] ?? '' }}')"
+                                                            @click="openSavedMulti = false"
+                                                            class="w-full text-left px-3 py-2 hover:bg-rose-50/70 transition flex items-start gap-2.5 group cursor-pointer">
+                                                        <span class="text-sm shrink-0 pt-0.5">
+                                                            @if(stripos($sAddr['label'] ?? '', 'kantor') !== false) 🏢
+                                                            @elseif(stripos($sAddr['label'] ?? '', 'kos') !== false) 🏠
+                                                            @elseif(stripos($sAddr['label'] ?? '', 'toko') !== false) 🏪
+                                                            @else 📍 @endif
+                                                        </span>
+                                                        <div class="min-w-0 flex-1">
+                                                            <div class="flex items-center justify-between gap-1">
+                                                                <span class="font-bold text-xs text-slate-800 group-hover:text-rose-600 truncate">{{ $sAddr['label'] }}</span>
+                                                                @if(!empty($selected_saved_address_id) && (string)$selected_saved_address_id === (string)($sAddr['id'] ?? ''))
+                                                                    <span class="text-[9px] text-emerald-600 font-extrabold bg-emerald-50 px-1 rounded">✓ Dipilih</span>
+                                                                @endif
+                                                            </div>
+                                                            <p class="text-[11px] text-slate-500 line-clamp-1 leading-tight mt-0.5">{{ $sAddr['address'] }}</p>
+                                                        </div>
+                                                    </button>
+                                                @endforeach
+                                            </div>
+                                            <div class="p-2 bg-slate-50 text-center">
+                                                <a href="{{ route('customer.address') }}" class="text-[11px] font-bold text-rose-600 hover:text-rose-700 block">
+                                                    + Tambah Alamat Baru
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @else
+                                    <a href="{{ route('customer.address') }}" 
+                                       class="text-[11px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 px-2 py-0.5 rounded-lg border border-dashed border-slate-300 transition flex items-center gap-1"
+                                       title="Simpan alamat baru untuk pesanan berikutnya">
+                                        + Tambah Alamat
+                                    </a>
+                                @endif
+                            </div>
                         </div>
+
                         <div class="flex gap-2">
                             <input 
                                 type="text" 
@@ -800,16 +950,20 @@ new class extends Component
                             </button>
                         </div>
 
-                        <!-- Indikator Koordinat Tujuan -->
-                        <div class="flex items-center justify-between text-[10px] bg-blue-50/80 border border-blue-200/60 rounded-xl px-2.5 py-1 font-mono text-blue-800">
-                            <span class="flex items-center gap-1">
-                                <span class="text-blue-600 font-bold">📍 Koordinat Tujuan:</span>
-                                <span id="disp-dest-coords-1">Lat: {{ $destination_lat ? number_format($destination_lat, 5) : '-' }}, Lng: {{ $destination_lng ? number_format($destination_lng, 5) : '-' }}</span>
-                            </span>
-                            <button type="button" onclick="copyDestCoords()" class="text-[10px] text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer">
-                                Salin
-                            </button>
-                        </div>
+                        @if(!empty($saved_addresses) && count($saved_addresses) > 0)
+                            <!-- Quick Chips Alamat Tersimpan -->
+                            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pilih Cepat:</span>
+                                @foreach(array_slice($saved_addresses, 0, 3) as $sAddr)
+                                    <button type="button" 
+                                            wire:click="selectSavedAddress('{{ $sAddr['id'] ?? '' }}')"
+                                            class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer {{ (!empty($selected_saved_address_id) && (string)$selected_saved_address_id === (string)($sAddr['id'] ?? '')) ? 'bg-rose-50 text-rose-700 border-rose-300' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200' }}">
+                                        <span>{{ stripos($sAddr['label'] ?? '', 'kantor') !== false ? '🏢' : '🏠' }}</span>
+                                        <span>{{ $sAddr['label'] }}</span>
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
 
                         @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                     </div>
@@ -897,17 +1051,6 @@ new class extends Component
                                     <!-- Live Autocomplete Suggestions Dropdown -->
                                     <div wire:ignore id="dropdown-origin_address" class="hidden absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-72 overflow-y-auto divide-y divide-slate-100"></div>
 
-                                    <!-- Indikator Koordinat Asal -->
-                                    <div class="flex items-center justify-between text-[10px] bg-rose-50/80 border border-rose-200/60 rounded-xl px-2.5 py-1 font-mono text-rose-800">
-                                        <span class="flex items-center gap-1">
-                                            <span class="text-rose-600 font-bold">📍 Koordinat Asal:</span>
-                                            <span id="disp-origin-coords">Lat: {{ $origin_lat ? number_format($origin_lat, 5) : '-' }}, Lng: {{ $origin_lng ? number_format($origin_lng, 5) : '-' }}</span>
-                                        </span>
-                                        <button type="button" onclick="copyOriginCoords()" class="text-[10px] text-rose-700 hover:text-rose-900 font-bold underline cursor-pointer">
-                                            Salin
-                                        </button>
-                                    </div>
-
                                     @error('origin_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                                 </div>
                             </div>
@@ -955,18 +1098,84 @@ new class extends Component
                                 </div>
                             @endif
 
-                            <div class="flex items-center justify-between">
+                            <div class="flex items-center justify-between gap-2 flex-wrap" x-data="{ openSavedSingle: false }">
                                 <label for="destination_address" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                                     {{ $has_cart_destination ? 'Alamat Tujuan Pengantaran (Terpadu)' : 'Alamat Tujuan Pengantaran' }}
                                 </label>
-                                <button 
-                                    type="button" 
-                                    id="btn-gps-dest-2"
-                                    onclick="detectCustomerCurrentLocation()"
-                                    class="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
-                                >
-                                    📍 Pakai Lokasi Saya
-                                </button>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <button 
+                                        type="button" 
+                                        id="btn-gps-dest-2"
+                                        onclick="detectCustomerCurrentLocation()"
+                                        class="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 transition flex items-center gap-1 cursor-pointer"
+                                        title="Gunakan lokasi GPS saya saat ini"
+                                    >
+                                        📍 Lokasi Saya (GPS)
+                                    </button>
+
+                                    @if(!empty($saved_addresses) && count($saved_addresses) > 0)
+                                        <div class="relative">
+                                            <button 
+                                                type="button"
+                                                @click="openSavedSingle = !openSavedSingle"
+                                                @click.outside="openSavedSingle = false"
+                                                class="text-[11px] font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-0.5 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                            >
+                                                <span>📋 Alamat Tersimpan</span>
+                                                <span class="bg-rose-500 text-white text-[9px] font-extrabold px-1 rounded-full">{{ count($saved_addresses) }}</span>
+                                                <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                            </button>
+
+                                            <!-- Dropdown List Alamat Tersimpan -->
+                                            <div x-show="openSavedSingle" 
+                                                 x-cloak
+                                                 x-transition:enter="transition ease-out duration-150"
+                                                 x-transition:enter-start="opacity-0 scale-95"
+                                                 x-transition:enter-end="opacity-100 scale-100"
+                                                 class="absolute right-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 divide-y divide-slate-100">
+                                                <div class="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                                                    <span>Pilih Alamat Tersimpan</span>
+                                                    <a href="{{ route('customer.address') }}" class="text-rose-600 hover:underline capitalize font-bold">+ Kelola</a>
+                                                </div>
+                                                <div class="max-h-56 overflow-y-auto divide-y divide-slate-50">
+                                                    @foreach($saved_addresses as $sAddr)
+                                                        <button type="button" 
+                                                                wire:click="selectSavedAddress('{{ $sAddr['id'] ?? '' }}')"
+                                                                @click="openSavedSingle = false"
+                                                                class="w-full text-left px-3 py-2 hover:bg-rose-50/70 transition flex items-start gap-2.5 group cursor-pointer">
+                                                            <span class="text-sm shrink-0 pt-0.5">
+                                                                @if(stripos($sAddr['label'] ?? '', 'kantor') !== false) 🏢
+                                                                @elseif(stripos($sAddr['label'] ?? '', 'kos') !== false) 🏠
+                                                                @elseif(stripos($sAddr['label'] ?? '', 'toko') !== false) 🏪
+                                                                @else 📍 @endif
+                                                            </span>
+                                                            <div class="min-w-0 flex-1">
+                                                                <div class="flex items-center justify-between gap-1">
+                                                                    <span class="font-bold text-xs text-slate-800 group-hover:text-rose-600 truncate">{{ $sAddr['label'] }}</span>
+                                                                    @if(!empty($selected_saved_address_id) && (string)$selected_saved_address_id === (string)($sAddr['id'] ?? ''))
+                                                                        <span class="text-[9px] text-emerald-600 font-extrabold bg-emerald-50 px-1 rounded">✓ Dipilih</span>
+                                                                    @endif
+                                                                </div>
+                                                                <p class="text-[11px] text-slate-500 line-clamp-1 leading-tight mt-0.5">{{ $sAddr['address'] }}</p>
+                                                            </div>
+                                                        </button>
+                                                    @endforeach
+                                                </div>
+                                                <div class="p-2 bg-slate-50 text-center">
+                                                    <a href="{{ route('customer.address') }}" class="text-[11px] font-bold text-rose-600 hover:text-rose-700 block">
+                                                        + Tambah Alamat Baru
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @else
+                                        <a href="{{ route('customer.address') }}" 
+                                           class="text-[11px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 px-2 py-0.5 rounded-lg border border-dashed border-slate-300 transition flex items-center gap-1"
+                                           title="Simpan alamat baru untuk pesanan berikutnya">
+                                            + Tambah Alamat
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
                             <div class="flex gap-2 relative">
                                 <div class="flex-1 relative">
@@ -997,16 +1206,20 @@ new class extends Component
                             <!-- Live Autocomplete Suggestions Dropdown -->
                             <div wire:ignore id="dropdown-destination_address" class="hidden absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-72 overflow-y-auto divide-y divide-slate-100"></div>
 
-                            <!-- Indikator Koordinat Tujuan -->
-                            <div class="flex items-center justify-between text-[10px] bg-blue-50/80 border border-blue-200/60 rounded-xl px-2.5 py-1 font-mono text-blue-800">
-                                <span class="flex items-center gap-1">
-                                    <span class="text-blue-600 font-bold">📍 Koordinat Tujuan:</span>
-                                    <span id="disp-dest-coords-2">Lat: {{ $destination_lat ? number_format($destination_lat, 5) : '-' }}, Lng: {{ $destination_lng ? number_format($destination_lng, 5) : '-' }}</span>
-                                </span>
-                                <button type="button" onclick="copyDestCoords()" class="text-[10px] text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer">
-                                    Salin
-                                </button>
-                            </div>
+                            @if(!empty($saved_addresses) && count($saved_addresses) > 0)
+                                <!-- Quick Chips Alamat Tersimpan -->
+                                <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pilih Cepat:</span>
+                                    @foreach(array_slice($saved_addresses, 0, 3) as $sAddr)
+                                        <button type="button" 
+                                                wire:click="selectSavedAddress('{{ $sAddr['id'] ?? '' }}')"
+                                                class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer {{ (!empty($selected_saved_address_id) && (string)$selected_saved_address_id === (string)($sAddr['id'] ?? '')) ? 'bg-rose-50 text-rose-700 border-rose-300' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200' }}">
+                                            <span>{{ stripos($sAddr['label'] ?? '', 'kantor') !== false ? '🏢' : '🏠' }}</span>
+                                            <span>{{ $sAddr['label'] }}</span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
 
                             @error('destination_address') <span class="text-rose-600 text-[10px] font-semibold block mt-1">{{ $message }}</span> @enderror
                         </div>
@@ -1030,22 +1243,95 @@ new class extends Component
                     </select>
                 </div>
 
-                <!-- Foto Uploader -->
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Foto Referensi (Opsional)</label>
-                    <div class="border border-dashed border-slate-200 hover:border-rose-500 rounded-2xl p-4 text-center cursor-pointer relative bg-slate-50/50 hover:bg-white transition duration-150 shadow-inner">
-                        <input type="file" wire:model="reference_photo" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        @if ($reference_photo)
-                            <div class="flex flex-col items-center">
-                                <img src="{{ $reference_photo->temporaryUrl() }}" class="max-h-20 object-contain rounded-xl border border-slate-200">
-                                <span class="text-[9px] text-emerald-600 font-bold mt-1.5">✓ Terpilih</span>
+                <!-- Foto Uploader (Pratinjau Instan + Feedback Upload) -->
+                <div class="space-y-1.5"
+                     x-data="{
+                         localPreview: null,
+                         fileName: '',
+                         fileSize: '',
+                         isUploading: false,
+                         progress: 0,
+                         handleFile(event) {
+                             const file = event.target.files && event.target.files[0];
+                             if (file) {
+                                 this.fileName = file.name;
+                                 this.fileSize = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                                 this.localPreview = URL.createObjectURL(file);
+                             }
+                         },
+                         removePhoto() {
+                             this.localPreview = null;
+                             this.fileName = '';
+                             this.fileSize = '';
+                             $wire.set('reference_photo', null);
+                             const input = $refs.photoInput;
+                             if (input) input.value = '';
+                         }
+                     }"
+                     x-on:livewire-upload-start="isUploading = true"
+                     x-on:livewire-upload-finish="isUploading = false"
+                     x-on:livewire-upload-error="isUploading = false"
+                     x-on:livewire-upload-progress="progress = $event.detail.progress">
+                    
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Foto Referensi (Opsional)</label>
+                        <button type="button" 
+                                x-show="localPreview || @js(!empty($reference_photo))" 
+                                @click="removePhoto()" 
+                                class="text-[10px] text-rose-600 hover:text-rose-800 font-extrabold cursor-pointer">
+                            ✕ Hapus Foto
+                        </button>
+                    </div>
+
+                    <div class="border border-dashed border-slate-200 hover:border-rose-500 rounded-2xl p-3 text-center cursor-pointer relative bg-slate-50/50 hover:bg-white transition duration-150 shadow-inner overflow-hidden">
+                        <input type="file" 
+                               x-ref="photoInput"
+                               wire:model.live="reference_photo" 
+                               accept="image/*"
+                               @change="handleFile($event)"
+                               class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+
+                        <!-- Preview jika ada file terpilih (Instan Client Side atau Server Fallback) -->
+                        <div x-show="localPreview || @js(!empty($reference_photo))" class="flex items-center gap-3 text-left">
+                            <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                                <template x-if="localPreview">
+                                    <img :src="localPreview" alt="Pratinjau Foto" class="w-full h-full object-cover">
+                                </template>
+                                @if ($reference_photo)
+                                    <template x-if="!localPreview">
+                                        <img src="{{ $reference_photo->temporaryUrl() }}" alt="Pratinjau Foto" class="w-full h-full object-cover">
+                                    </template>
+                                @endif
                             </div>
-                        @else
-                            <div class="flex flex-col items-center py-2">
-                                <span class="text-xs font-bold text-slate-700">Pilih Foto</span>
-                                <span class="text-[8px] text-slate-400 mt-0.5">PNG, JPG (Maks 2MB)</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                                        <svg class="w-3 h-3 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                        <span>Foto Terpilih</span>
+                                    </span>
+                                    <span class="text-[9px] text-slate-400 font-bold" x-text="fileSize"></span>
+                                </div>
+                                <p class="text-[10px] font-bold text-slate-800 truncate mt-1" x-text="fileName || 'Foto Referensi'"></p>
+                                
+                                <!-- Progress upload Livewire -->
+                                <div x-show="isUploading" class="mt-1 space-y-1">
+                                    <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                        <div class="bg-rose-600 h-1.5 rounded-full transition-all duration-300" :style="'width: ' + progress + '%'"></div>
+                                    </div>
+                                    <span class="text-[8.5px] text-slate-500 font-bold" x-text="'Mengunggah: ' + progress + '%'"></span>
+                                </div>
+                                <span x-show="!isUploading" class="text-[8.5px] text-slate-400 block mt-0.5">Ketuk kotak untuk ganti foto</span>
                             </div>
-                        @endif
+                        </div>
+
+                        <!-- Placeholder jika belum ada foto -->
+                        <div x-show="!localPreview && @js(empty($reference_photo))" class="flex flex-col items-center py-2">
+                            <div class="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </div>
+                            <span class="text-xs font-bold text-slate-700">Pilih Foto Referensi / Kamera</span>
+                            <span class="text-[8px] text-slate-400 mt-0.5">PNG, JPG (Maks 25MB)</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1058,7 +1344,7 @@ new class extends Component
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                         <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                        Peta Rute & Titik Koordinat (Jawa & Indonesia)
+                        Peta Rute Pengantaran (Jawa & Indonesia)
                     </label>
                     <p class="text-[10px] text-slate-400 mt-0.5">Mendukung rute dalam kota maupun antar-kota (Surabaya, Sidoarjo, Malang, dll).</p>
                 </div>
@@ -1102,7 +1388,7 @@ new class extends Component
                 class="h-72 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10 shadow-inner"
             ></div>
             <p class="text-[10px] text-slate-400 leading-normal">
-                💡 Cari nama toko / alamat se-Indonesia (misal: "Jokopi Surabaya", "Grand Indonesia Jakarta", "Bakso Malang"), atau geser pin langsung di peta. Koordinat Latitude/Longitude dan jarak otomatis terupdate dan tersimpan.
+                💡 Cari nama toko / alamat se-Indonesia (misal: "Jokopi Surabaya", "Grand Indonesia Jakarta", "Bakso Malang"), atau geser pin langsung di peta. Titik lokasi dan estimasi jarak otomatis terupdate.
             </p>
         </div>
 
@@ -1857,6 +2143,33 @@ new class extends Component
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
             closeAllPlaceDropdowns();
+        }
+    });
+
+    $wire.on('saved-address-selected', (event) => {
+        const data = Array.isArray(event) ? event[0] : event;
+        const destInputs = document.querySelectorAll('#destination_address');
+        destInputs.forEach(inp => {
+            inp.value = data.address || '';
+        });
+
+        window.lastSelectedPlaces = window.lastSelectedPlaces || {};
+        window.lastSelectedPlaces['destination_address'] = (data.address || '').trim();
+
+        if (data.lat && data.lng) {
+            if (markerDest) {
+                markerDest.setLatLng([parseFloat(data.lat), parseFloat(data.lng)]);
+            }
+            if (map) {
+                map.flyTo([parseFloat(data.lat), parseFloat(data.lng)], 15, { duration: 0.8 });
+            }
+        }
+
+        if (typeof updateDistanceAndRoute === 'function') {
+            updateDistanceAndRoute();
+        }
+        if (typeof fitFullRoute === 'function') {
+            setTimeout(fitFullRoute, 500);
         }
     });
 </script>

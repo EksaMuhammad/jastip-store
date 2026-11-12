@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Models\JastiperVerification;
 use App\Models\Order;
@@ -100,8 +101,91 @@ class DashboardController extends Controller
             ->firstOrFail();
 
         $latestPayment = $order->payments->first();
+        $timelineLogs = \App\Models\ActivityLog::where('order_id', $order->id)->orderBy('created_at', 'asc')->get();
 
-        return view('customer.orders.show', compact('customer', 'order', 'latestPayment'));
+        return view('customer.orders.show', compact('customer', 'order', 'latestPayment', 'timelineLogs'));
+    }
+
+    /**
+     * Cetak & Unduh Faktur / Nota Resmi Transaksi Pesanan (Untuk Reimburse Kantor & Arsip).
+     */
+    public function customerOrderInvoice($id)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        $order = \App\Models\Order::where('id', $id)
+            ->where('customer_id', $customer->id)
+            ->with([
+                'customer.wallet',
+                'jastiper.badge',
+                'orderItems.product.merchant',
+                'orderItems.priceAdjustment',
+                'priceAdjustments',
+                'payments' => fn($q) => $q->latest('id'),
+                'addons',
+                'wilayah',
+                'merchant'
+            ])
+            ->firstOrFail();
+
+        $latestPayment = $order->payments->first();
+
+        return view('customer.orders.invoice', compact('customer', 'order', 'latestPayment'));
+    }
+
+    /**
+     * Halaman Nota Transaksi Resmi (Public / Read-Only).
+     * Dapat diakses penerima tanpa login melalui tautan bertoken aman, atau oleh pemilik pesanan/jastiper/admin.
+     */
+    public function publicOrderReceipt(Request $request, $id)
+    {
+        $order = \App\Models\Order::where('id', $id)
+            ->with([
+                'customer.wallet',
+                'jastiper.badge',
+                'orderItems.product.merchant',
+                'orderItems.priceAdjustment',
+                'priceAdjustments',
+                'payments' => fn($q) => $q->latest('id'),
+                'addons',
+                'wilayah',
+                'merchant'
+            ])
+            ->firstOrFail();
+
+        $token = (string) $request->query('token');
+        $expectedToken = $order->receipt_share_token;
+        $isOwner = Auth::guard('customer')->check() && Auth::guard('customer')->id() === $order->customer_id;
+        $isJastiper = Auth::guard('jastiper')->check() && Auth::guard('jastiper')->id() === $order->jastiper_id;
+        $isAdmin = Auth::guard('admin')->check();
+
+        if (! hash_equals($expectedToken, $token) && ! $isOwner && ! $isJastiper && ! $isAdmin) {
+            abort(403, 'Akses nota tidak valid atau tautan kedaluwarsa.');
+        }
+
+        $customer = $order->customer;
+        $latestPayment = $order->payments->first();
+        $isPublicView = true;
+
+        return view('customer.orders.invoice', compact('customer', 'order', 'latestPayment', 'isPublicView'));
+    }
+
+    /**
+     * Cetak & Unduh Bukti Top-Up Saldo E-Wallet (Untuk Reimburse Kantor & Keuangan).
+     */
+    public function customerTopupInvoice($id)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        $topup = \App\Models\Topup::with(['wallet.owner', 'verifiedByAdmin', 'approvedByAdmin'])
+            ->where('id', $id)
+            ->firstOrFail();
+
+        if ($topup->wallet->owner_role !== 'customer' || (int)$topup->wallet->owner_id !== (int)$customer->id) {
+            abort(403, 'Akses tidak diizinkan. Bukti top-up ini bukan milik Anda.');
+        }
+
+        return view('customer.wallet.topup-invoice', compact('customer', 'topup'));
     }
 
     /**
@@ -110,6 +194,12 @@ class DashboardController extends Controller
     public function customerChats()
     {
         $customer = Auth::guard('customer')->user();
+
+        // Otomatis tandai pesan sistem pada pesanan lampau yang sudah selesai/dibatalkan sebagai dibaca
+        \App\Models\Chat::whereHas('order', fn($q) => $q->where('customer_id', $customer->id)->whereIn('status', ['selesai', 'dibatalkan']))
+            ->where('sender_role', 'system')
+            ->where('is_read', false)
+            ->update(['is_read' => true]);
 
         $orders = \App\Models\Order::where('customer_id', $customer->id)
             ->whereNotNull('jastiper_id')
@@ -135,6 +225,35 @@ class DashboardController extends Controller
         })->sortByDesc('latest_message_timestamp')->values();
 
         return view('dashboard.customer.chats', compact('customer', 'conversations'));
+    }
+
+    /**
+     * Tandai semua chat sebagai terbaca untuk customer aktif.
+     */
+    public function customerMarkAllChatsRead(Request $request)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        // Tandai seluruh chat pesanan customer sebagai terbaca
+        \App\Models\Chat::whereHas('order', fn($q) => $q->where('customer_id', $customer->id))
+            ->where('sender_role', '!=', 'customer')
+            ->where('is_read', false)
+            ->update(['is_read' => true]);
+
+        // Tandai seluruh support message customer sebagai terbaca
+        \App\Models\SupportMessage::where('customer_id', $customer->id)
+            ->where('sender_type', 'admin')
+            ->where('is_read', false)
+            ->update(['is_read' => true]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Semua obrolan telah ditandai sebagai dibaca.'
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Semua obrolan telah ditandai sebagai dibaca.');
     }
 
     /**
@@ -180,6 +299,160 @@ class DashboardController extends Controller
     }
 
     /**
+     * Helper to get customer saved addresses (from persistent cache or session)
+     */
+    public static function getCustomerSavedAddresses(?\App\Models\Customer $customer = null): array
+    {
+        if (!$customer) {
+            $customer = Auth::guard('customer')->user();
+        }
+
+        if ($customer) {
+            $cached = Cache::get("customer_saved_addresses_{$customer->id}");
+            if (is_array($cached) && !empty($cached)) {
+                return $cached;
+            }
+        }
+
+        $sessionAddresses = session()->get('customer_saved_addresses', []);
+        if (!empty($sessionAddresses) && $customer) {
+            Cache::forever("customer_saved_addresses_{$customer->id}", $sessionAddresses);
+        }
+
+        return $sessionAddresses;
+    }
+
+    /**
+     * Helper to persist customer saved addresses (to cache & session)
+     */
+    public static function persistCustomerAddresses(?\App\Models\Customer $customer, array $addresses): void
+    {
+        if ($customer) {
+            Cache::forever("customer_saved_addresses_{$customer->id}", $addresses);
+        }
+        session()->put('customer_saved_addresses', $addresses);
+        session()->save();
+    }
+
+    /**
+     * Halaman Kelola & Tambah Alamat Tersimpan Customer
+     */
+    public function customerAddress()
+    {
+        $customer = Auth::guard('customer')->user();
+        $savedAddresses = self::getCustomerSavedAddresses($customer);
+        return view('customer.address', compact('customer', 'savedAddresses'));
+    }
+
+    /**
+     * Simpan / Tambah Alamat Customer
+     */
+    public function saveCustomerAddress(Request $request)
+    {
+        $request->validate([
+            'address' => 'required|string|max:500',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+            'label' => 'nullable|string|max:50',
+            'notes' => 'nullable|string|max:255',
+        ]);
+
+        $customer = Auth::guard('customer')->user();
+        $savedAddresses = self::getCustomerSavedAddresses($customer);
+
+        $newAddress = [
+            'id' => (string) (time() . '_' . rand(100, 999)),
+            'label' => trim($request->label ?: 'Alamat Saya'),
+            'address' => trim($request->address),
+            'latitude' => $request->latitude ? (float) $request->latitude : null,
+            'longitude' => $request->longitude ? (float) $request->longitude : null,
+            'notes' => $request->notes ? trim($request->notes) : null,
+            'created_at' => now()->translatedFormat('d M Y H:i') ?: now()->format('d M Y H:i'),
+        ];
+
+        array_unshift($savedAddresses, $newAddress);
+        $savedAddresses = array_slice($savedAddresses, 0, 20);
+
+        self::persistCustomerAddresses($customer, $savedAddresses);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'address' => $newAddress, 'savedAddresses' => $savedAddresses]);
+        }
+
+        return redirect()->route('customer.address')->with('success', 'Alamat berhasil disimpan!');
+    }
+
+    /**
+     * Hapus Alamat Tersimpan Customer
+     */
+    public function deleteCustomerAddress(Request $request, $id)
+    {
+        $customer = Auth::guard('customer')->user();
+        $savedAddresses = self::getCustomerSavedAddresses($customer);
+
+        $savedAddresses = array_values(array_filter($savedAddresses, function ($addr) use ($id) {
+            return (string) ($addr['id'] ?? '') !== (string) $id;
+        }));
+
+        self::persistCustomerAddresses($customer, $savedAddresses);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'savedAddresses' => $savedAddresses]);
+        }
+
+        return redirect()->route('customer.address')->with('success', 'Alamat berhasil dihapus!');
+    }
+
+    /**
+     * Halaman Keamanan Akun & Password Customer
+     */
+    public function customerSecurity()
+    {
+        $customer = Auth::guard('customer')->user();
+        $hasPassword = !empty($customer->password);
+        return view('customer.security', compact('customer', 'hasPassword'));
+    }
+
+    /**
+     * Update Password Customer
+     */
+    public function updateCustomerPassword(Request $request)
+    {
+        $customer = Auth::guard('customer')->user();
+        $hasPassword = !empty($customer->password);
+
+        if ($hasPassword) {
+            $request->validate([
+                'current_password' => 'required|string',
+                'password' => 'required|string|min:6|confirmed',
+            ], [
+                'current_password.required' => 'Kata sandi saat ini wajib diisi.',
+                'password.required' => 'Kata sandi baru wajib diisi.',
+                'password.min' => 'Kata sandi baru minimal 6 karakter.',
+                'password.confirmed' => 'Konfirmasi kata sandi baru tidak cocok.',
+            ]);
+
+            if (!\Illuminate\Support\Facades\Hash::check($request->current_password, $customer->password)) {
+                return redirect()->back()->withErrors(['current_password' => 'Kata sandi saat ini tidak sesuai.'])->withInput();
+            }
+        } else {
+            $request->validate([
+                'password' => 'required|string|min:6|confirmed',
+            ], [
+                'password.required' => 'Kata sandi baru wajib diisi.',
+                'password.min' => 'Kata sandi baru minimal 6 karakter.',
+                'password.confirmed' => 'Konfirmasi kata sandi baru tidak cocok.',
+            ]);
+        }
+
+        $customer->update([
+            'password' => \Illuminate\Support\Facades\Hash::make($request->password),
+        ]);
+
+        return redirect()->route('customer.security')->with('success', 'Kata sandi akun berhasil diperbarui! Anda dapat menggunakannya untuk login.');
+    }
+
+    /**
      * Dashboard untuk Jastiper.
      */
     public function jastiperDashboard()
@@ -201,6 +474,21 @@ class DashboardController extends Controller
             ->whereIn('status', ['deal', 'diproses', 'barang_diambil', 'sedang_diantar', 'tiba_tujuan'])
             ->with(['customer', 'merchant', 'items.product.merchant', 'addons'])
             ->latest()
+            ->get();
+
+        // Pesanan yang sedang dalam proses investigasi pengaduan/sengketa
+        $disputedOrders = \App\Models\Order::where('jastiper_id', $jastiper->id)
+            ->where('status', 'bermasalah')
+            ->with(['customer', 'merchant', 'items.product.merchant', 'reports'])
+            ->latest()
+            ->get();
+
+        // Riwayat pesanan terdahulu (Selesai / Dibatalkan)
+        $pastOrders = \App\Models\Order::where('jastiper_id', $jastiper->id)
+            ->whereIn('status', ['selesai', 'dibatalkan'])
+            ->with(['customer', 'merchant', 'items.product.merchant', 'reports'])
+            ->latest()
+            ->take(10)
             ->get();
 
         // Catatan: daftar order umum (feed radius+kategori) SENGAJA tidak lagi diambil
@@ -243,10 +531,48 @@ class DashboardController extends Controller
             'jastiper',
             'directOrders',
             'activeOrders',
+            'disputedOrders',
+            'pastOrders',
             'todayEarnings',
             'monthEarnings',
             'completionRate',
             'ratingAvg'
+        ));
+    }
+
+    /**
+     * Halaman Riwayat Pesanan Jastiper.
+     */
+    public function jastiperHistory(Request $request)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $tab = $request->query('tab', 'semua'); // 'semua', 'selesai', 'batal'
+
+        $query = \App\Models\Order::where('jastiper_id', $jastiper->id)
+            ->whereIn('status', ['selesai', 'dibatalkan', 'bermasalah'])
+            ->with(['customer', 'merchant', 'items.product.merchant', 'reports'])
+            ->latest('updated_at');
+
+        if ($tab === 'selesai') {
+            $query->where('status', 'selesai');
+        } elseif ($tab === 'batal') {
+            $query->whereIn('status', ['dibatalkan', 'bermasalah']);
+        }
+
+        $orders = $query->paginate(15)->withQueryString();
+
+        // Statistik Ringkasan
+        $totalCompleted = \App\Models\Order::where('jastiper_id', $jastiper->id)->where('status', 'selesai')->count();
+        $totalCancelled = \App\Models\Order::where('jastiper_id', $jastiper->id)->whereIn('status', ['dibatalkan', 'bermasalah'])->count();
+        $totalEarned = \App\Models\Order::where('jastiper_id', $jastiper->id)->where('status', 'selesai')->sum('agreed_fare');
+
+        return view('jastiper.history', compact(
+            'jastiper',
+            'orders',
+            'tab',
+            'totalCompleted',
+            'totalCancelled',
+            'totalEarned'
         ));
     }
 
@@ -469,9 +795,11 @@ class DashboardController extends Controller
         $refundCount = (int) $refundQuery->count();
         $totalCashOut = $cashOutWithdraws + $totalRefund;
 
-        // 4c. Keuntungan Bersih Platform (Laba Komisi Aplikasi)
+        // 4c. Keuntungan Bersih Platform (Laba Komisi Aplikasi + Margin Markup Toko)
         $platformCommissionEarned = (float) $komisiQuery->sum('commission_amount');
         $grossOrderFare = (float) $komisiQuery->sum('gross_amount');
+        $itemMarkupProfit = (float) (clone $orderQuery)->where('status', 'selesai')->sum('merchant_markup_profit');
+        $totalPlatformProfit = $platformCommissionEarned + $itemMarkupProfit;
         $netCashFlow = $totalCashIn - $totalCashOut;
 
         // 4d. Dana Mengendap (Escrow Titipan Saldo User)
@@ -528,6 +856,9 @@ class DashboardController extends Controller
         $mutationTotalDebit = (float) \App\Models\WalletTransaction::where('type', 'debit')->sum('amount');
         $mutationNet = $mutationTotalKredit - $mutationTotalDebit;
 
+        // 8. Ringkasan Kas & Pool Proteksi Asuransi Platform
+        $insurancePool = app(\App\Services\InsuranceService::class)->getPoolSummary($startDate, $endDate);
+
         return view('admin.dashboard', compact(
             'dateFilter',
             'totalOrdersFiltered',
@@ -552,6 +883,8 @@ class DashboardController extends Controller
             'totalRefund',
             'refundCount',
             'platformCommissionEarned',
+            'itemMarkupProfit',
+            'totalPlatformProfit',
             'grossOrderFare',
             'netCashFlow',
             'customerEscrowBalance',
@@ -562,7 +895,8 @@ class DashboardController extends Controller
             'mutationTotalCount',
             'mutationTotalKredit',
             'mutationTotalDebit',
-            'mutationNet'
+            'mutationNet',
+            'insurancePool'
         ));
     }
 
@@ -971,7 +1305,7 @@ class DashboardController extends Controller
         $formatted = $orders->map(function ($order) use ($categoryNames) {
             $myOffer = $order->offers->first();
 
-            $itemsData = $order->items->map(function ($it) {
+            $itemsData = $order->items->map(function ($it) use ($order) {
                 $price = (float) ($it->actual_price ?? $it->estimated_price ?? 0);
                 return [
                     'id' => $it->id,
@@ -982,6 +1316,7 @@ class DashboardController extends Controller
                     'price_formatted' => $price > 0 ? 'Rp ' . number_format($price, 0, ',', '.') : null,
                     'notes' => $it->notes,
                     'merchant_name' => $it->product?->merchant?->name ?? null,
+                    'image_url' => $it->image_url ?: $order->reference_photo_url,
                 ];
             })->values();
 
@@ -994,6 +1329,7 @@ class DashboardController extends Controller
                 'category_label' => $categoryNames[$order->category] ?? 'Jastip',
                 'description' => $order->description,
                 'merchant_name' => $merchantName,
+                'reference_photo_url' => $order->reference_photo_url,
                 'items' => $itemsData,
                 'items_count' => $itemsData->count(),
                 'weight_category' => $order->weight_category,
@@ -1593,6 +1929,16 @@ class DashboardController extends Controller
                         'response_speed_tier' => $speedTier,
                     ];
                 })->values(),
+                'multi_stops' => $order->multi_stops ? collect($order->multi_stops)->map(function($s) {
+                    return [
+                        'stop_number' => $s['stop_number'] ?? 1,
+                        'name' => $s['name'] ?? '',
+                        'address' => $s['address'] ?? '',
+                        'status' => $s['status'] ?? 'pending',
+                        'photo' => !empty($s['photo']) ? \Illuminate\Support\Facades\Storage::url($s['photo']) : null,
+                        'completed_at' => $s['completed_at'] ?? null,
+                    ];
+                })->values() : null,
             ];
         });
 
@@ -1612,15 +1958,20 @@ class DashboardController extends Controller
         $order = Order::where('id', $id)->where('jastiper_id', $jastiper->id)->first();
 
         if (!$order) {
-            return redirect()->back()->with('error', 'Order tidak ditemukan atau bukan milik Anda.');
+            $errMsg = 'Order tidak ditemukan atau bukan milik Anda.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $errMsg], 404);
+            }
+            return redirect()->back()->with('error', $errMsg);
         }
 
         $request->validate([
             'status' => 'required|in:barang_diambil,sedang_diantar,tiba_tujuan',
-            'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,heic,heif|max:10240',
+            'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,heic,heif,jfif|max:25600',
         ], [
+            'photo.file' => 'Berkas foto tidak valid atau gagal terunggah.',
             'photo.mimes' => 'Format foto harus berupa JPG, PNG, WEBP, atau HEIC.',
-            'photo.max' => 'Ukuran foto maksimal 10MB.',
+            'photo.max' => 'Ukuran foto maksimal 25MB.',
         ]);
 
         $updateData = ['status' => $request->status];
@@ -1673,7 +2024,137 @@ class DashboardController extends Controller
             app(\App\Services\ChatService::class)->sendSystemMessage($order, $statusMessages[$request->status]);
         }
 
-        return redirect()->back()->with('success', "Status pesanan berhasil diperbarui menjadi \"{$label}\"" . (!empty($photoPath) ? " beserta foto bukti." : "."));
+        $successMsg = "Status pesanan berhasil diperbarui menjadi \"{$label}\"" . (!empty($photoPath) ? " beserta foto bukti." : ".");
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $successMsg,
+                'redirect_url' => route('jastiper.dashboard')
+            ]);
+        }
+
+        return redirect()->back()->with('success', $successMsg);
+    }
+
+    /**
+     * Selesaikan belanja satu per satu untuk order multi-stop beserta upload bukti foto per titik.
+     */
+    public function jastiperCompleteStop(Request $request, $id, $stop_number)
+    {
+        $jastiper = Auth::guard('jastiper')->user();
+        $order = Order::where('id', $id)->where('jastiper_id', $jastiper->id)->first();
+
+        if (!$order) {
+            $errMsg = 'Order tidak ditemukan atau bukan milik Anda.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $errMsg], 404);
+            }
+            return redirect()->back()->with('error', $errMsg);
+        }
+
+        $request->validate([
+            'photo' => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif,jfif|max:25600',
+            'notes' => 'nullable|string|max:500',
+        ], [
+            'photo.required' => 'Foto bukti pembelian di toko ini wajib diunggah.',
+            'photo.file' => 'Berkas foto tidak valid atau gagal terunggah.',
+            'photo.mimes' => 'Format foto harus berupa JPG, PNG, WEBP, atau HEIC.',
+            'photo.max' => 'Ukuran foto maksimal 25MB.',
+        ]);
+
+        $photoPath = \App\Services\ImageUploadService::store($request->file('photo'), 'order_stops', 'public');
+
+        $stops = $order->multi_stops ?: [];
+        $stopNumberInt = (int) $stop_number;
+        $found = false;
+        $completedStopName = "Stop #{$stopNumberInt}";
+
+        foreach ($stops as $idx => $st) {
+            $currentStopNum = isset($st['stop_number']) ? (int)$st['stop_number'] : ($idx + 1);
+            if ($currentStopNum === $stopNumberInt) {
+                $stops[$idx]['status'] = 'completed';
+                $stops[$idx]['photo'] = $photoPath;
+                $stops[$idx]['completed_at'] = now()->toIso8601String();
+                $stops[$idx]['notes_update'] = $request->notes;
+                $completedStopName = $st['name'] ?: "Stop #{$stopNumberInt}";
+                $found = true;
+                break;
+            }
+        }
+
+        if (!$found) {
+            $errMsg = "Titik singgah Stop #{$stopNumberInt} tidak ditemukan pada pesanan ini.";
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $errMsg], 404);
+            }
+            return redirect()->back()->with('error', $errMsg);
+        }
+
+        $order->multi_stops = $stops;
+
+        // Cek apakah seluruh stop sudah selesai
+        $allCompleted = collect($stops)->every(fn($s) => ($s['status'] ?? '') === 'completed');
+        $nextPendingStop = collect($stops)->first(fn($s) => ($s['status'] ?? '') !== 'completed');
+
+        if ($allCompleted) {
+            $order->status = 'barang_diambil';
+            $order->pickup_photo = $photoPath;
+            $order->pickup_time = now();
+            $order->save();
+
+            \App\Services\ActivityLogger::logOrder(
+                $order,
+                'status_barang_diambil',
+                "Semua Stop Selesai Diambil (+Foto Bukti)",
+                "Mitra Jastiper {$jastiper->name} telah menyelesaikan belanja seluruh titik ({$completedStopName}) dan siap mengantar ke alamat customer.",
+                $jastiper,
+                'pengantaran',
+                ['photo' => $photoPath, 'multi_stops_completed' => true]
+            );
+
+            $notifMsg = "✅ Seluruh barang pesanan multi-toko #{$order->id} telah selesai diambil jastiper ({$jastiper->name})! Jastiper bersiap mengantar ke lokasi Anda.";
+            \App\Services\WhatsAppService::sendMessage($order->customer->phone_number, $notifMsg);
+            app(\App\Services\ChatService::class)->sendSystemMessage($order, $notifMsg);
+
+            $successMsg = "Hebat! Semua toko telah selesai diambil. Silakan mulai antar pesanan ke alamat tujuan!";
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $successMsg,
+                    'redirect_url' => route('jastiper.dashboard')
+                ]);
+            }
+
+            return redirect()->back()->with('success', $successMsg);
+        } else {
+            $order->save();
+            $nextStopName = $nextPendingStop['name'] ?? ('Stop #' . ($nextPendingStop['stop_number'] ?? ''));
+
+            \App\Services\ActivityLogger::logOrder(
+                $order,
+                "multi_stop_completed_{$stopNumberInt}",
+                "Stop #{$stopNumberInt} Selesai: {$completedStopName}",
+                "Mitra Jastiper {$jastiper->name} telah selesai belanja di {$completedStopName} (Stop #{$stopNumberInt}) dan sekarang menuju ke {$nextStopName}.",
+                $jastiper,
+                'pengantaran',
+                ['photo' => $photoPath, 'stop_number' => $stopNumberInt, 'completed_stop' => $completedStopName, 'next_stop' => $nextStopName]
+            );
+
+            $notifMsg = "🛍️ Update Jastiper: Barang di {$completedStopName} (Stop #{$stopNumberInt}) selesai diambil! Sekarang jastiper sedang menuju ke {$nextStopName}.";
+            \App\Services\WhatsAppService::sendMessage($order->customer->phone_number, $notifMsg);
+            app(\App\Services\ChatService::class)->sendSystemMessage($order, $notifMsg);
+
+            $successMsg = "Stop #{$stopNumberInt} ({$completedStopName}) berhasil diselesaikan! Lanjut menuju {$nextStopName}.";
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $successMsg,
+                    'redirect_url' => route('jastiper.dashboard')
+                ]);
+            }
+
+            return redirect()->back()->with('success', $successMsg);
+        }
     }
 
     /**

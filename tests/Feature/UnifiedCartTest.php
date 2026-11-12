@@ -388,4 +388,47 @@ class UnifiedCartTest extends TestCase
         $this->assertNotNull($orderItem);
         $this->assertStringContainsString('Warung Nasgor Cak Slamet', $orderItem->name);
     }
+
+    public function test_cart_page_renders_saved_addresses_and_allows_selection()
+    {
+        // Berikan customer alamat tersimpan
+        \App\Http\Controllers\DashboardController::persistCustomerAddresses($this->customer, [
+            [
+                'id' => 'cart_addr_1',
+                'label' => 'Rumah Sidoarjo',
+                'address' => 'Perum TAS 4 Cluster Gardenia Sidoarjo',
+                'latitude' => -7.4478,
+                'longitude' => 112.7183,
+                'notes' => 'Pagar hijau',
+            ],
+            [
+                'id' => 'cart_addr_2',
+                'label' => 'Kantor Surabaya',
+                'address' => 'Jl. Basuki Rahmat No. 10 Surabaya',
+                'latitude' => -7.2654,
+                'longitude' => 112.7423,
+                'notes' => 'Lantai 2',
+            ],
+        ]);
+
+        // Tambah item ke keranjang
+        $cart = Cart::create(['customer_id' => $this->customer->id]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_id' => $this->product->id,
+            'quantity' => 2,
+            'price' => 15000,
+            'item_type' => 'catalog',
+        ]);
+
+        $response = $this->actingAs($this->customer, 'customer')
+            ->get(route('customer.cart.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Alamat Pengantaran Utama');
+        $response->assertSee('Tersimpan');
+        $response->assertSee('Rumah Sidoarjo');
+        $response->assertSee('Kantor Surabaya');
+        $response->assertSee('Perum TAS 4 Cluster Gardenia Sidoarjo');
+    }
 }

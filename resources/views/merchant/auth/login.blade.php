@@ -3,7 +3,7 @@
 @section('title', 'Login Mitra Merchant')
 
 @section('content')
-<div class="relative min-h-[90vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-900 overflow-hidden">
+<div class="relative min-h-[90vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-900">
     <!-- Decorative background elements -->
     <div class="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/20 rounded-full filter blur-3xl opacity-50 animate-pulse"></div>
     <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-rose-500/20 rounded-full filter blur-3xl opacity-50 animate-pulse" style="animation-delay: 2s;"></div>

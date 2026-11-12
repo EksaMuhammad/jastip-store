@@ -83,12 +83,13 @@
                                     <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="rate_per_km" 
                                             id="input_rate_per_km"
-                                            value="{{ old('rate_per_km', $tariffs['rate_per_km']) }}" 
-                                            class="w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('rate_per_km', $tariffs['rate_per_km'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                     <p class="text-[10px] text-slate-400">Biaya dikalikan dengan total jarak rute.</p>
@@ -102,12 +103,13 @@
                                     <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="min_fare" 
                                             id="input_min_fare"
-                                            value="{{ old('min_fare', $tariffs['min_fare']) }}" 
-                                            class="w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('min_fare', $tariffs['min_fare'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                     <p class="text-[10px] text-slate-400">Batas bawah ongkir terendah untuk jarak dekat.</p>
@@ -121,12 +123,13 @@
                                     <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="extra_stop_fare" 
                                             id="input_extra_stop_fare"
-                                            value="{{ old('extra_stop_fare', $tariffs['extra_stop_fare']) }}" 
-                                            class="w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('extra_stop_fare', $tariffs['extra_stop_fare'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                     <p class="text-[10px] text-slate-400">Biaya per alamat ekstra mulai titik ke-3.</p>
@@ -158,11 +161,13 @@
                                     <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="multi_store_km_rate" 
-                                            value="{{ old('multi_store_km_rate', $tariffs['multi_store_km_rate']) }}" 
-                                            class="w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            id="input_multi_store_km_rate"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('multi_store_km_rate', $tariffs['multi_store_km_rate'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                     <p class="text-[10px] text-slate-400">Tarif per KM untuk pergerakan antar merchant.</p>
@@ -176,11 +181,13 @@
                                     <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="multi_store_extra_store_fare" 
-                                            value="{{ old('multi_store_extra_store_fare', $tariffs['multi_store_extra_store_fare']) }}" 
-                                            class="w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            id="input_multi_store_extra_store_fare"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('multi_store_extra_store_fare', $tariffs['multi_store_extra_store_fare'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                     <p class="text-[10px] text-slate-400">Kompensasi belanja & parkir di toko berikutnya.</p>
@@ -220,12 +227,13 @@
                                                 <div class="relative inline-flex items-center rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition w-36">
                                                     <span class="pl-2.5 text-[11px] font-semibold text-slate-400">Rp</span>
                                                     <input 
-                                                        type="number" 
+                                                        type="text" 
+                                                        inputmode="numeric"
                                                         name="category_beli_antar" 
                                                         id="input_category_beli_antar"
-                                                        value="{{ old('category_beli_antar', $tariffs['category_beli_antar']) }}" 
-                                                        class="w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
-                                                        required min="0" step="500"
+                                                        value="{{ number_format((float) str_replace('.', '', (string) old('category_beli_antar', $tariffs['category_beli_antar'])), 0, ',', '.') }}" 
+                                                        class="rupiah-input w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
+                                                        required
                                                     >
                                                 </div>
                                             </td>
@@ -244,12 +252,13 @@
                                                 <div class="relative inline-flex items-center rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition w-36">
                                                     <span class="pl-2.5 text-[11px] font-semibold text-slate-400">Rp</span>
                                                     <input 
-                                                        type="number" 
+                                                        type="text" 
+                                                        inputmode="numeric"
                                                         name="category_ambil_antar" 
                                                         id="input_category_ambil_antar"
-                                                        value="{{ old('category_ambil_antar', $tariffs['category_ambil_antar']) }}" 
-                                                        class="w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
-                                                        required min="0" step="500"
+                                                        value="{{ number_format((float) str_replace('.', '', (string) old('category_ambil_antar', $tariffs['category_ambil_antar'])), 0, ',', '.') }}" 
+                                                        class="rupiah-input w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
+                                                        required
                                                     >
                                                 </div>
                                             </td>
@@ -268,12 +277,13 @@
                                                 <div class="relative inline-flex items-center rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition w-36">
                                                     <span class="pl-2.5 text-[11px] font-semibold text-slate-400">Rp</span>
                                                     <input 
-                                                        type="number" 
+                                                        type="text" 
+                                                        inputmode="numeric"
                                                         name="category_toko_kirim" 
                                                         id="input_category_toko_kirim"
-                                                        value="{{ old('category_toko_kirim', $tariffs['category_toko_kirim']) }}" 
-                                                        class="w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
-                                                        required min="0" step="500"
+                                                        value="{{ number_format((float) str_replace('.', '', (string) old('category_toko_kirim', $tariffs['category_toko_kirim'])), 0, ',', '.') }}" 
+                                                        class="rupiah-input w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
+                                                        required
                                                     >
                                                 </div>
                                             </td>
@@ -292,12 +302,13 @@
                                                 <div class="relative inline-flex items-center rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition w-36">
                                                     <span class="pl-2.5 text-[11px] font-semibold text-slate-400">Rp</span>
                                                     <input 
-                                                        type="number" 
+                                                        type="text" 
+                                                        inputmode="numeric"
                                                         name="category_dokumen" 
                                                         id="input_category_dokumen"
-                                                        value="{{ old('category_dokumen', $tariffs['category_dokumen']) }}" 
-                                                        class="w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
-                                                        required min="0" step="500"
+                                                        value="{{ number_format((float) str_replace('.', '', (string) old('category_dokumen', $tariffs['category_dokumen'])), 0, ',', '.') }}" 
+                                                        class="rupiah-input w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
+                                                        required
                                                     >
                                                 </div>
                                             </td>
@@ -316,12 +327,13 @@
                                                 <div class="relative inline-flex items-center rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition w-36">
                                                     <span class="pl-2.5 text-[11px] font-semibold text-slate-400">Rp</span>
                                                     <input 
-                                                        type="number" 
+                                                        type="text" 
+                                                        inputmode="numeric"
                                                         name="category_multi_stop" 
                                                         id="input_category_multi_stop"
-                                                        value="{{ old('category_multi_stop', $tariffs['category_multi_stop']) }}" 
-                                                        class="w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
-                                                        required min="0" step="500"
+                                                        value="{{ number_format((float) str_replace('.', '', (string) old('category_multi_stop', $tariffs['category_multi_stop'])), 0, ',', '.') }}" 
+                                                        class="rupiah-input w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
+                                                        required
                                                     >
                                                 </div>
                                             </td>
@@ -340,12 +352,13 @@
                                                 <div class="relative inline-flex items-center rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition w-36">
                                                     <span class="pl-2.5 text-[11px] font-semibold text-slate-400">Rp</span>
                                                     <input 
-                                                        type="number" 
+                                                        type="text" 
+                                                        inputmode="numeric"
                                                         name="category_kirim_pihak_ketiga" 
                                                         id="input_category_kirim_pihak_ketiga"
-                                                        value="{{ old('category_kirim_pihak_ketiga', $tariffs['category_kirim_pihak_ketiga']) }}" 
-                                                        class="w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
-                                                        required min="0" step="500"
+                                                        value="{{ number_format((float) str_replace('.', '', (string) old('category_kirim_pihak_ketiga', $tariffs['category_kirim_pihak_ketiga'])), 0, ',', '.') }}" 
+                                                        class="rupiah-input w-full bg-transparent py-1.5 pl-1.5 pr-2.5 text-right text-xs font-semibold text-slate-800 focus:outline-none"
+                                                        required
                                                     >
                                                 </div>
                                             </td>
@@ -375,12 +388,13 @@
                                     <div class="relative rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="weight_ringan" 
                                             id="input_weight_ringan"
-                                            value="{{ old('weight_ringan', $tariffs['weight_ringan']) }}" 
-                                            class="w-full bg-transparent py-2 pl-8 pr-2.5 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('weight_ringan', $tariffs['weight_ringan'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2 pl-8 pr-2.5 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                 </div>
@@ -395,12 +409,13 @@
                                     <div class="relative rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="weight_sedang" 
                                             id="input_weight_sedang"
-                                            value="{{ old('weight_sedang', $tariffs['weight_sedang']) }}" 
-                                            class="w-full bg-transparent py-2 pl-8 pr-2.5 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('weight_sedang', $tariffs['weight_sedang'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2 pl-8 pr-2.5 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                 </div>
@@ -415,12 +430,13 @@
                                     <div class="relative rounded-lg border border-slate-200 bg-white focus-within:border-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="weight_berat" 
                                             id="input_weight_berat"
-                                            value="{{ old('weight_berat', $tariffs['weight_berat']) }}" 
-                                            class="w-full bg-transparent py-2 pl-8 pr-2.5 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="0" step="500"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('weight_berat', $tariffs['weight_berat'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2 pl-8 pr-2.5 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                 </div>
@@ -436,11 +452,11 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <!-- Komisi Platform -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <!-- Komisi Platform (Ongkir Jastiper) -->
                                 <div class="space-y-1.5">
                                     <label class="block text-xs font-semibold text-slate-700">
-                                        Komisi Platform
+                                        Komisi Ongkir Jastiper
                                     </label>
                                     <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
                                         <input 
@@ -453,6 +469,25 @@
                                         <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs font-semibold text-slate-400">%</span>
                                     </div>
                                     <p class="text-[10px] text-slate-400">Potongan dari ongkir pesanan selesai.</p>
+                                </div>
+
+                                <!-- Markup Harga Barang Merchant (Laba Platform) -->
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs font-semibold text-slate-700 flex items-center justify-between">
+                                        <span>Markup Barang Merchant</span>
+                                        <span class="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded">Baru</span>
+                                    </label>
+                                    <div class="relative rounded-xl border border-rose-200 bg-rose-50/20 focus-within:border-rose-500 focus-within:ring-1 focus-within:ring-rose-500 transition">
+                                        <input 
+                                            type="number" 
+                                            name="merchant_markup_percent" 
+                                            value="{{ old('merchant_markup_percent', $tariffs['merchant_markup_percent'] ?? 10) }}" 
+                                            class="w-full bg-transparent py-2.5 pl-3.5 pr-8 text-xs font-bold text-rose-700 focus:outline-none"
+                                            required min="0" max="100" step="0.5"
+                                        >
+                                        <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs font-bold text-rose-500">%</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400">Otomatis ditambah ke harga HPP merchant di aplikasi customer.</p>
                                 </div>
 
                                 <!-- Batas Waktu Pembayaran (Menit) -->
@@ -481,14 +516,88 @@
                                     <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="numeric"
                                             name="min_topup_amount" 
-                                            value="{{ old('min_topup_amount', $tariffs['min_topup_amount']) }}" 
-                                            class="w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
-                                            required min="1000" step="1000"
+                                            id="input_min_topup_amount"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('min_topup_amount', $tariffs['min_topup_amount'])), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
                                         >
                                     </div>
                                     <p class="text-[10px] text-slate-400">Batas minimal isi saldo customer.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 5: Pengaturan Proteksi Asuransi Barang -->
+                        <div class="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs space-y-4">
+                            <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+                                        🛡️
+                                    </span>
+                                    <div>
+                                        <h3 class="font-bold text-xs sm:text-sm text-slate-900 tracking-tight">Proteksi Asuransi Barang & Talangan Kerusakan</h3>
+                                        <p class="text-[11px] text-slate-500 mt-0.5">Opsi proteksi ganti rugi 100% jika makanan/barang rusak atau jatuh di jalan oleh jastiper</p>
+                                    </div>
+                                </div>
+
+                                <!-- Toggle Aktifkan -->
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="insurance_enabled" value="1" {{ !empty($tariffs['insurance_enabled']) ? 'checked' : '' }} class="sr-only peer">
+                                    <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                    <span class="ml-2 text-xs font-bold text-slate-700">Aktif</span>
+                                </label>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <!-- Ambang Batas Nilai Barang -->
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs font-semibold text-slate-700">
+                                        Minimal Nilai Barang (Trigger Opsi Asuransi)
+                                    </label>
+                                    <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
+                                        <input 
+                                            type="text" 
+                                            inputmode="numeric"
+                                            name="insurance_min_order_threshold" 
+                                            id="input_insurance_min_order_threshold"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('insurance_min_order_threshold', $tariffs['insurance_min_order_threshold'] ?? 200000)), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
+                                        >
+                                    </div>
+                                    <p class="text-[10px] text-slate-400">Badge & opsi proteksi akan otomatis muncul jika nilai barang di atas nominal ini (default: Rp 200.000).</p>
+                                </div>
+
+                                <!-- Biaya Premi Proteksi -->
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs font-semibold text-slate-700">
+                                        Biaya Premi Proteksi Asuransi
+                                    </label>
+                                    <div class="relative rounded-xl border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-semibold text-slate-400">Rp</span>
+                                        <input 
+                                            type="text" 
+                                            inputmode="numeric"
+                                            name="insurance_fee" 
+                                            id="input_insurance_fee"
+                                            value="{{ number_format((float) str_replace('.', '', (string) old('insurance_fee', $tariffs['insurance_fee'] ?? 2000)), 0, ',', '.') }}" 
+                                            class="rupiah-input w-full bg-transparent py-2.5 pl-10 pr-3 text-xs font-semibold text-slate-800 focus:outline-none"
+                                            required
+                                        >
+                                    </div>
+                                    <p class="text-[10px] text-slate-400">Nominal premi yang dibayarkan customer saat mencentang proteksi asuransi (default: Rp 2.000).</p>
+                                </div>
+                            </div>
+
+                            <!-- Catatan Bisnis & Mekanisme Talangan -->
+                            <div class="p-3 bg-blue-50/70 rounded-xl border border-blue-100 flex items-start gap-2 text-xs text-blue-900 leading-relaxed">
+                                <span class="text-sm">💡</span>
+                                <div>
+                                    <strong>Mekanisme Talangan Platform:</strong> Jika pesanan yang berasuransi mengalami kerusakan karena kelalaian kurir jastiper, customer dapat langsung di-refund 100% oleh platform menggunakan kas Dana Asuransi. Pengeluaran talangan ini tetap didebitkan ke saldo jastiper (bisa minus hingga lunas dari order berikutnya).
                                 </div>
                             </div>
                         </div>
@@ -610,7 +719,7 @@
     </main>
 </div>
 
-<!-- Script Live Calculator Simulation -->
+<!-- Script Live Calculator Simulation & Auto-Format Nominal Rupiah -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const simDistance = document.getElementById('sim_distance');
@@ -624,28 +733,66 @@
             return 'Rp ' + Number(num).toLocaleString('id-ID');
         }
 
+        function parseNominal(val, defaultVal = 0) {
+            if (val === undefined || val === null || val === '') return defaultVal;
+            const clean = String(val).replace(/\./g, '').replace(/,/g, '');
+            const num = parseFloat(clean);
+            return isNaN(num) ? defaultVal : num;
+        }
+
+        // Auto-format semua input nominal rupiah dengan pemisah titik (.)
+        document.querySelectorAll('.rupiah-input').forEach(input => {
+            input.addEventListener('input', function () {
+                const cursorPosition = this.selectionStart;
+                const originalLength = this.value.length;
+
+                const digits = this.value.replace(/\D/g, '');
+                if (digits === '') {
+                    this.value = '';
+                } else {
+                    this.value = new Intl.NumberFormat('id-ID').format(digits);
+                }
+
+                const newLength = this.value.length;
+                const newCursor = cursorPosition + (newLength - originalLength);
+                if (newCursor >= 0 && typeof this.setSelectionRange === 'function') {
+                    this.setSelectionRange(newCursor, newCursor);
+                }
+            });
+        });
+
+        // Hapus titik sebelum submit agar data bersih sampai ke server
+        const tariffForm = document.getElementById('tariffForm');
+        if (tariffForm) {
+            tariffForm.addEventListener('submit', function () {
+                document.querySelectorAll('.rupiah-input').forEach(input => {
+                    input.value = input.value.replace(/\./g, '');
+                });
+            });
+        }
+
         function calculateLive() {
             const distance = parseFloat(simDistance.value) || 0;
             simDistanceDisplay.textContent = distance.toFixed(1) + ' KM';
 
-            const ratePerKm = parseFloat(document.getElementById('input_rate_per_km').value) || 5000;
-            const minFare = parseFloat(document.getElementById('input_min_fare').value) || 10000;
+            const ratePerKm = parseNominal(document.getElementById('input_rate_per_km')?.value, 5000);
+            const minFare = parseNominal(document.getElementById('input_min_fare')?.value, 10000);
 
             const category = simCategory.value;
             const weight = simWeight.value;
 
             let catAddition = 0;
-            if (category === 'beli-antar') catAddition = parseFloat(document.getElementById('input_category_beli_antar').value) || 5000;
-            else if (category === 'ambil-antar') catAddition = parseFloat(document.getElementById('input_category_ambil_antar').value) || 3000;
-            else if (category === 'toko-kirim') catAddition = parseFloat(document.getElementById('input_category_toko_kirim').value) || 2000;
-            else if (category === 'dokumen') catAddition = parseFloat(document.getElementById('input_category_dokumen').value) || 0;
-            else if (category === 'multi-stop') catAddition = parseFloat(document.getElementById('input_category_multi_stop').value) || 15000;
-            else if (category === 'kirim-pihak-ketiga') catAddition = parseFloat(document.getElementById('input_category_kirim_pihak_ketiga').value) || 7000;
+            if (category === 'beli-antar') catAddition = parseNominal(document.getElementById('input_category_beli_antar')?.value, 5000);
+            else if (category === 'ambil-antar') catAddition = parseNominal(document.getElementById('input_category_ambil_antar')?.value, 3000);
+            else if (category === 'toko-kirim') catAddition = parseNominal(document.getElementById('input_category_toko_kirim')?.value, 2000);
+            else if (category === 'dokumen') catAddition = parseNominal(document.getElementById('input_category_dokumen')?.value, 0);
+            else if (category === 'multi-stop') catAddition = parseNominal(document.getElementById('input_category_multi_stop')?.value, 15000);
+            else if (category === 'kirim-pihak-ketiga') catAddition = parseNominal(document.getElementById('input_category_kirim_pihak_ketiga')?.value, 7000);
 
             let weightAddition = 0;
-            if (weight === 'ringan') weightAddition = parseFloat(document.getElementById('input_weight_ringan').value) || 0;
-            else if (weight === 'sedang') weightAddition = parseFloat(document.getElementById('input_weight_sedang').value) || 10000;
-            else if (weight === 'berat') weightAddition = parseFloat(document.getElementById('input_weight_berat').value) || 25000;
+            if (weight === 'ringan') weightAddition = parseNominal(document.getElementById('input_weight_ringan')?.value, 0);
+            else if (weight === 'sedang') weightAddition = parseNominal(document.getElementById('input_weight_sedang')?.value, 10000);
+            else if (weight === 'berat') weightAddition = parseNominal(document.getElementById('input_weight_berat')?.value, 25000);
 
             const kmCost = distance * ratePerKm;
             let rawTotal = kmCost + catAddition + weightAddition;

@@ -123,60 +123,176 @@
                     >
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label for="estimated_price" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                            Harga Asli / Normal (Rp) <span class="text-rose-500">*</span>
-                        </label>
-                        <div class="relative">
-                            <span class="absolute left-4 top-3 text-xs font-bold text-slate-400">Rp</span>
-                            <input 
-                                type="number" 
-                                name="estimated_price" 
-                                id="estimated_price" 
-                                value="{{ old('estimated_price') }}" 
-                                required 
-                                min="0" 
-                                placeholder="25.000" 
-                                oninput="calcDiscountPreview()"
-                                class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-semibold focus:ring-2 focus:ring-slate-900 focus:outline-none"
-                            >
+                <!-- Pengaturan Metode Harga & HPP (Auto Markup Platform) -->
+                @php
+                    $isAuto = old('pricing_mode', 'hpp') === 'hpp';
+                    $initialHpp = old('hpp_price', '');
+                    $initialDiscountHpp = old('discount_hpp_price', '');
+                @endphp
+
+                <div x-data="{ 
+                    pricingMode: '{{ $isAuto ? 'hpp' : 'manual' }}',
+                    markupPercent: {{ $markupPercent }},
+                    hpp: '{{ $initialHpp }}',
+                    discountHpp: '{{ $initialDiscountHpp }}',
+                    sellingPrice: '{{ old('estimated_price', '') }}',
+                    discountSellingPrice: '{{ old('discount_price', '') }}',
+                    
+                    get calculatedSelling() {
+                        const val = parseFloat(this.hpp) || 0;
+                        return val > 0 ? Math.round(val * (1 + (this.markupPercent / 100))) : 0;
+                    },
+                    get calculatedMarkup() {
+                        const val = parseFloat(this.hpp) || 0;
+                        return val > 0 ? (this.calculatedSelling - val) : 0;
+                    },
+                    get calculatedDiscountSelling() {
+                        const val = parseFloat(this.discountHpp) || 0;
+                        return val > 0 ? Math.round(val * (1 + (this.markupPercent / 100))) : 0;
+                    }
+                }" class="space-y-3.5 bg-slate-50/80 p-4 rounded-3xl border border-slate-200/80">
+                    
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                        <div>
+                            <span class="text-xs font-black text-slate-800 uppercase tracking-wider block">Skema Penetapan Harga Produk</span>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Pilih apakah Anda memasukkan harga modal HPP atau harga jual langsung di platform</p>
                         </div>
-                        <p class="text-[10px] text-slate-400">Harga standar sebelum promo.</p>
+                        
+                        <!-- Toggle Tab Pilihan -->
+                        <div class="inline-flex p-1 bg-white border border-slate-200 rounded-2xl shrink-0 text-xs font-bold">
+                            <button type="button" 
+                                    @click="pricingMode = 'hpp'"
+                                    :class="pricingMode === 'hpp' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                                    class="px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                                <span>🏷️ Masukkan HPP (+{{ $markupPercent }}%)</span>
+                            </button>
+                            <button type="button" 
+                                    @click="pricingMode = 'manual'"
+                                    :class="pricingMode === 'manual' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                                    class="px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                                <span>Harga Manual</span>
+                            </button>
+                        </div>
+                        <input type="hidden" name="pricing_mode" :value="pricingMode">
                     </div>
 
-                    <div class="space-y-1.5">
-                        <label for="discount_price" class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                            <span>Harga Diskon / Promo (Rp)</span>
-                            <span class="text-[10px] text-slate-400 font-normal lowercase">(opsional)</span>
-                        </label>
-                        <div class="relative">
-                            <span class="absolute left-4 top-3 text-xs font-bold text-rose-500">Rp</span>
-                            <input 
-                                type="number" 
-                                name="discount_price" 
-                                id="discount_price" 
-                                value="{{ old('discount_price') }}" 
-                                min="0" 
-                                placeholder="Kosongkan jika tanpa diskon" 
-                                oninput="calcDiscountPreview()"
-                                class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-semibold focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                            >
-                        </div>
-                        <p class="text-[10px] text-slate-400">Jika diisi, harga ini yang dibayar customer dan harga normal akan dicoret.</p>
-                    </div>
-                </div>
+                    <!-- MODE 1: Input Harga Modal Toko (HPP) dengan Auto Markup -->
+                    <div x-show="pricingMode === 'hpp'" class="space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label for="hpp_price" class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                                    <span>Harga Modal / HPP Toko (Rp) <span class="text-rose-500">*</span></span>
+                                    <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.2 rounded-full border border-emerald-200">Hak Bersih Toko</span>
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-3 text-xs font-bold text-slate-400">Rp</span>
+                                    <input 
+                                        type="number" 
+                                        name="hpp_price" 
+                                        id="hpp_price" 
+                                        x-model="hpp"
+                                        min="0" 
+                                        placeholder="Contoh: 20000"
+                                        class="w-full border border-slate-200 bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                                    >
+                                </div>
+                                <p class="text-[10px] text-slate-400">Harga asli modal toko sebelum markup platform.</p>
+                            </div>
 
-                <!-- Preview Diskon Banner -->
-                <div id="discount-preview-card" class="hidden p-3.5 rounded-2xl bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200 text-xs flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded-lg bg-rose-600 text-white font-black text-[11px]" id="preview-percent">-0%</span>
-                        <span class="font-bold text-slate-700" id="preview-text">Potongan Diskon</span>
+                            <div class="space-y-1.5">
+                                <label for="discount_hpp_price" class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                                    <span>Harga Diskon / Promo HPP (Rp)</span>
+                                    <span class="text-[10px] text-slate-400 font-normal lowercase">(opsional)</span>
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-3 text-xs font-bold text-rose-500">Rp</span>
+                                    <input 
+                                        type="number" 
+                                        name="discount_hpp_price" 
+                                        id="discount_hpp_price" 
+                                        x-model="discountHpp"
+                                        min="0" 
+                                        placeholder="Kosongkan jika tanpa diskon" 
+                                        class="w-full border border-slate-200 bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-bold text-rose-600 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                                    >
+                                </div>
+                                <p class="text-[10px] text-slate-400">Jika diisi, harga promo modal toko sebelum markup.</p>
+                            </div>
+                        </div>
+
+                        <!-- Realtime Kalkulator Preview Markup Platform -->
+                        <div class="p-3.5 rounded-2xl bg-white border border-rose-200/90 shadow-2xs space-y-2.5">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-600 font-semibold flex items-center gap-1.5">
+                                    <span>🏪</span> Harga Modal / HPP Anda (Diterima Toko):
+                                </span>
+                                <span class="font-bold text-slate-900 font-mono" x-text="'Rp ' + Number(hpp || 0).toLocaleString('id-ID')"></span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-rose-600 font-bold flex items-center gap-1.5">
+                                    <span>⚡</span> Auto-Markup Margin Platform (+<span x-text="markupPercent"></span>%):
+                                </span>
+                                <span class="font-extrabold text-rose-600 font-mono" x-text="'+Rp ' + Number(calculatedMarkup).toLocaleString('id-ID')"></span>
+                            </div>
+                            <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <div>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Harga Tayang ke Customer di Aplikasi:</span>
+                                    <span class="text-base font-black text-slate-900 font-mono block mt-0.5" x-text="'Rp ' + Number(calculatedSelling).toLocaleString('id-ID')"></span>
+                                </div>
+                                <template x-if="discountHpp > 0 && parseFloat(discountHpp) < parseFloat(hpp)">
+                                    <div class="text-right">
+                                        <span class="text-[9px] font-black text-rose-600 uppercase tracking-wider block">Harga Promo Tayang Customer:</span>
+                                        <span class="text-sm font-black text-rose-600 font-mono block mt-0.5" x-text="'Rp ' + Number(calculatedDiscountSelling).toLocaleString('id-ID')"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <span class="text-[10px] text-slate-400 line-through block" id="preview-original">Rp0</span>
-                        <span class="font-black text-rose-600 text-sm" id="preview-final">Rp0</span>
+
+                    <!-- MODE 2: Input Manual Harga Jual di Platform -->
+                    <div x-show="pricingMode === 'manual'" style="display: none;" class="space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label for="estimated_price" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    Harga Jual Customer di Platform (Rp) <span class="text-rose-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-3 text-xs font-bold text-slate-400">Rp</span>
+                                    <input 
+                                        type="number" 
+                                        name="estimated_price" 
+                                        id="estimated_price" 
+                                        x-model="sellingPrice"
+                                        min="0" 
+                                        placeholder="25.000"
+                                        class="w-full border border-slate-200 bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-semibold focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                                    >
+                                </div>
+                                <p class="text-[10px] text-slate-400">Harga langsung yang dilihat dan dibayar oleh customer.</p>
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label for="discount_price" class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                                    <span>Harga Diskon / Promo Platform (Rp)</span>
+                                    <span class="text-[10px] text-slate-400 font-normal lowercase">(opsional)</span>
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-3 text-xs font-bold text-rose-500">Rp</span>
+                                    <input 
+                                        type="number" 
+                                        name="discount_price" 
+                                        id="discount_price" 
+                                        x-model="discountSellingPrice"
+                                        min="0" 
+                                        placeholder="Kosongkan jika tanpa diskon" 
+                                        class="w-full border border-slate-200 bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-semibold focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                                    >
+                                </div>
+                                <p class="text-[10px] text-slate-400">Harga promo yang dibayar customer di aplikasi.</p>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
             </div>
 

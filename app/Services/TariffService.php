@@ -33,8 +33,14 @@ class TariffService
 
         // Platform & Transaksi
         'platform_commission_percent' => 10,
+        'merchant_markup_percent' => 10,
         'payment_deadline_minutes' => 60,
         'min_topup_amount' => 10000,
+
+        // Proteksi Asuransi Barang
+        'insurance_enabled' => 1,
+        'insurance_min_order_threshold' => 200000,
+        'insurance_fee' => 2000,
     ];
 
     /**
@@ -151,6 +157,11 @@ class TariffService
         ];
     }
 
+    public function getMerchantMarkupPercent(): float
+    {
+        return (float) $this->get('merchant_markup_percent', 10);
+    }
+
     private function resolveGroup(string $key): string
     {
         if (str_starts_with($key, 'category_')) {
@@ -159,7 +170,7 @@ class TariffService
         if (str_starts_with($key, 'weight_')) {
             return 'berat';
         }
-        if (in_array($key, ['platform_commission_percent', 'payment_deadline_minutes', 'min_topup_amount'])) {
+        if (in_array($key, ['platform_commission_percent', 'merchant_markup_percent', 'payment_deadline_minutes', 'min_topup_amount'])) {
             return 'platform';
         }
         return 'tarif';

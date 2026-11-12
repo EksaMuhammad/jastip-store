@@ -55,33 +55,78 @@ class MerchantProductController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('merchant.products.create', compact('merchant', 'categories'));
+        $markupPercent = (float) app(\App\Services\TariffService::class)->get('merchant_markup_percent', 10);
+
+        return view('merchant.products.create', compact('merchant', 'categories', 'markupPercent'));
     }
 
     public function store(Request $request)
     {
         $merchant = Auth::guard('merchant')->user();
+        $markupPercent = (float) app(\App\Services\TariffService::class)->get('merchant_markup_percent', 10);
+
+        foreach (['hpp_price', 'discount_hpp_price', 'estimated_price', 'discount_price'] as $field) {
+            if ($request->filled($field)) {
+                $cleaned = preg_replace('/[^\d]/', '', (string) $request->input($field));
+                $request->merge([$field => $cleaned !== '' ? $cleaned : null]);
+            }
+        }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'category_id' => 'nullable',
             'new_category_name' => 'nullable|string|max:100',
             'description' => 'nullable|string',
-            'estimated_price' => 'required|numeric|min:0',
+            'pricing_mode' => 'nullable|in:hpp,manual',
+            'hpp_price' => 'nullable|numeric|min:0',
+            'discount_hpp_price' => 'nullable|numeric|min:0',
+            'estimated_price' => 'nullable|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:3072',
             'is_available' => 'nullable|boolean',
             'is_flash_sale' => 'nullable|boolean',
-        ], [
-            'estimated_price.required' => 'Harga normal / asli wajib diisi.',
-            'discount_price.numeric' => 'Harga diskon harus berupa angka.',
-            'discount_price.min' => 'Harga diskon minimal 0.',
         ]);
 
-        if (!empty($validated['discount_price']) && (float)$validated['discount_price'] >= (float)$validated['estimated_price']) {
-            return back()->withInput()->withErrors([
-                'discount_price' => 'Harga diskon harus lebih rendah dari harga normal / asli.',
-            ]);
+        $isAutoMarkup = $request->input('pricing_mode', 'hpp') === 'hpp';
+
+        if ($isAutoMarkup) {
+            $hppPrice = (float) ($request->hpp_price ?: $request->estimated_price);
+            if ($hppPrice <= 0) {
+                return back()->withInput()->withErrors(['hpp_price' => 'Harga modal / HPP wajib diisi dan lebih dari 0.']);
+            }
+            $estimatedPrice = (float) round($hppPrice * (1 + ($markupPercent / 100)));
+
+            $discountHpp = $request->filled('discount_hpp_price') ? (float)$request->discount_hpp_price : null;
+            $discountPrice = $discountHpp !== null && $discountHpp > 0 ? (float) round($discountHpp * (1 + ($markupPercent / 100))) : null;
+
+            if ($discountHpp !== null && $discountHpp >= $hppPrice) {
+                return back()->withInput()->withErrors(['discount_hpp_price' => 'Harga diskon HPP harus lebih rendah dari harga HPP modal.']);
+            }
+
+            $validated['hpp_price'] = $hppPrice;
+            $validated['discount_hpp_price'] = $discountHpp;
+            $validated['is_auto_markup'] = true;
+            $validated['estimated_price'] = $estimatedPrice;
+            $validated['discount_price'] = $discountPrice;
+        } else {
+            $estimatedPrice = (float) ($request->estimated_price ?: $request->hpp_price);
+            if ($estimatedPrice <= 0) {
+                return back()->withInput()->withErrors(['estimated_price' => 'Harga jual di platform wajib diisi.']);
+            }
+            $hppPrice = $request->filled('hpp_price') ? (float)$request->hpp_price : $estimatedPrice;
+
+            $discountPrice = $request->filled('discount_price') ? (float)$request->discount_price : null;
+            $discountHpp = $request->filled('discount_hpp_price') ? (float)$request->discount_hpp_price : ($discountPrice ? (float) round($discountPrice / (1 + ($markupPercent / 100))) : null);
+
+            if ($discountPrice !== null && $discountPrice >= $estimatedPrice) {
+                return back()->withInput()->withErrors(['discount_price' => 'Harga diskon harus lebih rendah dari harga normal.']);
+            }
+
+            $validated['hpp_price'] = $hppPrice;
+            $validated['discount_hpp_price'] = $discountHpp;
+            $validated['is_auto_markup'] = false;
+            $validated['estimated_price'] = $estimatedPrice;
+            $validated['discount_price'] = $discountPrice;
         }
 
         // Handle on-the-fly category creation by merchant
@@ -97,7 +142,6 @@ class MerchantProductController extends Controller
             $validated['category_id'] = null;
         }
 
-        $validated['discount_price'] = !empty($validated['discount_price']) ? $validated['discount_price'] : null;
         $validated['merchant_id'] = $merchant->id;
         $validated['is_available'] = $request->has('is_available');
         $validated['is_flash_sale'] = $request->has('is_flash_sale');
@@ -127,7 +171,9 @@ class MerchantProductController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('merchant.products.edit', compact('merchant', 'product', 'categories'));
+        $markupPercent = (float) app(\App\Services\TariffService::class)->get('merchant_markup_percent', 10);
+
+        return view('merchant.products.edit', compact('merchant', 'product', 'categories', 'markupPercent'));
     }
 
     public function update(Request $request, Product $product)
@@ -138,25 +184,70 @@ class MerchantProductController extends Controller
             abort(403, 'Akses tidak sah ke produk ini.');
         }
 
+        $markupPercent = (float) app(\App\Services\TariffService::class)->get('merchant_markup_percent', 10);
+
+        foreach (['hpp_price', 'discount_hpp_price', 'estimated_price', 'discount_price'] as $field) {
+            if ($request->filled($field)) {
+                $cleaned = preg_replace('/[^\d]/', '', (string) $request->input($field));
+                $request->merge([$field => $cleaned !== '' ? $cleaned : null]);
+            }
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'category_id' => 'nullable',
             'new_category_name' => 'nullable|string|max:100',
             'description' => 'nullable|string',
-            
-            'estimated_price' => 'required|numeric|min:0',
+            'pricing_mode' => 'nullable|in:hpp,manual',
+            'hpp_price' => 'nullable|numeric|min:0',
+            'discount_hpp_price' => 'nullable|numeric|min:0',
+            'estimated_price' => 'nullable|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:3072',
-        ], [
-            'estimated_price.required' => 'Harga normal / asli wajib diisi.',
-            'discount_price.numeric' => 'Harga diskon harus berupa angka.',
-            'discount_price.min' => 'Harga diskon minimal 0.',
+            'is_available' => 'nullable|boolean',
+            'is_flash_sale' => 'nullable|boolean',
         ]);
 
-        if (!empty($validated['discount_price']) && (float)$validated['discount_price'] >= (float)$validated['estimated_price']) {
-            return back()->withInput()->withErrors([
-                'discount_price' => 'Harga diskon harus lebih rendah dari harga normal / asli.',
-            ]);
+        $isAutoMarkup = $request->input('pricing_mode', 'hpp') === 'hpp';
+
+        if ($isAutoMarkup) {
+            $hppPrice = (float) ($request->hpp_price ?: $request->estimated_price);
+            if ($hppPrice <= 0) {
+                return back()->withInput()->withErrors(['hpp_price' => 'Harga modal / HPP wajib diisi dan lebih dari 0.']);
+            }
+            $estimatedPrice = (float) round($hppPrice * (1 + ($markupPercent / 100)));
+
+            $discountHpp = $request->filled('discount_hpp_price') ? (float)$request->discount_hpp_price : null;
+            $discountPrice = $discountHpp !== null && $discountHpp > 0 ? (float) round($discountHpp * (1 + ($markupPercent / 100))) : null;
+
+            if ($discountHpp !== null && $discountHpp >= $hppPrice) {
+                return back()->withInput()->withErrors(['discount_hpp_price' => 'Harga diskon HPP harus lebih rendah dari harga HPP modal.']);
+            }
+
+            $validated['hpp_price'] = $hppPrice;
+            $validated['discount_hpp_price'] = $discountHpp;
+            $validated['is_auto_markup'] = true;
+            $validated['estimated_price'] = $estimatedPrice;
+            $validated['discount_price'] = $discountPrice;
+        } else {
+            $estimatedPrice = (float) ($request->estimated_price ?: $request->hpp_price);
+            if ($estimatedPrice <= 0) {
+                return back()->withInput()->withErrors(['estimated_price' => 'Harga jual di platform wajib diisi.']);
+            }
+            $hppPrice = $request->filled('hpp_price') ? (float)$request->hpp_price : $estimatedPrice;
+
+            $discountPrice = $request->filled('discount_price') ? (float)$request->discount_price : null;
+            $discountHpp = $request->filled('discount_hpp_price') ? (float)$request->discount_hpp_price : ($discountPrice ? (float) round($discountPrice / (1 + ($markupPercent / 100))) : null);
+
+            if ($discountPrice !== null && $discountPrice >= $estimatedPrice) {
+                return back()->withInput()->withErrors(['discount_price' => 'Harga diskon harus lebih rendah dari harga normal.']);
+            }
+
+            $validated['hpp_price'] = $hppPrice;
+            $validated['discount_hpp_price'] = $discountHpp;
+            $validated['is_auto_markup'] = false;
+            $validated['estimated_price'] = $estimatedPrice;
+            $validated['discount_price'] = $discountPrice;
         }
 
         // Handle on-the-fly category creation by merchant
@@ -172,7 +263,6 @@ class MerchantProductController extends Controller
             $validated['category_id'] = null;
         }
 
-        $validated['discount_price'] = !empty($validated['discount_price']) ? $validated['discount_price'] : null;
         $validated['is_available'] = $request->has('is_available');
         $validated['is_flash_sale'] = $request->has('is_flash_sale');
 

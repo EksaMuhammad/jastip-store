@@ -145,4 +145,42 @@ class AdminTariffSettingTest extends TestCase
 
         $this->assertEquals('5000', Setting::get('rate_per_km'));
     }
+
+    public function test_admin_can_update_tariffs_with_formatted_dots()
+    {
+        $this->actingAs($this->admin, 'admin');
+
+        $response = $this->post(route('admin.settings.tariffs.update'), [
+            'rate_per_km' => '8.500',
+            'min_fare' => '12.000',
+            'extra_stop_fare' => '7.000',
+            'base_included_km' => 2.0,
+            'multi_store_km_rate' => '3.500',
+            'multi_store_extra_store_fare' => '6.000',
+
+            'category_beli_antar' => '6.500',
+            'category_ambil_antar' => '3.500',
+            'category_toko_kirim' => '2.500',
+            'category_dokumen' => '1.000',
+            'category_multi_stop' => '17.500',
+            'category_kirim_pihak_ketiga' => '8.500',
+
+            'weight_ringan' => '0',
+            'weight_sedang' => '15.000',
+            'weight_berat' => '35.000',
+
+            'platform_commission_percent' => 12.5,
+            'payment_deadline_minutes' => 60,
+            'min_topup_amount' => '25.000',
+        ]);
+
+        $response->assertRedirect(route('admin.settings.tariffs'))
+            ->assertSessionHas('success');
+
+        $this->assertEquals('8500', Setting::get('rate_per_km'));
+        $this->assertEquals('12000', Setting::get('min_fare'));
+        $this->assertEquals('17500', Setting::get('category_multi_stop'));
+        $this->assertEquals('35000', Setting::get('weight_berat'));
+        $this->assertEquals('25000', Setting::get('min_topup_amount'));
+    }
 }

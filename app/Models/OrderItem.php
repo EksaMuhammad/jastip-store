@@ -11,6 +11,8 @@ class OrderItem extends Model
         'product_id',
         'name',
         'quantity',
+        'hpp_price',
+        'markup_amount',
         'estimated_price',
         'actual_price',
         'notes',
@@ -47,5 +49,35 @@ class OrderItem extends Model
     public function getMerchantNameAttribute(): ?string
     {
         return $this->product?->merchant?->name ?? null;
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if ($this->product && $this->product->image_url) {
+            return $this->product->image_url;
+        }
+
+        $img = $this->product?->image;
+        if (empty($img) && $this->order && $this->order->reference_photo) {
+            $img = $this->order->reference_photo;
+        }
+
+        if (empty($img)) {
+            return null;
+        }
+
+        if (str_starts_with($img, 'http://') || str_starts_with($img, 'https://') || str_starts_with($img, 'data:')) {
+            return $img;
+        }
+
+        if (str_starts_with($img, '/storage/')) {
+            return asset(ltrim($img, '/'));
+        }
+
+        if (str_starts_with($img, 'storage/')) {
+            return asset($img);
+        }
+
+        return asset('storage/' . ltrim($img, '/'));
     }
 }

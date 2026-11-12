@@ -45,6 +45,7 @@ class KomisiService
             $percentage = (float) config('jastip.komisi.percentage');
             $commissionAmount = round($grossAmount * $percentage / 100, 2);
             $netAmount = round($grossAmount - $commissionAmount, 2);
+            $itemMarkupProfit = (float) ($order->merchant_markup_profit ?? 0);
 
             $komisi = Komisi::create([
                 'order_id' => $order->id,
@@ -52,6 +53,7 @@ class KomisiService
                 'commission_percentage' => $percentage,
                 'commission_amount' => $commissionAmount,
                 'net_amount' => $netAmount,
+                'item_markup_amount' => $itemMarkupProfit,
             ]);
 
             $jastiper = $order->jastiper;
@@ -91,15 +93,17 @@ class KomisiService
                     );
                 }
 
-                // 3. Cairkan talangan belanja (DP barang) bila customer membayar DP barang di muka
-                $itemDp = max(0, round((float) ($order->downpayment_amount ?? 0) - $grossAmount, 2));
+                // 3. Cairkan talangan belanja (HPP barang toko) bila customer membayar DP barang di muka
+                // Jastiper diganti sebesar modal HPP yang dibayarkan ke kasir toko (tanpa markup margin platform)
+                $rawItemDp = max(0, round((float) ($order->downpayment_amount ?? 0) - $grossAmount, 2));
+                $itemDp = max(0, round($rawItemDp - $itemMarkupProfit, 2));
                 if ($itemDp > 0) {
                     $this->walletService->credit(
                         $wallet,
                         $itemDp,
                         'item_reimbursement',
                         $order->id,
-                        "Penggantian talangan belanja (DP barang) order #{$order->id}"
+                        "Penggantian talangan belanja (HPP barang toko) order #{$order->id}"
                     );
                 }
             }

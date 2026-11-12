@@ -17,6 +17,7 @@ class Komisi extends Model
         'commission_percentage',
         'commission_amount',
         'net_amount',
+        'item_markup_amount',
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ class Komisi extends Model
         'commission_percentage' => 'decimal:2',
         'commission_amount' => 'decimal:2',
         'net_amount' => 'decimal:2',
+        'item_markup_amount' => 'decimal:2',
     ];
 
     public function order()

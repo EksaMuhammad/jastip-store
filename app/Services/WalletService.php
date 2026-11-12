@@ -71,6 +71,34 @@ class WalletService
     }
 
     /**
+     * Kurangi saldo wallet dengan opsi mengizinkan saldo minus (debt/talangan kerugian).
+     * Digunakan ketika platform menalangi ganti rugi pesanan rusak/hilang (Dana Asuransi)
+     * dan membebankan pertanggungjawaban ke dompet mitra Jastiper walaupun saldonya belum mencukupi.
+     */
+    public function forceDebit(Wallet $wallet, float $amount, string $source, ?int $referenceOrderId = null, ?string $description = null, bool $allowNegative = true): void
+    {
+        DB::transaction(function () use ($wallet, $amount, $source, $referenceOrderId, $description, $allowNegative) {
+            $lockedWallet = Wallet::where('id', $wallet->id)->lockForUpdate()->first();
+            $balance = (float) $lockedWallet->balance;
+
+            if (!$allowNegative && $balance < $amount) {
+                throw InsufficientBalanceException::forWallet($balance, $amount);
+            }
+
+            $lockedWallet->decrement('balance', $amount);
+
+            WalletTransaction::create([
+                'wallet_id' => $lockedWallet->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'source' => $source,
+                'reference_order_id' => $referenceOrderId,
+                'description' => $description,
+            ]);
+        });
+    }
+
+    /**
      * Inisiasi Topup saldo: Customer mengajukan top up dan langsung mendapatkan
      * tiket pembayaran Midtrans (status: menunggu_pembayaran) berupa QRIS / VA / Snap Token
      * secara instan tanpa perlu menunggu approval manual admin.
@@ -123,6 +151,15 @@ class WalletService
         } catch (\Throwable $e) {
             Log::warning('[SNAP TOKEN TOPUP ERROR] ' . $e->getMessage());
         }
+
+        $ownerName = $wallet->owner?->name ?? 'Pengguna';
+        \App\Services\ActivityLogger::logTopup(
+            $topup,
+            'topup_menunggu',
+            'Pengajuan Top-Up Saldo (Rp ' . number_format($amount, 0, ',', '.') . ')',
+            "Pengguna {$ownerName} membuat tiket pembayaran top-up saldo sebesar Rp " . number_format($amount, 0, ',', '.') . " via " . strtoupper(str_replace('_', ' ', $channel)) . " (Ref: {$topup->gateway_reference}).",
+            $wallet->owner
+        );
 
         return $topup->fresh();
     }
@@ -232,6 +269,15 @@ class WalletService
             ]),
         ]);
 
+        $ownerName = $wallet?->owner?->name ?? 'Pengguna';
+        \App\Services\ActivityLogger::logTopup(
+            $topup,
+            'topup_berhasil',
+            'Top-Up Saldo Berhasil (+Rp ' . number_format($topup->amount, 0, ',', '.') . ')',
+            "Pengguna {$ownerName} berhasil melakukan top-up saldo sebesar Rp " . number_format($topup->amount, 0, ',', '.') . " via " . strtoupper(str_replace('_', ' ', $resolvedChannel)) . " (Ref: {$topup->gateway_reference}). Saldo telah dikreditkan ke e-wallet.",
+            $wallet?->owner
+        );
+
         return $topup->fresh();
     }
 
@@ -246,6 +292,15 @@ class WalletService
             'approved_by_admin_id' => $admin->id,
             'rejection_note' => $reason ?: 'Pengajuan top-up ditolak oleh admin.',
         ]);
+
+        $ownerName = $topup->wallet?->owner?->name ?? 'Pengguna';
+        \App\Services\ActivityLogger::logTopup(
+            $topup,
+            'topup_ditolak',
+            'Pengajuan Top-Up Ditolak Admin',
+            "Admin {$admin->name} menolak pengajuan tiket top-up pengguna {$ownerName} sebesar Rp " . number_format($topup->amount, 0, ',', '.') . " (Ref: {$topup->gateway_reference}). Alasan: \"{$topup->rejection_note}\".",
+            $admin
+        );
 
         return $topup->fresh();
     }
@@ -301,12 +356,30 @@ class WalletService
 
                 $wallet = $topup->wallet()->lockForUpdate()->first();
                 $this->credit($wallet, (float) $topup->amount, 'topup', null, "Topup via Midtrans ({$topup->gateway_reference})");
+
+                $ownerName = $wallet?->owner?->name ?? 'Pengguna';
+                \App\Services\ActivityLogger::logTopup(
+                    $topup,
+                    'topup_berhasil',
+                    'Top-Up Saldo Berhasil via Webhook (+Rp ' . number_format($topup->amount, 0, ',', '.') . ')',
+                    "Notifikasi Midtrans webhook mengonfirmasi top-up saldo pengguna {$ownerName} sebesar Rp " . number_format($topup->amount, 0, ',', '.') . " via {$resolvedChannel} (Ref: {$topup->gateway_reference}) telah lunas.",
+                    $wallet?->owner
+                );
             });
         } elseif (in_array($status, ['expire', 'cancel', 'deny', 'failure'], true)) {
             $topup->update([
                 'status' => 'gagal',
                 'raw_webhook_payload' => $payload,
             ]);
+
+            $ownerName = $topup->wallet?->owner?->name ?? 'Pengguna';
+            \App\Services\ActivityLogger::logTopup(
+                $topup,
+                'topup_gagal',
+                'Top-Up Saldo Gagal via Midtrans',
+                "Transaksi top-up pengguna {$ownerName} sebesar Rp " . number_format($topup->amount, 0, ',', '.') . " (Ref: {$topup->gateway_reference}) berstatus {$status}.",
+                $topup->wallet?->owner
+            );
         } else {
             $topup->update(['raw_webhook_payload' => $payload]);
         }
@@ -356,6 +429,15 @@ class WalletService
                 $wallet = $topup->wallet()->lockForUpdate()->first();
                 $this->credit($wallet, (float) $topup->amount, 'topup', null, "Topup manual disetujui admin ({$topup->gateway_reference})");
 
+                $ownerName = $wallet?->owner?->name ?? 'Pengguna';
+                \App\Services\ActivityLogger::logTopup(
+                    $topup,
+                    'topup_disetujui_admin',
+                    'Top-Up Manual Disetujui Admin (+Rp ' . number_format($topup->amount, 0, ',', '.') . ')',
+                    "Admin {$admin->name} menyetujui verifikasi transfer manual top-up pengguna {$ownerName} sebesar Rp " . number_format($topup->amount, 0, ',', '.') . " (Ref: {$topup->gateway_reference}). Saldo telah dikreditkan.",
+                    $admin
+                );
+
                 return $topup->fresh();
             });
         }
@@ -365,6 +447,15 @@ class WalletService
             'verified_at' => now(),
             'verified_by_admin_id' => $admin->id,
         ]);
+
+        $ownerName = $topup->wallet?->owner?->name ?? 'Pengguna';
+        \App\Services\ActivityLogger::logTopup(
+            $topup,
+            'topup_ditolak_admin',
+            'Bukti Transfer Top-Up Ditolak Admin',
+            "Admin {$admin->name} menolak verifikasi bukti transfer manual top-up pengguna {$ownerName} (Ref: {$topup->gateway_reference}).",
+            $admin
+        );
 
         return $topup->fresh();
     }

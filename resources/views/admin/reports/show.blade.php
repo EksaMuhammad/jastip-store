@@ -160,9 +160,36 @@
                                 <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
                                 <span>Rincian Pesanan Terkait (#{{ $order->id }})</span>
                             </h3>
-                            <span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase {{ $order->status === 'bermasalah' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800' }}">
-                                Status: {{ str_replace('_', ' ', $order->status) }}
-                            </span>
+                            <div class="flex items-center gap-2">
+                                @if($order->has_insurance)
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                                        🛡️ Proteksi Asuransi (Rp {{ number_format($order->insurance_fee, 0, ',', '.') }})
+                                    </span>
+                                @endif
+                                <span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase {{ $order->status === 'bermasalah' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800' }}">
+                                    Status: {{ str_replace('_', ' ', $order->status) }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Banner Status Proteksi Asuransi -->
+                        <div class="p-3 rounded-xl border {{ $order->has_insurance ? 'bg-amber-50/70 border-amber-200' : 'bg-slate-50 border-slate-200' }} flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg">{{ $order->has_insurance ? '🛡️' : '⚪' }}</span>
+                                <div class="text-[11px]">
+                                    <span class="font-bold {{ $order->has_insurance ? 'text-amber-900' : 'text-slate-700' }}">
+                                        {{ $order->has_insurance ? 'Pesanan Memiliki Proteksi Asuransi Barang' : 'Pesanan Tanpa Premi Asuransi' }}
+                                    </span>
+                                    <span class="text-slate-500 block text-[10px]">
+                                        {{ $order->has_insurance ? 'Customer berhak atas talangan ganti rugi kas asuransi jika insiden akibat jastiper.' : 'Tidak ada premi masuk untuk pesanan ini.' }}
+                                    </span>
+                                </div>
+                            </div>
+                            @if($report->is_insurance_claim || $order->insurance_claimed)
+                                <span class="px-2 py-1 rounded-md bg-rose-100 text-rose-800 text-[10px] font-extrabold border border-rose-200">
+                                    Talangan Dicairkan: Rp {{ number_format($report->insurance_payout ?: $order->insurance_claim_amount, 0, ',', '.') }}
+                                </span>
+                            @endif
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -339,6 +366,18 @@
                                         </p>
                                     </div>
                                 @endif
+
+                                @if($report->is_insurance_claim)
+                                    <div class="mt-2 p-3 bg-amber-50/90 rounded-xl border border-amber-200 space-y-1">
+                                        <div class="flex items-center justify-between text-[11px] font-bold text-amber-900">
+                                            <span class="flex items-center gap-1">🛡️ Skema Talangan Dana Asuransi</span>
+                                            <span class="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-md text-[9px] uppercase tracking-wider font-extrabold">Ditalangi Platform</span>
+                                        </div>
+                                        <p class="text-[10px] text-amber-800 leading-relaxed">
+                                            Dana pengembalian sebesar <strong>Rp {{ number_format($report->insurance_payout, 0, ',', '.') }}</strong> ditalangi 100% oleh platform ke customer. Beban ganti rugi sebesar <strong>Rp {{ number_format($report->jastiper_charged_amount, 0, ',', '.') }}</strong> dibebankan sebagai piutang minus ke saldo jastiper.
+                                        </p>
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     @else
@@ -378,10 +417,15 @@
                                 <!-- Input Partial Refund Amount -->
                                 <div x-show="action === 'refund_partial'" x-cloak class="pl-7 pr-1 pt-1 space-y-1">
                                     <label class="block text-[10px] font-bold text-slate-700">Nominal Refund ke Customer (Rp):</label>
-                                    <input type="number" name="refund_amount" x-model="partialAmount" min="1" max="{{ $totalPaid }}" step="1000"
-                                           class="w-full text-xs rounded-xl px-3 py-2 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-mono font-bold"
-                                           placeholder="Contoh: 25.000">
-                                    <span x-show="partialAmount > 0" class="text-[10px] font-bold text-amber-700 block mt-1" x-text="'Nominal Terpilih: Rp ' + Number(partialAmount || 0).toLocaleString('id-ID')"></span>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                                        <input type="text" inputmode="numeric" name="refund_amount" 
+                                               :value="formatThousand(partialAmount)"
+                                               @input="partialAmount = $event.target.value.replace(/\D/g, ''); $event.target.value = formatThousand(partialAmount)"
+                                               class="w-full text-xs rounded-xl pl-9 pr-3 py-2 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-mono font-bold"
+                                               placeholder="Contoh: 25.000">
+                                    </div>
+                                    <span x-show="Number(partialAmount) > 0" class="text-[10px] font-bold text-amber-700 block mt-1" x-text="'Nominal Terpilih: Rp ' + formatThousand(partialAmount)"></span>
                                     <span class="text-[10px] text-slate-400 block">Maksimal: Rp {{ number_format($totalPaid, 0, ',', '.') }}</span>
                                 </div>
 
@@ -417,6 +461,23 @@
                                           class="w-full text-xs rounded-2xl border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 leading-relaxed"></textarea>
                             </div>
 
+                            <!-- Opsi Talangan Dana Asuransi Platform -->
+                            <div class="p-3.5 rounded-2xl border border-dashed {{ $order->has_insurance ? 'bg-amber-50/70 border-amber-300' : 'bg-slate-50 border-slate-300' }} space-y-1.5" x-show="action !== 'reject_complaint'">
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" name="use_insurance" value="1" {{ $order->has_insurance ? 'checked' : '' }}
+                                           class="mt-0.5 w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+                                    <div>
+                                        <span class="text-xs font-black text-slate-900 block">
+                                            🛡️ Eksekusi sebagai Klaim Dana Asuransi Platform (Talangi Customer Dulu)
+                                        </span>
+                                        <span class="text-[10px] text-slate-600 block leading-snug mt-1">
+                                            • <strong>Dicentang:</strong> Platform langsung menalangi ganti rugi 100% dari Kas Asuransi ke customer hari ini juga, dan beban ganti rugi dicatat ke saldo jastiper (saldo diperbolehkan minus jika tidak mencukupi).<br>
+                                            • <strong>Tidak Dicentang:</strong> Refund reguler sengketa (mengembalikan dana pesanan yang tertahan di sistem ke customer tanpa klaim kas pool asuransi).
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+
                             <!-- Submit Button -->
                             <button type="submit"
                                     onclick="return confirm('Apakah Anda yakin ingin mengeksekusi keputusan ini? Saldo dan status pesanan akan diproses secara permanen.')"
@@ -440,8 +501,28 @@
         return {
             totalPaid: config.totalPaid || 0,
             action: 'refund_full',
-            partialAmount: Math.round(config.totalPaid / 2),
+            partialAmount: String(Math.round(config.totalPaid / 2)),
+            formatThousand(val) {
+                if (!val && val !== 0) return '';
+                let num = val.toString().replace(/\D/g, '');
+                return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            }
         };
     }
+
+    @if($report->status === 'menunggu')
+    // Auto-refresh tiket komplain jika sudah selesai diputuskan
+    let adminReportPoll = setInterval(() => {
+        fetch("{{ route('admin.reports.status', $report->id) }}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.is_resolved) {
+                    clearInterval(adminReportPoll);
+                    window.location.reload();
+                }
+            })
+            .catch(err => console.error(err));
+    }, 5000);
+    @endif
 </script>
 @endsection

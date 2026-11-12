@@ -20,6 +20,11 @@ class Report extends Model
         'evidence_image',
         'refund_amount',
         'status',
+        'cs_claim_status',
+        'is_insurance_claim',
+        'insurance_payout',
+        'jastiper_charged_amount',
+        'assigned_cs_id',
         'resolution_type',
         'admin_decision',
         'investigation_notes',
@@ -28,6 +33,9 @@ class Report extends Model
     ];
 
     protected $casts = [
+        'is_insurance_claim' => 'boolean',
+        'insurance_payout' => 'decimal:2',
+        'jastiper_charged_amount' => 'decimal:2',
         'refund_amount' => 'decimal:2',
         'decided_at' => 'datetime',
     ];
@@ -45,5 +53,10 @@ class Report extends Model
     public function decider()
     {
         return $this->belongsTo(Admin::class, 'decided_by');
+    }
+
+    public function assignedCs()
+    {
+        return $this->belongsTo(CustomerService::class, 'assigned_cs_id');
     }
 }

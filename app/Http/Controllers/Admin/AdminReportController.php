@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Report;
 use App\Services\ChatService;
+use App\Services\InsuranceService;
 use App\Services\OrderCompletionService;
 use App\Services\WalletService;
 use App\Services\WhatsAppService;
@@ -18,7 +19,8 @@ class AdminReportController extends Controller
     public function __construct(
         private WalletService $walletService,
         private OrderCompletionService $completionService,
-        private ChatService $chatService
+        private ChatService $chatService,
+        private InsuranceService $insuranceService
     ) {}
 
     /**
@@ -95,6 +97,19 @@ class AdminReportController extends Controller
     }
 
     /**
+     * Endpoint polling status pengaduan untuk refresh otomatis
+     */
+    public function status(Request $request, $id)
+    {
+        $report = Report::findOrFail($id);
+        return response()->json([
+            'id' => $report->id,
+            'status' => $report->status,
+            'is_resolved' => $report->status === 'selesai',
+        ]);
+    }
+
+    /**
      * Eksekusi keputusan resolusi komplain / sengketa oleh Admin.
      */
     public function resolve(Request $request, $id)
@@ -110,6 +125,11 @@ class AdminReportController extends Controller
         if ($report->status === 'selesai') {
             return redirect()->route('admin.reports.show', $report->id)
                 ->with('error', 'Pengaduan ini sudah diselesaikan sebelumnya.');
+        }
+
+        if ($request->has('refund_amount')) {
+            $cleaned = preg_replace('/[^\d]/', '', (string) $request->refund_amount);
+            $request->merge(['refund_amount' => $cleaned !== '' ? $cleaned : null]);
         }
 
         $request->validate([
@@ -133,20 +153,30 @@ class AdminReportController extends Controller
 
             $action = $request->action;
             $refundAmount = 0;
+            $isInsuranceClaim = $request->boolean('use_insurance') && in_array($action, ['refund_full', 'refund_partial']);
 
             if ($action === 'refund_full') {
                 $refundAmount = $totalPaid;
 
-                // Kreditkan dana penuh ke dompet customer
-                $customerWallet = $lockedOrder->customer->wallet;
-                if ($customerWallet && $refundAmount > 0) {
-                    $this->walletService->credit(
-                        $customerWallet,
+                if ($isInsuranceClaim && $refundAmount > 0) {
+                    $this->insuranceService->claimInsurance(
+                        $lockedReport,
                         $refundAmount,
-                        'refund_dispute',
-                        $lockedOrder->id,
-                        "Pengembalian dana 100% komplain #REP-{$lockedReport->id} (Pesanan #{$lockedOrder->id})"
+                        $refundAmount,
+                        $request->admin_decision
                     );
+                } else {
+                    // Kreditkan dana penuh ke dompet customer
+                    $customerWallet = $lockedOrder->customer->wallet;
+                    if ($customerWallet && $refundAmount > 0) {
+                        $this->walletService->credit(
+                            $customerWallet,
+                            $refundAmount,
+                            'refund_dispute',
+                            $lockedOrder->id,
+                            "Pengembalian dana 100% komplain #REP-{$lockedReport->id} (Pesanan #{$lockedOrder->id})"
+                        );
+                    }
                 }
 
                 // Tandai order dibatalkan karena komplain disetujui penuh
@@ -158,9 +188,10 @@ class AdminReportController extends Controller
                 ]);
 
                 // Notifikasi sistem
+                $claimTag = $isInsuranceClaim ? " (Klaim Proteksi Asuransi Ditalangi Platform)" : "";
                 $this->chatService->sendSystemMessage(
                     $lockedOrder,
-                    "⚖️ PUTUSAN ADMIN: Pengaduan #REP-{$lockedReport->id} DITERIMA. Dana sebesar Rp " . number_format($refundAmount, 0, ',', '.') . " telah dikembalikan 100% ke Saldo Dompet Customer. Pesanan ditutup."
+                    "⚖️ PUTUSAN ADMIN: Pengaduan #REP-{$lockedReport->id} DITERIMA{$claimTag}. Dana sebesar Rp " . number_format($refundAmount, 0, ',', '.') . " telah dikembalikan 100% ke Saldo Dompet Customer. Pesanan ditutup."
                 );
 
                 if ($lockedOrder->customer?->phone_number) {
@@ -173,24 +204,34 @@ class AdminReportController extends Controller
             } elseif ($action === 'refund_partial') {
                 $refundAmount = min((float) $request->refund_amount, $totalPaid);
 
-                // Kreditkan refund sebagian ke dompet customer
-                $customerWallet = $lockedOrder->customer->wallet;
-                if ($customerWallet && $refundAmount > 0) {
-                    $this->walletService->credit(
-                        $customerWallet,
+                if ($isInsuranceClaim && $refundAmount > 0) {
+                    $this->insuranceService->claimInsurance(
+                        $lockedReport,
                         $refundAmount,
-                        'refund_dispute',
-                        $lockedOrder->id,
-                        "Pengembalian dana sebagian komplain #REP-{$lockedReport->id} (Pesanan #{$lockedOrder->id})"
+                        $refundAmount,
+                        $request->admin_decision
                     );
+                } else {
+                    // Kreditkan refund sebagian ke dompet customer
+                    $customerWallet = $lockedOrder->customer->wallet;
+                    if ($customerWallet && $refundAmount > 0) {
+                        $this->walletService->credit(
+                            $customerWallet,
+                            $refundAmount,
+                            'refund_dispute',
+                            $lockedOrder->id,
+                            "Pengembalian dana sebagian komplain #REP-{$lockedReport->id} (Pesanan #{$lockedOrder->id})"
+                        );
+                    }
                 }
 
                 // Selesaikan pesanan & teruskan hak jastiper
                 $this->completionService->completeOrder($lockedOrder, 'admin');
 
+                $claimTag = $isInsuranceClaim ? " (Talangan Kas Asuransi Platform)" : "";
                 $this->chatService->sendSystemMessage(
                     $lockedOrder,
-                    "⚖️ PUTUSAN ADMIN: Pengaduan diselesaikan dengan Refund Sebagian sebesar Rp " . number_format($refundAmount, 0, ',', '.') . " ke Dompet Customer. Sisa hak bayar diteruskan kepada Jastiper dan pesanan diselesaikan."
+                    "⚖️ PUTUSAN ADMIN: Pengaduan diselesaikan dengan Refund Sebagian{$claimTag} sebesar Rp " . number_format($refundAmount, 0, ',', '.') . " ke Dompet Customer. Sisa hak bayar diteruskan kepada Jastiper dan pesanan diselesaikan."
                 );
 
             } elseif ($action === 'reject_complaint') {
@@ -212,6 +253,9 @@ class AdminReportController extends Controller
                 'refund_amount' => $refundAmount,
                 'admin_decision' => $request->admin_decision,
                 'investigation_notes' => $request->investigation_notes,
+                'is_insurance_claim' => $isInsuranceClaim,
+                'insurance_payout' => $isInsuranceClaim ? $refundAmount : 0,
+                'jastiper_charged_amount' => $isInsuranceClaim ? $refundAmount : 0,
                 'decided_by' => $admin->id,
                 'decided_at' => now(),
             ]);

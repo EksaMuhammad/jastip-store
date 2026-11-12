@@ -83,7 +83,7 @@
         </div>
 
         @if($pendingReport)
-            <!-- Active Investigation Callout -->
+            <!-- Active Investigation Callout with Auto-Refresh -->
             <div class="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-5 shadow-xs space-y-4">
                 <div class="flex items-start gap-3">
                     <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 text-lg shadow-sm">
@@ -99,6 +99,7 @@
                         </p>
                     </div>
                 </div>
+
 
                 <div class="bg-white/80 rounded-2xl p-4 border border-amber-100 space-y-2 text-xs">
                     <div class="flex justify-between items-center py-1 border-b border-slate-100">
@@ -139,6 +140,73 @@
                     </button>
                     <a href="{{ route('customer.orders.show', $order->id) }}" class="flex-1 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs py-2.5 rounded-xl border border-slate-200 transition text-center">
                         Kembali ke Rincian
+                    </a>
+                </div>
+            </div>
+        @elseif($resolvedReport)
+            <!-- Resolution Result Card (Selesai) -->
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-5 shadow-xs space-y-4">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 text-lg shadow-sm">
+                        ✓
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-black text-sm text-emerald-950">Pengaduan Telah Selesai Diputuskan</h3>
+                            <span class="px-2 py-0.5 text-[9px] font-black rounded-md bg-emerald-200 text-emerald-900">#REP-{{ $resolvedReport->id }}</span>
+                        </div>
+                        <p class="text-xs text-emerald-800 mt-1 leading-relaxed">
+                            Penyelidikan tiket sengketa telah selesai. Status dana pesanan telah disesuaikan berdasarkan putusan resmi di bawah ini.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white/90 rounded-2xl p-4 border border-emerald-100 space-y-2.5 text-xs">
+                    <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                        <span class="text-slate-500 font-medium">Bentuk Resolusi:</span>
+                        <span class="font-bold text-emerald-700 uppercase tracking-wider text-[11px]">
+                            @if($resolvedReport->resolution_type === 'refund_full')
+                                💰 Refund Penuh (100%)
+                            @elseif($resolvedReport->resolution_type === 'refund_partial')
+                                ⚖️ Refund Sebagian (Rp {{ number_format($resolvedReport->refund_amount, 0, ',', '.') }})
+                            @else
+                                ❌ Komplain Ditolak (Barang Sesuai)
+                            @endif
+                        </span>
+                    </div>
+
+                    @if($resolvedReport->refund_amount > 0)
+                        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                            <span class="text-slate-500 font-medium">Dana Dikembalikan ke E-Wallet:</span>
+                            <span class="font-black text-emerald-600 text-sm">
+                                Rp {{ number_format($resolvedReport->refund_amount, 0, ',', '.') }}
+                            </span>
+                        </div>
+                    @endif
+
+                    <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                        <span class="text-slate-500 font-medium">Waktu Keputusan:</span>
+                        <span class="font-semibold text-slate-700">
+                            {{ $resolvedReport->decided_at ? $resolvedReport->decided_at->format('d M Y, H:i') : $resolvedReport->updated_at->format('d M Y, H:i') }} WIB
+                        </span>
+                    </div>
+
+                    <div class="pt-1">
+                        <span class="text-slate-500 font-medium block mb-1">Catatan Putusan Resmi:</span>
+                        <p class="text-slate-800 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 leading-relaxed font-normal">
+                            {{ $resolvedReport->admin_decision ?: 'Penyelesaian komplain telah disetujui sesuai SOP perlindungan konsumen.' }}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    @if($resolvedReport->refund_amount > 0)
+                        <a href="{{ route('customer.wallet') }}" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl transition text-center shadow-xs">
+                            Cek Saldo Dompet
+                        </a>
+                    @endif
+                    <a href="{{ route('customer.orders.show', $order->id) }}" class="flex-1 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs py-2.5 rounded-xl border border-slate-200 transition text-center">
+                        Rincian Pesanan
                     </a>
                 </div>
             </div>
@@ -301,5 +369,20 @@
             }
         };
     }
+
+    @if($pendingReport)
+    // Auto-refresh tiket komplain jika sudah selesai diputuskan
+    let pollInterval = setInterval(() => {
+        fetch("{{ route('customer.orders.report.status', $order->id) }}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.is_resolved) {
+                    clearInterval(pollInterval);
+                    window.location.reload();
+                }
+            })
+            .catch(err => console.error('Poll status error:', err));
+    }, 4000);
+    @endif
 </script>
 @endsection

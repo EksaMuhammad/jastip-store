@@ -36,6 +36,7 @@
             totalNet: 0,
             pendingWithdraw: null,
             recentWithdraws: [],
+            recentTransactions: [],
             withdrawModalOpen: false,
             submitting: false,
             form: { amount: '', bank_name: '', bank_account_number: '', bank_account_holder: '' },
@@ -61,6 +62,7 @@
                     this.totalNet = data.total_net || 0;
                     this.pendingWithdraw = data.pending_withdraw || null;
                     this.recentWithdraws = data.recent_withdraws || [];
+                    this.recentTransactions = data.recent_transactions || [];
                 } catch (e) {
                     jastiperNotifyEarnings('Gagal memuat data rekap. Coba reload halaman.', false);
                 } finally {
@@ -216,6 +218,40 @@
                             <p class="text-[9px] text-slate-400 truncate" x-text="w.admin_note || '—'"></p>
                         </div>
                         <span class="text-[9px] font-bold px-2.5 py-1 rounded-full border shrink-0" :class="statusClass(w.status)" x-text="statusLabel(w.status)"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Riwayat Mutasi Saldo Dompet Jastiper (Debit / Kredit Transparan) -->
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">Riwayat Mutasi Saldo Dompet</span>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Catatan debit ganti rugi, pendapatan & DP belanja</p>
+                </div>
+                <span class="text-sm">💳</span>
+            </div>
+            <template x-if="recentTransactions.length === 0">
+                <div class="p-6 text-center text-[11px] text-slate-400">Belum ada mutasi dompet.</div>
+            </template>
+            <div class="divide-y divide-slate-100">
+                <template x-for="tx in recentTransactions" :key="tx.id">
+                    <div class="p-4 flex items-start justify-between gap-3 hover:bg-slate-50/60 transition">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-bold text-slate-800 leading-snug" x-text="tx.description || 'Mutasi Saldo'"></p>
+                            <span class="text-[9px] text-slate-400 font-mono mt-1 block" x-text="tx.date"></span>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="text-xs font-black font-mono block"
+                                  :class="tx.type === 'debit' ? 'text-rose-600' : 'text-emerald-600'"
+                                  x-text="(tx.type === 'debit' ? '-' : '+') + formatRupiah(tx.amount)">
+                            </span>
+                            <span class="text-[8px] font-extrabold uppercase px-1.5 py-0.2 rounded inline-block mt-0.5"
+                                  :class="tx.type === 'debit' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'"
+                                  x-text="tx.type === 'debit' ? 'Keluar' : 'Masuk'">
+                            </span>
+                        </div>
                     </div>
                 </template>
             </div>

@@ -26,10 +26,28 @@ class OrderReportController extends Controller
             abort(403, 'Anda tidak memiliki akses ke pesanan ini.');
         }
 
-        // Cek jika sudah ada laporan yang masih menunggu investigasi
+        // Cek jika sudah ada laporan yang masih menunggu investigasi atau yang sudah selesai
         $pendingReport = $order->reports()->where('status', 'menunggu')->latest()->first();
+        $resolvedReport = $order->reports()->where('status', 'selesai')->latest()->first();
 
-        return view('customer.orders.report', compact('order', 'pendingReport'));
+        return view('customer.orders.report', compact('order', 'pendingReport', 'resolvedReport'));
+    }
+
+    /**
+     * Endpoint polling status pengaduan untuk refresh otomatis
+     */
+    public function status(Request $request, $orderId)
+    {
+        $order = Order::with('reports')->findOrFail($orderId);
+        $latestReport = $order->reports()->latest()->first();
+
+        return response()->json([
+            'order_status' => $order->status,
+            'has_report' => (bool) $latestReport,
+            'report_id' => $latestReport?->id,
+            'report_status' => $latestReport?->status,
+            'is_resolved' => $latestReport ? ($latestReport->status === 'selesai') : false,
+        ]);
     }
 
     /**
@@ -83,6 +101,9 @@ class OrderReportController extends Controller
             'status' => 'menunggu',
         ]);
 
+        // Auto-assign ke petugas CS yang free jika tersedia
+        app(\App\Services\CustomerSupportRoutingService::class)->routeReport($report);
+
         // Ubah status order menjadi 'bermasalah' agar pelepasan dana ditahan
         $order->update(['status' => 'bermasalah']);
 
@@ -101,6 +122,13 @@ class OrderReportController extends Controller
             $order,
             "⚠️ Customer telah mengajukan pengaduan resmi (Kategori: {$catName}). Status pesanan kini dialihkan ke peninjauan Tim Admin JastipKuy (#REP-{$report->id}). Pencairan dana ditahan sementara hingga diputuskan oleh Admin."
         );
+
+        if ($order->jastiper?->phone_number) {
+            \App\Services\WhatsAppService::sendMessage(
+                $order->jastiper->phone_number,
+                "⚠️ Pemberitahuan JastipKuy: Customer mengajukan pengaduan/komplain atas pesanan #{$order->id} (Kategori: {$catName}). Status pesanan dialihkan ke peninjauan Tim CS dan pencairan dana ditahan sementara."
+            );
+        }
 
         \App\Services\ActivityLogger::log([
             'user_type' => 'customer',

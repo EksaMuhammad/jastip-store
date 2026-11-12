@@ -97,6 +97,25 @@ class EarningsController extends Controller
             ->limit(5)
             ->get(['id', 'amount', 'status', 'admin_note', 'created_at', 'processed_at']);
 
+        // 10 Riwayat mutasi debit/kredit saldo dompet jastiper terbaru (transparansi ganti rugi, pendapatan & DP)
+        $recentTransactions = [];
+        if ($wallet) {
+            $recentTransactions = \App\Models\WalletTransaction::where('wallet_id', $wallet->id)
+                ->latest()
+                ->limit(10)
+                ->get()
+                ->map(function ($tx) {
+                    return [
+                        'id' => $tx->id,
+                        'type' => $tx->type,
+                        'amount' => (float) $tx->amount,
+                        'source' => $tx->source,
+                        'description' => $tx->description,
+                        'date' => $tx->created_at->format('d/m/Y H:i'),
+                    ];
+                });
+        }
+
         return response()->json([
             'success' => true,
             'period' => $period,
@@ -105,6 +124,7 @@ class EarningsController extends Controller
             'total_net' => $breakdown->sum('net_amount'),
             'pending_withdraw' => $pendingWithdraw,
             'recent_withdraws' => $recentWithdraws,
+            'recent_transactions' => $recentTransactions,
         ]);
     }
 

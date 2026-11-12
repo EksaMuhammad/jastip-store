@@ -297,25 +297,185 @@
         paymentPageUrlTemplate: @json(route("customer.orders.payment.page", ["id" => "__ID__"])),
     })'
 >
-    <!-- Desktop Search Header & Profile (Gojek App Bar Style) -->
-    <div class="bg-white border-b border-slate-200/80 sticky top-16 sm:top-20 z-40 px-4 py-3.5 shadow-sm">
+    <!-- Desktop Search Header & Chat (Gojek App Bar Style) -->
+    <div class="bg-white border-b border-slate-200/80 sticky top-16 sm:static z-40 sm:z-auto px-4 py-3.5 shadow-sm sm:shadow-none">
         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
             
-            <!-- Search Bar (Gojek Style) - Bisa Cari Layanan, Toko, Makanan & Ekspedisi -->
-            <form action="{{ route('customer.search') }}" method="GET" class="relative flex-grow block">
-                <input type="text" name="q" placeholder="Cari layanan, makanan, toko, atau ekspedisi..." 
-                    class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-700 placeholder-slate-400 pl-11 pr-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150 h-[38px]">
-                <button type="submit" class="absolute left-4 top-2.5 text-slate-400 hover:text-slate-600">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </button>
-            </form>
+            <!-- Search Bar dengan Live Autocomplete Dropdown (Gojek Instant Search) -->
+            <div x-data="searchAutocomplete({ endpoint: '{{ route('customer.search.live') }}', searchUrl: '{{ route('customer.search') }}' })" 
+                 @click.outside="open = false" 
+                 class="relative flex-grow block">
+                <form action="{{ route('customer.search') }}" method="GET" @submit="handleSubmit($event)">
+                    <div class="relative">
+                        <input type="text" 
+                               name="q" 
+                               x-model="query" 
+                               @input.debounce.250ms="performSearch()"
+                               @focus="if(results && results.total > 0) open = true"
+                               @keydown.escape="open = false"
+                               placeholder="Cari layanan, makanan, toko, atau ekspedisi..." 
+                               autocomplete="off"
+                               class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-700 placeholder-slate-400 pl-11 pr-8 py-2.5 rounded-full text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150 h-[38px]">
+                        
+                        <button type="submit" class="absolute left-4 top-2.5 text-slate-400 hover:text-slate-600" title="Cari">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </button>
 
-            <!-- Profile Info (Gojek Circular Profile Icon) -->
-            <div class="flex items-center gap-3">
-                <a href="{{ route('customer.profile') }}" class="relative group cursor-pointer flex items-center gap-2" title="Profil Saya">
-                    <div class="w-9 h-9 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center font-bold text-sm text-rose-500 shadow-md transition group-hover:scale-105 group-hover:border-rose-500">
-                        {{ strtoupper(substr($customer->name, 0, 2)) }}
+                        <!-- Tombol Hapus Input -->
+                        <button type="button" 
+                                x-show="query && query.length > 0" 
+                                @click="query = ''; results = null; open = false;"
+                                class="absolute right-3.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold" 
+                                style="display: none;" 
+                                title="Hapus">
+                            ✕
+                        </button>
+
+                        <!-- Loading Spinner -->
+                        <div x-show="loading" class="absolute right-8 top-3" style="display: none;">
+                            <svg class="animate-spin w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        </div>
                     </div>
+                </form>
+
+                <!-- Floating Dropdown Hasil Pencarian Langsung -->
+                <div x-show="open && query && query.trim().length > 0" 
+                     x-cloak 
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 translate-y-1 scale-98"
+                     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave="transition ease-in duration-100"
+                     x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave-end="opacity-0 translate-y-1 scale-98"
+                     class="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden text-left divide-y divide-slate-100 max-h-[460px] overflow-y-auto">
+                    
+                    <!-- 1. Layanan Jastip -->
+                    <template x-if="results && results.services && results.services.length > 0">
+                        <div>
+                            <div class="px-3.5 py-1.5 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                                <span>🚀 Layanan Jastip</span>
+                                <span class="text-[9px] text-rose-600 font-bold" x-text="results.services.length + ' Ditemukan'"></span>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <template x-for="svc in results.services" :key="'svc-' + svc.id">
+                                    <a :href="svc.url" class="flex items-center gap-3 p-2.5 hover:bg-rose-50/60 transition group">
+                                        <div class="w-9 h-9 rounded-xl bg-slate-100 p-1 flex items-center justify-center shrink-0 border border-slate-200 group-hover:scale-105 transition-transform">
+                                            <img :src="svc.image" :alt="svc.name" class="w-7 h-7 object-contain">
+                                        </div>
+                                        <div class="min-w-0 flex-grow">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <span class="font-extrabold text-xs text-slate-900 group-hover:text-rose-600 transition" x-text="svc.name"></span>
+                                                <span class="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border" :class="svc.badge_color" x-text="svc.subtitle"></span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-500 line-clamp-1 mt-0.5 leading-snug" x-text="svc.description"></p>
+                                        </div>
+                                        <span class="text-slate-400 group-hover:text-rose-600 text-xs font-bold">→</span>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 2. Toko & Restoran -->
+                    <template x-if="results && results.merchants && results.merchants.length > 0">
+                        <div>
+                            <div class="px-3.5 py-1.5 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                                <span>🏪 Toko & Restoran</span>
+                                <span class="text-[9px] text-amber-600 font-bold" x-text="results.merchants.length + ' Mitra'"></span>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <template x-for="m in results.merchants" :key="'m-' + m.id">
+                                    <a :href="m.url" class="flex items-center gap-3 p-2.5 hover:bg-amber-50/60 transition group">
+                                        <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center shrink-0 text-base">
+                                            <span x-text="m.type === 'mart' ? '🛒' : '🏪'"></span>
+                                        </div>
+                                        <div class="min-w-0 flex-grow">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="font-extrabold text-xs text-slate-900 group-hover:text-amber-700 transition truncate" x-text="m.name"></span>
+                                                <span class="text-[8px] font-bold text-amber-700 bg-amber-100/70 px-1 rounded" x-text="m.type_label"></span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-400 truncate mt-0.5" x-text="m.address"></p>
+                                        </div>
+                                        <span class="text-slate-400 group-hover:text-amber-700 text-xs font-bold">→</span>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 3. Produk / Menu Makanan -->
+                    <template x-if="results && results.products && results.products.length > 0">
+                        <div>
+                            <div class="px-3.5 py-1.5 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                                <span>🍔 Menu & Produk</span>
+                                <span class="text-[9px] text-rose-600 font-bold" x-text="results.products.length + ' Produk'"></span>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <template x-for="p in results.products" :key="'p-' + p.id">
+                                    <a :href="p.url" class="flex items-center gap-3 p-2.5 hover:bg-rose-50/60 transition group">
+                                        <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden text-base">
+                                            <template x-if="p.image">
+                                                <img :src="p.image" :alt="p.name" class="w-full h-full object-cover">
+                                            </template>
+                                            <template x-if="!p.image">
+                                                <span class="text-[10px] font-bold text-slate-400" x-text="p.initials"></span>
+                                            </template>
+                                        </div>
+                                        <div class="min-w-0 flex-grow">
+                                            <div class="flex items-center justify-between gap-1">
+                                                <span class="font-bold text-xs text-slate-900 group-hover:text-rose-600 transition truncate" x-text="p.name"></span>
+                                                <span class="font-black text-xs text-rose-600 shrink-0" x-text="p.formatted_price"></span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-400 truncate mt-0.5" x-text="p.merchant_name"></p>
+                                        </div>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Tidak Ada Hasil Instan -->
+                    <template x-if="!loading && results && results.total === 0">
+                        <div class="p-4 text-center space-y-1">
+                            <p class="text-xs font-semibold text-slate-700">Tidak ada layanan, produk, atau toko yang cocok</p>
+                            <p class="text-[10px] text-slate-400">Tekan Enter atau ketuk di bawah untuk mencari di seluruh database.</p>
+                        </div>
+                    </template>
+
+                    <!-- Tombol Lihat Semua Hasil (Enter) -->
+                    <a :href="results?.search_all_url || (searchUrl + '?q=' + encodeURIComponent(query))" 
+                       class="flex items-center justify-between px-3.5 py-2.5 bg-rose-50/70 hover:bg-rose-100/90 text-rose-700 font-bold text-xs transition">
+                        <span class="flex items-center gap-2 truncate">
+                            <span>🔍</span>
+                            <span class="truncate">Lihat semua hasil untuk "<span class="font-black text-rose-800" x-text="query"></span>"</span>
+                        </span>
+                        <span class="text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 shadow-2xs">
+                            <span>Cari</span>
+                            <span>↵</span>
+                        </span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Chat Action Button (Swapped with Profile - Gojek Top Bar Style) -->
+            @php
+                $topUnreadChatCount = \App\Models\Chat::whereHas('order', fn($q) => $q->where('customer_id', $customer->id))
+                    ->where('sender_role', '!=', 'customer')
+                    ->where('is_read', false)
+                    ->count();
+            @endphp
+            <div class="flex items-center gap-3 shrink-0">
+                <a href="{{ route('customer.chats') }}" 
+                   class="relative group p-2 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 transition shadow-xs flex items-center justify-center w-9 h-9 border border-slate-200/80" 
+                   title="Pesan Chat">
+                    <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                    </svg>
+                    @if($topUnreadChatCount > 0)
+                        <span class="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-black min-w-[18px] h-4.5 px-1 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                            {{ $topUnreadChatCount > 9 ? '9+' : $topUnreadChatCount }}
+                        </span>
+                    @endif
                 </a>
             </div>
 
@@ -369,8 +529,8 @@
             </div>
         @endif
 
-        <!-- Gopay Card Layout (JastipKuy Pay) - Sticky / Statis saat scroll -->
-        <div class="sticky top-[131px] sm:top-[147px] z-30 -mx-4 px-4 pt-1 pb-2.5 !mt-2 bg-[#F3F4F6]/95 backdrop-blur-md transition-all">
+        <!-- Gopay Card Layout (JastipKuy Pay) -->
+        <div class="-mx-4 px-4 pt-1 pb-2.5 !mt-2">
             <div class="bg-telkomsel-pattern-card text-white rounded-3xl p-4 shadow-lg border border-rose-500/20 relative overflow-hidden">
                 <!-- Background Banner from Mobile scaled to hide white margins -->
                 <img src="{{ asset('images/jkpay_banner.png') }}" class="absolute inset-0 w-full h-full object-cover scale-[1.3] origin-center pointer-events-none z-0">
@@ -388,23 +548,15 @@
                         </div>
                     </a>
 
-                    <!-- Right Section: Quick Action Buttons (Gojek Icon Row Style) -->
-                    <div class="flex-grow flex justify-around items-center pl-1 text-center">
+                    <!-- Right Section: Quick Action Buttons (Top Up & Riwayat) -->
+                    <div class="flex-grow flex justify-end gap-6 items-center pr-2 text-center">
                         
-                        <!-- Bayar (Pay) -->
-                        <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                            <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
-                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 11v3m5-13H7m0 10h10m-5-10v10"></path></svg>
-                            </div>
-                            <span class="text-[8px] font-bold text-white tracking-wide">Bayar</span>
-                        </button>
-
                         <!-- Top Up -->
                         <a href="{{ route('customer.wallet') }}" class="group flex flex-col items-center gap-1.5 focus:outline-none">
                             <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                                 <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                             </div>
-                            <span class="text-[8px] font-bold text-white tracking-wide">Top Up</span>
+                            <span class="text-[9px] font-bold text-white tracking-wide">Top Up</span>
                         </a>
 
                         <!-- Riwayat -->
@@ -412,16 +564,8 @@
                             <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
                                 <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                             </div>
-                            <span class="text-[8px] font-bold text-white tracking-wide">Riwayat</span>
+                            <span class="text-[9px] font-bold text-white tracking-wide">Riwayat</span>
                         </a>
-
-                        <!-- Eksplor -->
-                        <button onclick="showMaintenanceToast(event)" class="group flex flex-col items-center gap-1.5 focus:outline-none">
-                            <div class="w-8 h-8 bg-white/15 group-hover:bg-white/25 rounded-xl flex items-center justify-center transition">
-                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                            </div>
-                            <span class="text-[8px] font-bold text-white tracking-wide">Lainnya</span>
-                        </button>
 
                     </div>
                 </div>
@@ -481,10 +625,10 @@
                     <span class="text-[8px] sm:text-[9px] text-slate-500 font-medium leading-tight">Jastip Kuliner</span>
                 </a>
 
-                <!-- 2. Toko Kirim (GoMart Style) -->
+                <!-- 2. Belanja Retail (Minimarket / Pasar) -->
                 <a href="{{ route('customer.mart') }}" class="group bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md hover:shadow-amber-500/10 rounded-2xl p-2.5 sm:p-3.5 flex flex-col items-center justify-center text-center transition duration-200 focus:outline-none">
-                    <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Toko Kirim" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
-                    <span class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mb-0.5">Toko Kirim</span>
+                    <img src="{{ asset('images/services/toko-kirim.png') }}" alt="Belanja Retail" class="w-14 h-12 sm:w-16 sm:h-14 object-contain mb-1.5 group-hover:scale-105 transition-transform drop-shadow-xs rounded-xl">
+                    <span class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mb-0.5">Belanja Retail</span>
                     <span class="text-[8px] sm:text-[9px] text-slate-500 font-medium leading-tight">Minimarket/Pasar</span>
                 </a>
 
@@ -927,7 +1071,7 @@
     </div>
 
     <!-- Global Addon Modal untuk Customer -->
-    <div x-show="addonModalOpen" class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="z-index: 9999; display: none;" x-transition>
+    <div x-show="addonModalOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="display: none;" x-transition>
         <div @click.away="closeAddonModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 overflow-hidden relative">
             <div class="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
                 <h3 class="text-sm font-black text-slate-800">Minta Tambahan Item</h3>

@@ -53,7 +53,7 @@
                     
                     <div class="flex items-center gap-1.5 mt-1 text-slate-500">
                         <svg class="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
-                        <p class="text-xs font-semibold text-slate-600">+62 {{ $customer->phone_number }}</p>
+                        <p class="text-xs font-semibold text-slate-600">+62 {{ ltrim($customer->phone_number, '0') }}</p>
                     </div>
 
                     <div class="flex items-center gap-1.5 mt-2">
@@ -102,18 +102,18 @@
             <div class="bg-white rounded-3xl shadow-[0_4px_15px_-4px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden divide-y divide-slate-100">
 
                 <!-- 1. Keamanan Akun -->
-                <button type="button" onclick="showMaintenanceToast(event)" class="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition group text-left">
+                <a href="{{ route('customer.security') }}" class="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition group text-left">
                     <div class="flex items-center gap-3.5">
                         <div class="w-9 h-9 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shrink-0 group-hover:bg-rose-50 group-hover:text-rose-600 transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                         </div>
                         <div>
                             <span class="font-bold text-sm text-slate-800 group-hover:text-rose-600 transition">Keamanan Akun</span>
-                            <p class="text-[10px] text-slate-400 font-medium mt-0.5">Kata sandi, OTP & verifikasi perangkat</p>
+                            <p class="text-[10px] text-slate-400 font-medium mt-0.5">Ubah kata sandi & pengaturan login</p>
                         </div>
                     </div>
                     <svg class="w-4 h-4 text-slate-300 group-hover:text-slate-500 shrink-0 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
-                </button>
+                </a>
 
                 <!-- 2. Metode Pembayaran & Dompet -->
                 <a href="{{ route('customer.wallet') }}" class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition group">
@@ -130,21 +130,21 @@
                 </a>
 
                 <!-- 3. Alamat Tersimpan -->
-                <a href="{{ route('customer.booking') }}" class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition group">
+                <a href="{{ route('customer.address') }}" class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition group">
                     <div class="flex items-center gap-3.5">
                         <div class="w-9 h-9 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shrink-0 group-hover:bg-rose-50 group-hover:text-rose-600 transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                         </div>
                         <div>
                             <span class="font-bold text-sm text-slate-800 group-hover:text-rose-600 transition">Alamat Tersimpan</span>
-                            <p class="text-[10px] text-slate-400 font-medium mt-0.5">Rumah, kantor & lokasi favorit di Malang</p>
+                            <p class="text-[10px] text-slate-400 font-medium mt-0.5">Ambil alamat GPS sekarang & kelola lokasi</p>
                         </div>
                     </div>
                     <svg class="w-4 h-4 text-slate-300 group-hover:text-slate-500 shrink-0 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
                 </a>
 
                 <!-- 4. Jastiper Favorit -->
-                <a href="{{ route('customer.booking') }}" class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition group">
+                <a href="{{ route('customer.booking', ['tab' => 'favorites']) }}" class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition group">
                     <div class="flex items-center gap-3.5">
                         <div class="w-9 h-9 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shrink-0 group-hover:bg-rose-50 group-hover:text-rose-600 transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
@@ -246,7 +246,7 @@
 
             <div class="mb-6">
                 <label class="block text-xs font-bold text-slate-700 mb-2">Nomor Telepon</label>
-                <input type="text" value="+62 {{ $customer->phone_number }}" class="w-full text-sm border-slate-200 bg-slate-50 text-slate-500 rounded-xl px-4 py-3 cursor-not-allowed" disabled>
+                <input type="text" value="+62 {{ ltrim($customer->phone_number, '0') }}" class="w-full text-sm border-slate-200 bg-slate-50 text-slate-500 rounded-xl px-4 py-3 cursor-not-allowed" disabled>
                 <p class="text-[10px] text-slate-400 mt-1">Nomor telepon tidak dapat diubah dari sini.</p>
             </div>
 

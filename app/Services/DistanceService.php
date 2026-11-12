@@ -36,9 +36,10 @@ class DistanceService
      * @param float $destLat
      * @param float $destLng
      * @param array $destInfo
+     * @param string $weightCategory
      * @return array
      */
-    public static function calculateMultiStoreRoute(array $stops, float $destLat, float $destLng, array $destInfo = []): array
+    public static function calculateMultiStoreRoute(array $stops, float $destLat, float $destLng, array $destInfo = [], string $weightCategory = 'ringan'): array
     {
         if (empty($stops)) {
             return [
@@ -52,6 +53,8 @@ class DistanceService
                 'total_extra_fare' => 0,
                 'has_multi_dropoff' => false,
                 'has_freshness_optimization' => false,
+                'weight_category' => $weightCategory,
+                'weight_fare' => 0,
                 'estimated_fare' => 10000,
             ];
         }
@@ -212,7 +215,11 @@ class DistanceService
         $extraPickupsFare = (int) ($extraPickupsCount * $extraStoreRate);
         $extraDropoffsFare = (int) ($extraDropoffsCount * $extraDropoffRate);
 
-        $totalFare = (int) ($baseFare + $kmFare + $extraPickupsFare + $extraDropoffsFare);
+        // Biaya tambahan beban muatan (TariffService: weight_ringan, weight_sedang, weight_berat)
+        $weightFareKey = 'weight_' . $weightCategory;
+        $weightFare = (int) ($allTariff[$weightFareKey] ?? 0);
+
+        $totalFare = (int) ($baseFare + $kmFare + $extraPickupsFare + $extraDropoffsFare + $weightFare);
         $totalFare = (int) (ceil($totalFare / 500) * 500);
 
         return [
@@ -232,6 +239,8 @@ class DistanceService
             'extra_dropoffs_count' => $extraDropoffsCount,
             'extra_dropoffs_fare' => $extraDropoffsFare,
             'total_extra_fare' => $extraPickupsFare + $extraDropoffsFare,
+            'weight_category' => $weightCategory,
+            'weight_fare' => $weightFare,
             'has_multi_dropoff' => $extraDropoffsCount > 0,
             'has_freshness_optimization' => $hasFreshnessOptimization,
             'estimated_fare' => $totalFare,

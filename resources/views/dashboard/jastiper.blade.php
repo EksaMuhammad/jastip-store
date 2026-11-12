@@ -13,6 +13,10 @@
 <script>
     // Helper toast ringan, pakai #toast-container yang sudah disediakan layouts.support
     function jastiperNotify(message, success = true) {
+        if (typeof window.jastiperNotify === 'function') {
+            window.jastiperNotify(message, success);
+            return;
+        }
         const container = document.getElementById('toast-container');
         if (!container) { alert(message); return; }
 
@@ -218,7 +222,7 @@
     })'
 >
     <!-- Active Status Bar (Gojek Driver Status Banner) -->
-    <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-16 sm:top-20 z-40 px-4 py-3.5 shadow-sm">
+    <div class="bg-slate-950 text-white border-b border-slate-800 sticky top-16 sm:static z-40 sm:z-auto px-4 py-3.5 shadow-sm sm:shadow-none">
         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4 flex-wrap">
 
             <!-- Driver Info & Status -->
@@ -437,6 +441,68 @@
             <div id="leaflet-jastiper-dash-map" class="h-44 w-full border border-slate-200 rounded-2xl bg-slate-100 z-10"></div>
         </div>
 
+        <!-- Sengketa / Komplain Sedang Diinvestigasi -->
+        @if(isset($disputedOrders) && $disputedOrders->isNotEmpty())
+            <div class="bg-amber-50 border-2 border-amber-300 p-4 sm:p-5 rounded-3xl shadow-sm space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 text-amber-900">
+                        <span class="text-xl">⚠️</span>
+                        <div>
+                            <h3 class="font-display font-black text-xs uppercase tracking-wider">
+                                Pesanan Dalam Investigasi Komplain ({{ $disputedOrders->count() }})
+                            </h3>
+                            <p class="text-[10px] text-amber-800 font-medium leading-tight">Customer mengajukan komplain resmi. Pencairan dana ditahan sementara oleh Tim CS.</p>
+                        </div>
+                    </div>
+                    <span class="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-600 text-white shrink-0">
+                        Investigasi CS
+                    </span>
+                </div>
+
+                <div class="space-y-2.5">
+                    @foreach($disputedOrders as $disp)
+                        @php
+                            $report = $disp->reports->first();
+                        @endphp
+                        <div class="bg-white border border-amber-200 rounded-2xl p-3.5 space-y-2 text-left shadow-2xs">
+                            <div class="flex items-start justify-between gap-2 border-b border-amber-100 pb-2">
+                                <div>
+                                    <span class="text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                                        Pesanan #{{ $disp->id }}
+                                    </span>
+                                    <h4 class="font-extrabold text-xs text-slate-900 mt-1.5 leading-snug">{{ $disp->description }}</h4>
+                                    <span class="text-[10px] text-slate-500 font-medium block mt-0.5">Pelanggan: <strong>{{ $disp->customer->name ?? 'Customer' }}</strong> ({{ $disp->customer->phone_number ?? '-' }})</span>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="text-[8px] uppercase font-bold text-slate-400 block">Tarif Deal</span>
+                                    <span class="text-xs font-black text-amber-700">Rp {{ number_format($disp->agreed_fare ?? $disp->estimated_fare, 0, ',', '.') }}</span>
+                                </div>
+                            </div>
+
+                            @if($report)
+                                <div class="bg-amber-50/70 p-2.5 rounded-xl text-[11px] text-amber-950 space-y-1">
+                                    <div class="flex items-center gap-1 font-bold text-[10px] text-amber-800">
+                                        <span>Keluhan Customer:</span>
+                                        <span class="capitalize">{{ str_replace('_', ' ', $report->category) }}</span>
+                                    </div>
+                                    <p class="italic text-[10px] text-amber-900">"{{ $report->description }}"</p>
+                                </div>
+                            @endif
+
+                            <div class="flex items-center justify-between pt-1">
+                                <span class="text-[9px] text-slate-400 font-medium">Status: Menunggu Keputusan CS</span>
+                                <button type="button" 
+                                        @click="openOrderChat({{ $disp->id }}, '{{ addslashes($disp->description) }}', 'customer')"
+                                        class="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-xl transition flex items-center gap-1">
+                                    <span>💬 Chat / Klarifikasi</span>
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <!-- Order Aktif Anda (Active Orders) -->
         @if($activeOrders->isNotEmpty())
             <div class="bg-white border border-slate-200/80 p-5 rounded-3xl shadow-sm space-y-4">
@@ -472,6 +538,33 @@
                                 </div>
                             </div>
 
+                            <!-- Foto Referensi Barang dari Customer (Pesanan Aktif) -->
+                            @if($active->reference_photo_url)
+                                <div class="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-2.5 flex items-center justify-between gap-3 shadow-2xs">
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <div class="w-12 h-12 rounded-xl bg-white border border-amber-300 overflow-hidden shrink-0 shadow-xs">
+                                            <img src="{{ $active->reference_photo_url }}" 
+                                                 alt="Foto Referensi" 
+                                                 class="w-full h-full object-cover cursor-pointer hover:opacity-90 transition"
+                                                 @click="$dispatch('open-image-lightbox', { url: '{{ $active->reference_photo_url }}', title: 'Foto Referensi Barang: {{ addslashes($active->merchant->name ?? 'Titipan Customer') }}' })">
+                                        </div>
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-[9px] font-black uppercase tracking-wider text-amber-900">📸 Foto Referensi Barang</span>
+                                                <span class="text-[8px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">Dari Customer</span>
+                                            </div>
+                                            <p class="text-[8.5px] text-amber-800/80 truncate mt-0.5">Contoh wujud barang yang diminta customer</p>
+                                        </div>
+                                    </div>
+                                    <button type="button" 
+                                            @click="$dispatch('open-image-lightbox', { url: '{{ $active->reference_photo_url }}', title: 'Foto Referensi Barang: {{ addslashes($active->merchant->name ?? 'Titipan Customer') }}' })" 
+                                            class="shrink-0 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-[9px] rounded-xl shadow-2xs transition cursor-pointer flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        <span>Lihat Foto</span>
+                                    </button>
+                                </div>
+                            @endif
+
                             @if($active->items->isNotEmpty())
                                 <div class="bg-white border border-rose-100 rounded-2xl p-3 shadow-2xs space-y-2">
                                     <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1.5">
@@ -487,9 +580,21 @@
                                         @foreach($active->items as $item)
                                             <div class="flex items-start justify-between text-[10px] gap-2 bg-slate-50/70 border border-slate-100 rounded-xl px-2.5 py-1.5">
                                                 <div class="flex items-start gap-2 min-w-0">
-                                                    <span class="w-5 h-5 rounded-lg bg-rose-100 text-rose-600 font-black text-[9px] flex items-center justify-center shrink-0 mt-0.5">{{ $item->quantity }}x</span>
+                                                    @if($item->image_url)
+                                                        <img src="{{ $item->image_url }}" 
+                                                             alt="{{ $item->clean_name }}" 
+                                                             class="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 cursor-pointer hover:opacity-80"
+                                                             @click="$dispatch('open-image-lightbox', { url: '{{ $item->image_url }}', title: '{{ addslashes($item->clean_name) }}' })">
+                                                    @else
+                                                        <span class="w-5 h-5 rounded-lg bg-rose-100 text-rose-600 font-black text-[9px] flex items-center justify-center shrink-0 mt-0.5">{{ $item->quantity }}x</span>
+                                                    @endif
                                                     <div class="min-w-0">
-                                                        <span class="font-black text-slate-800 block leading-snug">{{ $item->clean_name }}</span>
+                                                        <div class="flex items-center gap-1">
+                                                            @if($item->image_url)
+                                                                <span class="text-[8.5px] font-black text-rose-600">{{ $item->quantity }}x</span>
+                                                            @endif
+                                                            <span class="font-black text-slate-800 block leading-snug">{{ $item->clean_name }}</span>
+                                                        </div>
                                                         @if($item->notes)
                                                             <span class="text-[8.5px] text-amber-700 font-medium block leading-tight mt-0.5">📝 Catatan: {{ $item->notes }}</span>
                                                         @endif
@@ -509,6 +614,94 @@
                                 <div><span class="font-bold">Customer:</span> {{ $active->customer->name }} (<a href="tel:{{ $active->customer->phone_number }}" class="text-rose-600 hover:underline font-bold">{{ $active->customer->phone_number }}</a>)</div>
                                 <div><span class="font-bold">Penerima:</span> {{ $active->recipient_name }} ({{ $active->recipient_phone }})</div>
                             </div>
+
+                            <!-- Multi-Stop Titik Singgah Belanja (Step-by-step jastiper) -->
+                            @if($active->multi_stops && count($active->multi_stops) > 1)
+                                <div class="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-3 space-y-2.5">
+                                    <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-amber-900 border-b border-amber-200/60 pb-1.5">
+                                        <span class="flex items-center gap-1.5">
+                                            <span>📍</span>
+                                            <span>Titik Belanja Multi-Toko ({{ count($active->multi_stops) }} Titik)</span>
+                                        </span>
+                                        @php
+                                            $completedStops = collect($active->multi_stops)->where('status', 'completed')->count();
+                                        @endphp
+                                        <span class="text-amber-800 font-extrabold">{{ $completedStops }} / {{ count($active->multi_stops) }} Selesai</span>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        @php
+                                            $firstPendingFound = false;
+                                        @endphp
+                                        @foreach($active->multi_stops as $sIdx => $st)
+                                            @php
+                                                $isCompleted = ($st['status'] ?? '') === 'completed';
+                                                $stopNum = $st['stop_number'] ?? ($sIdx + 1);
+                                                $isActiveNow = false;
+                                                if (!$isCompleted && !$firstPendingFound) {
+                                                    $isActiveNow = true;
+                                                    $firstPendingFound = true;
+                                                }
+                                            @endphp
+                                            <div class="p-2.5 rounded-xl border transition {{ $isCompleted ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950' : ($isActiveNow ? 'bg-white border-rose-300 ring-2 ring-rose-400/30 text-slate-800' : 'bg-slate-100/60 border-slate-200 text-slate-400') }}">
+                                                <div class="flex items-start justify-between gap-2">
+                                                    <div class="flex items-start gap-2 min-w-0">
+                                                        <span class="w-5 h-5 rounded-full flex items-center justify-center font-black text-[9px] shrink-0 mt-0.5 {{ $isCompleted ? 'bg-emerald-600 text-white' : ($isActiveNow ? 'bg-rose-600 text-white animate-pulse' : 'bg-slate-300 text-slate-600') }}">
+                                                            {{ $isCompleted ? '✓' : $stopNum }}
+                                                        </span>
+                                                        <div class="min-w-0">
+                                                            <p class="font-extrabold text-[10px] truncate leading-tight">{{ $st['name'] ?? 'Toko Singgah' }}</p>
+                                                            <p class="text-[9px] text-slate-500 truncate mt-0.5">{{ $st['address'] ?? '-' }}</p>
+                                                            @if(!empty($st['notes']))
+                                                                <p class="text-[8.5px] text-amber-800 italic mt-0.5">Catatan: {{ $st['notes'] }}</p>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="shrink-0 text-right">
+                                                        @if($isCompleted)
+                                                            <span class="inline-block text-[8.5px] font-black text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md uppercase">
+                                                                Selesai
+                                                            </span>
+                                                            @if(!empty($st['photo']))
+                                                                <button type="button" @click="$dispatch('open-image-lightbox', { url: '{{ Storage::url($st['photo']) }}', title: 'Bukti Stop #{{ $stopNum }}: {{ addslashes($st['name'] ?? 'Toko') }}' })" class="block text-indigo-600 font-bold hover:underline text-[8.5px] mt-1">
+                                                                    Lihat Foto
+                                                                </button>
+                                                            @endif
+                                                        @elseif($isActiveNow)
+                                                            <span class="inline-block text-[8.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md uppercase animate-pulse">
+                                                                Aktif Belanja
+                                                            </span>
+                                                        @else
+                                                            <span class="inline-block text-[8.5px] font-bold text-slate-400 bg-slate-200/80 px-1.5 py-0.5 rounded-md uppercase">
+                                                                Antre
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+
+                                                @if($isActiveNow && in_array($active->status, ['diproses', 'barang_diambil']))
+                                                    <div class="mt-2 pt-2 border-t border-rose-100">
+                                                        <button type="button" 
+                                                            @click="$dispatch('open-proof-modal', { 
+                                                                orderId: {{ $active->id }}, 
+                                                                status: 'stop_completed', 
+                                                                title: 'Foto Bukti Stop #{{ $stopNum }}: {{ addslashes($st['name'] ?? 'Toko') }}', 
+                                                                subtitle: 'Ambil/unggah foto barang belanjaan atau nota fisik di toko ini sebelum lanjut ke titik berikutnya.',
+                                                                buttonText: 'Konfirmasi Stop Selesai & Lanjut',
+                                                                actionUrl: '{{ route('jastiper.orders.stop.complete', [$active->id, $stopNum]) }}'
+                                                            })"
+                                                            class="w-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-[9px] py-2 rounded-xl transition uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-xs cursor-pointer">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                                            <span>Upload Foto & Selesaikan Stop #{{ $stopNum }}</span>
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
                             
                             <!-- Bukti Foto Lapangan Jika Sudah Ada -->
                             @if($active->pickup_photo || $active->delivery_photo)
@@ -554,19 +747,38 @@
                                         </button>
                                     </form>
                                 @elseif($active->status === 'diproses')
-                                    <button type="button" 
-                                        @click="$dispatch('open-proof-modal', { 
-                                            orderId: {{ $active->id }}, 
-                                            status: 'barang_diambil', 
-                                            title: 'Foto Bukti Pengambilan Barang', 
-                                            subtitle: 'Ambil foto barang belanjaan atau struk fisik toko sebelum memulai pengantaran.',
-                                            buttonText: 'Konfirmasi Barang Diambil',
-                                            actionUrl: '{{ route('jastiper.orders.update-status', $active->id) }}'
-                                        })"
-                                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                        <span>Konfirmasi Barang Diambil</span>
-                                    </button>
+                                    @if($active->multi_stops && count($active->multi_stops) > 1)
+                                        @php
+                                            $allStopsDone = collect($active->multi_stops)->every(fn($s) => ($s['status'] ?? '') === 'completed');
+                                        @endphp
+                                        @if($allStopsDone)
+                                            <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
+                                                @csrf
+                                                <input type="hidden" name="status" value="sedang_diantar">
+                                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm text-center block focus:outline-none">
+                                                    Semua Stop Selesai! Mulai Mengantar ke Customer
+                                                </button>
+                                            </form>
+                                        @else
+                                            <div class="w-full text-center text-[9px] font-bold text-amber-800 bg-amber-100/80 p-2 rounded-xl border border-amber-200">
+                                                Selesaikan belanja per stop di atas & upload foto bukti untuk tiap titik.
+                                            </div>
+                                        @endif
+                                    @else
+                                        <button type="button" 
+                                            @click="$dispatch('open-proof-modal', { 
+                                                orderId: {{ $active->id }}, 
+                                                status: 'barang_diambil', 
+                                                title: 'Foto Bukti Pengambilan Barang', 
+                                                subtitle: 'Ambil foto barang belanjaan atau struk fisik toko sebelum memulai pengantaran.',
+                                                buttonText: 'Konfirmasi Barang Diambil',
+                                                actionUrl: '{{ route('jastiper.orders.update-status', $active->id) }}'
+                                            })"
+                                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[9px] py-2.5 rounded-xl transition uppercase tracking-wide shadow-sm flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                            <span>Konfirmasi Barang Diambil</span>
+                                        </button>
+                                    @endif
                                 @elseif($active->status === 'barang_diambil')
                                     <form action="{{ route('jastiper.orders.update-status', $active->id) }}" method="POST" class="w-full">
                                         @csrf
@@ -652,6 +864,30 @@
                     @endforeach
                 </div>
             </div>
+            <hr class="border-slate-200 my-4">
+        @endif
+
+        <!-- Riwayat Pesanan Jastiper Terdahulu (History Link) -->
+        @if(isset($pastOrders) && $pastOrders->isNotEmpty())
+            <a href="{{ route('jastiper.history') }}" class="block bg-white border border-slate-200/80 p-4 rounded-3xl shadow-xs hover:border-slate-300 transition group">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg shadow-inner">
+                            📋
+                        </div>
+                        <div>
+                            <h3 class="font-display font-extrabold text-xs text-slate-800 uppercase tracking-wider group-hover:text-rose-600 transition">
+                                Riwayat Pesanan Anda ({{ $pastOrders->count() }})
+                            </h3>
+                            <p class="text-[10px] text-slate-400 font-medium">Lihat seluruh riwayat pesanan selesai & komplain</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 text-[11px] font-extrabold text-rose-600">
+                        <span>Buka</span>
+                        <svg class="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </div>
+                </div>
+            </a>
             <hr class="border-slate-200 my-4">
         @endif
 
@@ -846,6 +1082,33 @@
                                         </div>
                                     </div>
 
+                                    <!-- Foto Referensi Barang dari Customer (Feed Order Tersedia) -->
+                                    <template x-if="order.reference_photo_url">
+                                        <div class="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-2.5 flex items-center justify-between gap-3 shadow-2xs">
+                                            <div class="flex items-center gap-2.5 min-w-0">
+                                                <div class="w-12 h-12 rounded-xl bg-white border border-amber-300 overflow-hidden shrink-0 shadow-xs">
+                                                    <img :src="order.reference_photo_url" 
+                                                         alt="Foto Referensi" 
+                                                         class="w-full h-full object-cover cursor-pointer hover:opacity-90 transition"
+                                                         @click="$dispatch('open-image-lightbox', { url: order.reference_photo_url, title: 'Foto Referensi Barang: ' + (order.merchant_name || 'Titipan Customer') })">
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="flex items-center gap-1">
+                                                        <span class="text-[9px] font-black uppercase tracking-wider text-amber-900">📸 Foto Referensi Barang</span>
+                                                        <span class="text-[8px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">Dari Customer</span>
+                                                    </div>
+                                                    <p class="text-[8.5px] text-amber-800/80 truncate mt-0.5">Contoh wujud barang yang diminta customer</p>
+                                                </div>
+                                            </div>
+                                            <button type="button" 
+                                                    @click="$dispatch('open-image-lightbox', { url: order.reference_photo_url, title: 'Foto Referensi Barang: ' + (order.merchant_name || 'Titipan Customer') })" 
+                                                    class="shrink-0 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-[9px] rounded-xl shadow-2xs transition cursor-pointer flex items-center gap-1">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                                <span>Lihat Foto</span>
+                                            </button>
+                                        </div>
+                                    </template>
+
                                     <!-- Box Daftar Belanjaan / Makanan (Rincian Item Jelas untuk Jastiper) -->
                                     <template x-if="order.items && order.items.length > 0">
                                         <div class="bg-white border border-rose-200/80 rounded-2xl p-3 shadow-2xs space-y-2">
@@ -860,9 +1123,18 @@
                                                 <template x-for="(item, idx) in order.items" :key="item.id || idx">
                                                     <div class="flex items-start justify-between text-[10px] gap-2 bg-slate-50/70 border border-slate-100 rounded-xl px-2.5 py-1.5">
                                                         <div class="flex items-start gap-2 min-w-0">
-                                                            <span class="w-5 h-5 rounded-lg bg-rose-100 text-rose-600 font-black text-[9px] flex items-center justify-center shrink-0 mt-0.5" x-text="item.quantity + 'x'"></span>
+                                                            <template x-if="item.image_url">
+                                                                <img :src="item.image_url" 
+                                                                     alt="Foto Item" 
+                                                                     class="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 cursor-pointer hover:opacity-80"
+                                                                     @click="$dispatch('open-image-lightbox', { url: item.image_url, title: item.name_clean })">
+                                                            </template>
+                                                            <span x-show="!item.image_url" class="w-5 h-5 rounded-lg bg-rose-100 text-rose-600 font-black text-[9px] flex items-center justify-center shrink-0 mt-0.5" x-text="item.quantity + 'x'"></span>
                                                             <div class="min-w-0">
-                                                                <span class="font-black text-slate-800 block leading-snug" x-text="item.name_clean"></span>
+                                                                <div class="flex items-center gap-1">
+                                                                    <span x-show="item.image_url" class="text-[8.5px] font-black text-rose-600" x-text="item.quantity + 'x'"></span>
+                                                                    <span class="font-black text-slate-800 block leading-snug" x-text="item.name_clean"></span>
+                                                                </div>
                                                                 <span x-show="item.notes" class="text-[8.5px] text-amber-700 font-medium block leading-tight mt-0.5" x-text="'📝 Catatan: ' + item.notes"></span>
                                                             </div>
                                                         </div>
@@ -974,8 +1246,9 @@
         }"
         @open-respond-modal.window="openRespondModal($event.detail.url, $event.detail.description)"
         x-show="respondModalOpen" 
-        class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" 
-        style="z-index: 9999; display: none;" 
+        x-cloak
+        class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" 
+        style="display: none;" 
         x-transition>
         
         <div @click.away="closeRespondModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 overflow-hidden relative">
@@ -1015,127 +1288,320 @@
             buttonText: '',
             actionUrl: '',
             photoPreview: null,
+            photoFile: null,
             isSubmitting: false,
+            isCompressing: false,
+            compressStatus: '',
+            errorMessage: null,
             openModal(data) {
                 this.orderId = data.orderId;
-                this.status = data.status;
-                this.title = data.title;
-                this.subtitle = data.subtitle;
-                this.buttonText = data.buttonText;
+                this.status = data.status || '';
+                this.title = data.title || 'Foto Bukti';
+                this.subtitle = data.subtitle || 'Ambil atau pilih foto barang/struk.';
+                this.buttonText = data.buttonText || 'Konfirmasi & Kirim';
                 this.actionUrl = data.actionUrl;
                 this.photoPreview = null;
+                this.photoFile = null;
                 this.isSubmitting = false;
-                if (this.$refs.photoInput) {
-                    this.$refs.photoInput.value = '';
-                }
+                this.isCompressing = false;
+                this.compressStatus = '';
+                this.errorMessage = null;
+                const cam = document.getElementById('camera_proof_input');
+                if (cam) cam.value = '';
+                const gal = document.getElementById('gallery_proof_input');
+                if (gal) gal.value = '';
                 this.proofModalOpen = true;
             },
             closeModal() {
+                if (this.isSubmitting) return;
                 this.proofModalOpen = false;
             },
-            handlePhotoChange(event) {
-                const file = event.target.files[0];
-                if (file) {
+            async handleFileSelect(event) {
+                const file = event.target.files && event.target.files[0];
+                if (!file) return;
+
+                this.errorMessage = null;
+                this.isCompressing = true;
+                this.compressStatus = 'Mengoptimalkan foto kamera...';
+
+                try {
+                    // Jika tipe bukan image atau format HEIC/HEIF mentah, fallback langsung
+                    if (!file.type || !file.type.startsWith('image/')) {
+                        this.photoFile = file;
+                        this.photoPreview = URL.createObjectURL(file);
+                        this.isCompressing = false;
+                        return;
+                    }
+
+                    // Kompresi client-side via HTML5 Canvas (max 1920x1920, JPEG quality 0.85)
+                    const compressed = await this.compressImage(file, 1920, 1920, 0.85);
+                    this.photoFile = compressed.file;
+                    this.photoPreview = compressed.previewUrl;
+                } catch (err) {
+                    console.warn('Canvas compression fallback to raw file:', err);
+                    this.photoFile = file;
+                    this.photoPreview = URL.createObjectURL(file);
+                } finally {
+                    this.isCompressing = false;
+                    this.compressStatus = '';
+                }
+            },
+            compressImage(file, maxWidth, maxHeight, quality) {
+                return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        this.photoPreview = e.target.result;
+                        const img = new Image();
+                        img.onload = () => {
+                            let width = img.width;
+                            let height = img.height;
+
+                            if (width > maxWidth || height > maxHeight) {
+                                if (width > height) {
+                                    height = Math.round((height * maxWidth) / width);
+                                    width = maxWidth;
+                                } else {
+                                    width = Math.round((width * maxHeight) / height);
+                                    height = maxHeight;
+                                }
+                            }
+
+                            const canvas = document.createElement('canvas');
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            canvas.toBlob((blob) => {
+                                if (!blob) {
+                                    resolve({ file, previewUrl: e.target.result });
+                                    return;
+                                }
+                                const cleanName = (file.name || 'camera_photo').replace(/\.[^/.]+$/, '') + '.jpg';
+                                const compressedFile = new File([blob], cleanName, {
+                                    type: 'image/jpeg',
+                                    lastModified: Date.now()
+                                });
+                                resolve({
+                                    file: compressedFile,
+                                    previewUrl: URL.createObjectURL(blob)
+                                });
+                            }, 'image/jpeg', quality);
+                        };
+                        img.onerror = () => resolve({ file, previewUrl: e.target.result });
+                        img.src = e.target.result;
                     };
+                    reader.onerror = () => resolve({ file, previewUrl: URL.createObjectURL(file) });
                     reader.readAsDataURL(file);
-                } else {
-                    this.photoPreview = null;
-                }
+                });
             },
             removePhoto() {
                 this.photoPreview = null;
-                if (this.$refs.photoInput) {
-                    this.$refs.photoInput.value = '';
+                this.photoFile = null;
+                this.errorMessage = null;
+                this.isCompressing = false;
+                const cam = document.getElementById('camera_proof_input');
+                if (cam) cam.value = '';
+                const gal = document.getElementById('gallery_proof_input');
+                if (gal) gal.value = '';
+            },
+            async submitProof() {
+                if (this.isSubmitting || this.isCompressing) return;
+
+                if (!this.photoFile && !this.photoPreview) {
+                    this.errorMessage = 'Silakan ambil foto dengan kamera atau pilih dari galeri terlebih dahulu.';
+                    if (window.jastiperNotify) {
+                        window.jastiperNotify(this.errorMessage, false);
+                    }
+                    return;
+                }
+
+                this.isSubmitting = true;
+                this.errorMessage = null;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('_token', '{{ csrf_token() }}');
+                    if (this.status) {
+                        formData.append('status', this.status);
+                    }
+                    if (this.photoFile) {
+                        formData.append('photo', this.photoFile, this.photoFile.name || 'proof.jpg');
+                    }
+
+                    const response = await fetch(this.actionUrl, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const data = await response.json().catch(() => null);
+
+                    if (response.ok && (!data || data.success !== false)) {
+                        const msg = (data && data.message) ? data.message : 'Bukti foto berhasil dikonfirmasi!';
+                        if (window.jastiperNotify) {
+                            window.jastiperNotify(msg, true);
+                        }
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 600);
+                    } else {
+                        let errMsg = 'Gagal menyimpan foto bukti. Silakan coba lagi.';
+                        if (data && data.message) {
+                            errMsg = data.message;
+                        } else if (data && data.errors) {
+                            errMsg = Object.values(data.errors).flat()[0] || errMsg;
+                        }
+                        this.errorMessage = errMsg;
+                        if (window.jastiperNotify) {
+                            window.jastiperNotify(errMsg, false);
+                        }
+                        this.isSubmitting = false;
+                    }
+                } catch (error) {
+                    console.error('Submit proof error:', error);
+                    this.errorMessage = 'Koneksi terputus ke server. Periksa jaringan Anda dan tekan tombol kirim lagi.';
+                    if (window.jastiperNotify) {
+                        window.jastiperNotify(this.errorMessage, false);
+                    }
+                    this.isSubmitting = false;
                 }
             }
         }"
         @open-proof-modal.window="openModal($event.detail)"
         x-show="proofModalOpen" 
+        x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" 
         style="display: none;" 
         x-transition>
         
-        <div @click.away="closeModal()" class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5 overflow-hidden relative border border-slate-100">
+        <div @click.away="closeModal()" class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5 overflow-hidden relative border border-slate-100 max-h-[92vh] flex flex-col">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3 shrink-0">
                 <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
+                    <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold shrink-0">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     </div>
-                    <div class="text-left">
-                        <h3 class="text-xs font-black text-slate-800" x-text="title"></h3>
-                        <span class="text-[9px] text-slate-400 block" x-text="subtitle"></span>
+                    <div class="text-left min-w-0">
+                        <h3 class="text-xs font-black text-slate-800 truncate" x-text="title"></h3>
+                        <span class="text-[9px] text-slate-400 block line-clamp-1" x-text="subtitle"></span>
                     </div>
                 </div>
-                <button type="button" @click="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                <button type="button" @click="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer shrink-0">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
 
-            <!-- Form -->
-            <form :action="actionUrl" method="POST" enctype="multipart/form-data" @submit="isSubmitting = true">
-                @csrf
-                <input type="hidden" name="status" :value="status">
-
-                <!-- Native Camera Capture Support Input -->
+            <!-- Modal Body Form -->
+            <form @submit.prevent="submitProof()" class="overflow-y-auto space-y-3">
+                <!-- Native Inputs with ID for Native Label Binding -->
                 <input type="file" 
-                    name="photo" 
+                    id="camera_proof_input"
+                    name="photo"
                     accept="image/*" 
                     capture="environment" 
-                    x-ref="photoInput" 
-                    @change="handlePhotoChange($event)" 
-                    class="hidden">
+                    @change="handleFileSelect($event)" 
+                    class="sr-only">
 
-                <!-- Upload / Camera Area -->
-                <div class="mb-4">
-                    <template x-if="!photoPreview">
-                        <div @click="$refs.photoInput.click()" 
-                            class="border-2 border-dashed border-slate-300 hover:border-slate-800 bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group">
-                            <div class="w-12 h-12 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-700 group-hover:scale-105 transition">
-                                <svg class="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <input type="file" 
+                    id="gallery_proof_input"
+                    accept="image/*,.heic,.heif,image/heic,image/heif" 
+                    @change="handleFileSelect($event)" 
+                    class="sr-only">
+
+                <!-- Alert Error jika ada -->
+                <template x-if="errorMessage">
+                    <div class="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-bold flex items-start gap-2">
+                        <span class="text-xs shrink-0">⚠️</span>
+                        <span x-text="errorMessage" class="leading-tight"></span>
+                    </div>
+                </template>
+
+                <!-- Area Pilihan Ambil / Unggah Foto -->
+                <template x-if="!photoPreview && !isCompressing">
+                    <div class="space-y-2">
+                        <!-- Tombol Buka Kamera Langsung via Native Label -->
+                        <label for="camera_proof_input" 
+                            class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-2xl p-4 text-left transition flex items-center gap-3.5 group cursor-pointer shadow-sm select-none">
+                            <div class="w-10 h-10 rounded-xl bg-white/10 group-hover:bg-white/20 flex items-center justify-center shrink-0 transition">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             </div>
-                            <div>
-                                <span class="text-xs font-bold text-slate-800 block">Buka Kamera / Pilih Foto</span>
-                                <span class="text-[9.5px] text-slate-400 mt-0.5 block">Ambil foto jelas barang atau struk kasir</span>
+                            <div class="min-w-0 flex-1">
+                                <span class="text-xs font-black block">Ambil Foto dengan Kamera</span>
+                                <span class="text-[9.5px] text-slate-300 block mt-0.5">Buka kamera HP langsung untuk jepret barang / struk</span>
+                            </div>
+                            <svg class="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        </label>
+
+                        <!-- Tombol Pilih dari Galeri / Berkas via Native Label -->
+                        <label for="gallery_proof_input" 
+                            class="w-full bg-slate-50 hover:bg-slate-100/90 border border-slate-200 text-slate-800 rounded-2xl p-3.5 text-left transition flex items-center gap-3 group cursor-pointer select-none">
+                            <div class="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <span class="text-xs font-bold block">Pilih dari Galeri / File</span>
+                                <span class="text-[9px] text-slate-400 block mt-0.5">Pilih foto yang sudah pernah difoto sebelumnya</span>
+                            </div>
+                        </label>
+                    </div>
+                </template>
+
+                <!-- Loading State saat Kompresi Gambar di Browser -->
+                <template x-if="isCompressing">
+                    <div class="border-2 border-dashed border-indigo-200 bg-indigo-50/50 rounded-2xl p-6 text-center flex flex-col items-center justify-center gap-2">
+                        <svg class="animate-spin w-7 h-7 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-xs font-black text-indigo-900" x-text="compressStatus || 'Memproses foto...'"></span>
+                        <span class="text-[9px] text-indigo-600 font-medium">Mengompresi otomatis agar hemat kuota & cepat terunggah</span>
+                    </div>
+                </template>
+
+                <!-- Image Preview setelah Foto Terpilih -->
+                <template x-if="photoPreview && !isCompressing">
+                    <div class="space-y-2">
+                        <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 h-44 flex items-center justify-center shadow-inner">
+                            <img :src="photoPreview" class="w-full h-full object-cover" alt="Preview Foto Bukti">
+                            <button type="button" @click="removePhoto()" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-slate-900/80 text-white flex items-center justify-center hover:bg-slate-900 transition cursor-pointer shadow-md">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between text-[9.5px] px-1">
+                            <span class="text-emerald-600 font-bold flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                Foto Siap & Optimal
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <label for="camera_proof_input" class="text-slate-600 font-bold hover:underline cursor-pointer">
+                                    Foto Ulang
+                                </label>
+                                <span class="text-slate-300">•</span>
+                                <label for="gallery_proof_input" class="text-slate-600 font-bold hover:underline cursor-pointer">
+                                    Galeri
+                                </label>
                             </div>
                         </div>
-                    </template>
-
-                    <!-- Image Preview -->
-                    <template x-if="photoPreview">
-                        <div class="space-y-2">
-                            <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 h-44 flex items-center justify-center">
-                                <img :src="photoPreview" class="w-full h-full object-cover" alt="Preview Foto">
-                                <button type="button" @click="removePhoto()" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-slate-900/80 text-white flex items-center justify-center hover:bg-slate-900 transition cursor-pointer">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                </button>
-                            </div>
-                            <div class="flex items-center justify-between text-[9.5px]">
-                                <span class="text-emerald-600 font-bold flex items-center gap-1">
-                                    <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                    Foto Siap Dilampirkan
-                                </span>
-                                <button type="button" @click="$refs.photoInput.click()" class="text-slate-600 font-bold hover:underline cursor-pointer">
-                                    Ganti Foto
-                                </button>
-                            </div>
-                        </div>
-                    </template>
-                </div>
+                    </div>
+                </template>
 
                 <!-- Submit Buttons -->
-                <div class="space-y-2">
+                <div class="pt-2 space-y-2 shrink-0">
                     <button type="submit" 
-                        :disabled="isSubmitting"
-                        class="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white text-[10px] font-bold py-3 rounded-xl uppercase tracking-wider transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer">
+                        :disabled="isSubmitting || isCompressing || (!photoFile && !photoPreview)"
+                        class="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[10px] font-black py-3 rounded-xl uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-sm cursor-pointer">
+                        <svg x-show="isSubmitting" class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
                         <svg x-show="!isSubmitting" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        <span x-text="isSubmitting ? 'Memproses...' : buttonText"></span>
+                        <span x-text="isSubmitting ? 'Mengunggah & Menyimpan...' : (isCompressing ? 'Memproses Foto...' : buttonText)"></span>
                     </button>
                     
-                    <button type="button" @click="closeModal()" class="w-full text-slate-400 hover:text-slate-600 text-[10px] font-bold py-1 transition cursor-pointer">
+                    <button type="button" @click="closeModal()" :disabled="isSubmitting" class="w-full text-slate-400 hover:text-slate-600 disabled:opacity-50 text-[10px] font-bold py-1 transition cursor-pointer">
                         Batal
                     </button>
                 </div>
@@ -1159,7 +1625,8 @@
         }"
         @open-image-lightbox.window="openLightbox($event.detail)"
         x-show="lightboxOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
+        x-cloak
+        class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
         style="display: none;"
         x-transition>
         
@@ -1211,7 +1678,8 @@
 
             map = L.map('leaflet-jastiper-dash-map', {
                 zoomControl: false,
-                attributionControl: false
+                attributionControl: false,
+                scrollWheelZoom: false
             }).setView([currentLat, currentLng], 13);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

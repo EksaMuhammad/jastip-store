@@ -124,6 +124,7 @@
                         this.messages = data.messages || [];
                         this.errorMessage = null;
                         this.$nextTick(() => this.scrollToBottom());
+                        window.dispatchEvent(new CustomEvent('chat-read', { detail: { orderId: this.orderId } }));
                     } else {
                         // Order tidak/kembali tidak bisa diakses (mis. status berubah) — hentikan polling.
                         this.errorMessage = data.message || 'Gagal memuat chat.';
@@ -397,6 +398,7 @@
     x-on:open-chat.window="openChat($event.detail)"
     x-show="open"
     x-cloak
+    :class="{ 'pointer-events-none': !open, 'pointer-events-auto': open }"
     style="display: none; position: fixed; inset: 0; z-index: 9999; background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); align-items: center; justify-content: center;"
     class="flex p-4 animate-fade-in"
 >

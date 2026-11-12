@@ -47,7 +47,7 @@ class ChatController extends Controller
 
         $validated = $request->validate([
             'message' => ['nullable', 'string', 'max:2000', 'required_without:attachment'],
-            'attachment' => ['nullable', 'image', 'max:2048', 'required_without:message'], // Max 2MB, ikut pola reference_photo
+            'attachment' => ['nullable', 'image', 'max:25600', 'required_without:message'], // Max 25MB untuk kamera HP modern
         ]);
 
         $attachmentPath = null;
@@ -146,6 +146,15 @@ class ChatController extends Controller
      */
     private function resolveActor(): array
     {
+        // Prioritaskan berdasarkan prefix route URL saat ini agar aman meski login multi-tab di 1 browser
+        if (request()->is('jastiper/*') && Auth::guard('jastiper')->check()) {
+            return ['jastiper', Auth::guard('jastiper')->user()];
+        }
+
+        if (request()->is('customer/*') && Auth::guard('customer')->check()) {
+            return ['customer', Auth::guard('customer')->user()];
+        }
+
         if (Auth::guard('customer')->check()) {
             return ['customer', Auth::guard('customer')->user()];
         }

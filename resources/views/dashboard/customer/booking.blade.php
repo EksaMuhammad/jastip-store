@@ -8,10 +8,19 @@
         
         <!-- Breadcrumb / Navigation -->
         <div class="mb-6 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <a href="{{ route('customer.dashboard') }}" class="text-xs font-bold text-rose-600 hover:underline">Dashboard</a>
-                <span class="text-slate-400">/</span>
-                <span class="text-xs font-bold text-slate-500">Booking Jastiper</span>
+            <div class="flex items-center gap-3">
+                <a href="{{ route('customer.profile') }}" 
+                   class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-rose-600 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs transition group"
+                   title="Kembali ke Profil">
+                    <svg class="w-4 h-4 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+                    <span>Kembali ke Profil</span>
+                </a>
+                <div class="hidden sm:flex items-center gap-2">
+                    <span class="text-slate-300">|</span>
+                    <a href="{{ route('customer.dashboard') }}" class="text-xs font-bold text-slate-400 hover:text-rose-600 transition">Dashboard</a>
+                    <span class="text-slate-300">/</span>
+                    <span class="text-xs font-bold text-slate-500">Booking Jastiper</span>
+                </div>
             </div>
             
             <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">Instant Booking</span>

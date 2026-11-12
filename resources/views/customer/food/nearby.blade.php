@@ -119,7 +119,7 @@
     </div>
 
     <!-- Section Title & Tabs Container (Image 4 Exact Header Form) -->
-    <div class="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-xs">
+    <div class="bg-white border-b border-slate-100 sticky top-16 sm:static z-30 sm:z-auto shadow-xs sm:shadow-none">
         <div class="max-w-md mx-auto px-4 pt-3">
             <!-- Title Section -->
             <div class="flex items-center justify-between mb-1 gap-2">
@@ -127,9 +127,9 @@
                     <h2 class="font-extrabold text-lg text-slate-900 tracking-tight">Sekitarmu</h2>
                     <p class="text-[11px] text-slate-500 font-medium truncate">
                         @if($hasCustomerLocation && $detectedArea)
-                            Menampilkan resto terdekat dari posisi Anda di <span class="font-bold text-rose-600">{{ $detectedArea }}</span>.
+                            Menampilkan resto terdekat (radius &le; 20 km) dari posisi Anda di <span class="font-bold text-rose-600">{{ $detectedArea }}</span>.
                         @else
-                            Temukan berbagai menu lezat dari Resto terdekat.
+                            Temukan berbagai menu lezat dari Resto terdekat dalam radius 20 km.
                         @endif
                     </p>
                 </div>

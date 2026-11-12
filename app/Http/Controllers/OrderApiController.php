@@ -398,7 +398,7 @@ class OrderApiController extends Controller
             'order_id' => 'required|exists:orders,id',
             'jastiper_id' => 'required|exists:jastiper,id',
             'status' => 'required|in:barang_diambil,sedang_diantar,tiba_tujuan',
-            'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,heic,heif|max:10240',
+            'photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,heic,heif,jfif|max:25600',
         ]);
 
         if ($validator->fails()) {

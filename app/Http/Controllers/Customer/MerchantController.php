@@ -10,17 +10,57 @@ use Illuminate\Http\Request;
 
 class MerchantController extends Controller
 {
-    public function food()
+    public function food(Request $request)
     {
         $categories = Category::where('type', 'food')->get();
+        $selectedCategoryId = $request->query('category_id');
+        $selectedCategory = $selectedCategoryId ? Category::find($selectedCategoryId) : null;
+
         $flashSales = Product::where('is_flash_sale', true)
             ->whereHas('merchant', function($q) { $q->where('type', 'food'); })
             ->with('merchant')
             ->get();
             
-        $merchants = Merchant::where('type', 'food')->paginate(10);
+        $merchantsQuery = Merchant::where('type', 'food');
+        $categoryProducts = collect();
+
+        if ($selectedCategory) {
+            // Ambil produk yang berkategori ini atau berhubungan
+            $categoryProducts = Product::where('category_id', $selectedCategory->id)
+                ->where('is_available', true)
+                ->whereHas('merchant', fn($q) => $q->where('type', 'food'))
+                ->with('merchant')
+                ->take(12)
+                ->get();
+
+            // Fallback: cari berdasarkan kata kunci nama kategori jika relasi belum terhubung
+            if ($categoryProducts->isEmpty()) {
+                $categoryProducts = Product::where(function($q) use ($selectedCategory) {
+                    $q->where('name', 'like', "%{$selectedCategory->name}%")
+                      ->orWhere('description', 'like', "%{$selectedCategory->name}%");
+                })
+                ->where('is_available', true)
+                ->whereHas('merchant', fn($q) => $q->where('type', 'food'))
+                ->with('merchant')
+                ->take(12)
+                ->get();
+            }
+
+            // Filter toko yang punya produk terkait atau nama toko cocok
+            $merchantsQuery->where(function($q) use ($selectedCategory) {
+                $q->whereHas('products', function($pq) use ($selectedCategory) {
+                    $pq->where('category_id', $selectedCategory->id)
+                      ->orWhere('name', 'like', "%{$selectedCategory->name}%")
+                      ->orWhere('description', 'like', "%{$selectedCategory->name}%");
+                })
+                ->orWhere('name', 'like', "%{$selectedCategory->name}%")
+                ->orWhere('description', 'like', "%{$selectedCategory->name}%");
+            });
+        }
+
+        $merchants = $merchantsQuery->paginate(10)->withQueryString();
         
-        return view('customer.food.index', compact('categories', 'flashSales', 'merchants'));
+        return view('customer.food.index', compact('categories', 'flashSales', 'merchants', 'selectedCategory', 'categoryProducts'));
     }
 
     public function nearby(Request $request)
@@ -126,15 +166,23 @@ class MerchantController extends Controller
             }
         }
 
-        // Filter radius jarak jika customer memilih filter jarak (misal < 1 km atau < 3 km)
-        if ($request->filled('max_dist') && $hasCustomerLocation) {
-            $maxDist = (float) $request->input('max_dist');
-            $merchantsWithDistance = $merchantsWithDistance->filter(function($m) use ($maxDist) {
-                return $m->distance_km !== null && $m->distance_km <= $maxDist;
-            });
-        }
-
         $activeTab = $request->query('tab', 'terdekat');
+
+        // Filter radius jarak:
+        // Untuk tab 'terdekat', gunakan batas maksimal radius 20 km (atau filter lebih kecil jika dipilih)
+        // Pedagang di luar 20 km tidak dimasukkan ke dalam daftar 'terdekat', tetap diurutkan dari yang paling dekat
+        if ($hasCustomerLocation) {
+            $maxRadius = 20.0;
+            if ($request->filled('max_dist')) {
+                $maxRadius = min($maxRadius, (float) $request->input('max_dist'));
+            }
+
+            if ($activeTab === 'terdekat' || $request->filled('max_dist')) {
+                $merchantsWithDistance = $merchantsWithDistance->filter(function($m) use ($maxRadius) {
+                    return $m->distance_km !== null && $m->distance_km <= $maxRadius;
+                });
+            }
+        }
 
         if ($activeTab === 'terdekat') {
             // Urutkan berdasarkan jarak nyata dari terdekat jika ada koordinat

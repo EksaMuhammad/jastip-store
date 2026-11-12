@@ -6,7 +6,7 @@
 <div class="min-h-screen bg-[#F9FAFB] pb-24">
     
     <!-- Top Search Header -->
-    <div class="bg-white sticky top-0 z-40 px-4 py-3 border-b border-slate-200/80 shadow-sm">
+    <div class="bg-white sticky top-16 sm:static z-40 sm:z-auto px-4 py-3 border-b border-slate-200/80 shadow-sm sm:shadow-none">
         <div class="flex items-center justify-between mb-3">
             <a href="{{ route('customer.dashboard') }}" class="text-slate-700 bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -136,24 +136,93 @@
     <div class="px-4 mb-6">
         <div class="flex items-center justify-between mb-3">
             <h3 class="font-black text-slate-800 text-sm">Kuliner sesuai seleramu</h3>
-            <a href="{{ route('customer.food.nearby') }}" class="text-[10px] bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">Lihat Semua</a>
+            @if(isset($selectedCategory) && $selectedCategory)
+                <a href="{{ route('customer.food.index') }}" class="text-[10px] bg-rose-100 text-rose-700 px-3 py-1 rounded-full font-bold">Reset Kategori</a>
+            @else
+                <a href="{{ route('customer.food.nearby') }}" class="text-[10px] bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">Lihat Semua</a>
+            @endif
         </div>
         <div class="grid grid-cols-4 gap-y-4 gap-x-2">
             @foreach($categories as $category)
-            <div class="flex flex-col items-center cursor-pointer">
-                <div class="w-16 h-16 rounded-full bg-slate-200 overflow-hidden mb-1.5 shadow-sm border border-slate-100">
-                    <img src="https://ui-avatars.com/api/?name={{ urlencode($category->name) }}&background=random&color=fff&size=100" class="w-full h-full object-cover">
+            @php
+                $isActiveCat = isset($selectedCategory) && $selectedCategory && $selectedCategory->id === $category->id;
+            @endphp
+            <a href="{{ $isActiveCat ? route('customer.food.index') : route('customer.food.index', ['category_id' => $category->id]) }}" class="flex flex-col items-center group cursor-pointer transition transform active:scale-95">
+                <div class="w-16 h-16 rounded-full overflow-hidden mb-1.5 shadow-sm border transition {{ $isActiveCat ? 'ring-4 ring-rose-500 border-rose-500 scale-105 shadow-md' : 'bg-slate-200 border-slate-100 group-hover:scale-105' }}">
+                    <img src="https://ui-avatars.com/api/?name={{ urlencode($category->name) }}&background={{ $isActiveCat ? 'f43f5e' : 'random' }}&color=fff&size=100" class="w-full h-full object-cover">
                 </div>
-                <span class="text-[9px] font-bold text-slate-700 text-center leading-tight">{{ $category->name }}</span>
-            </div>
+                <span class="text-[9px] font-bold text-center leading-tight {{ $isActiveCat ? 'text-rose-600 font-black' : 'text-slate-700' }}">{{ $category->name }}</span>
+            </a>
             @endforeach
         </div>
     </div>
 
+    @if(isset($selectedCategory) && $selectedCategory)
+    <!-- Active Category Banner & Menu Products -->
+    <div class="px-4 mb-6">
+        <div class="bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200 rounded-2xl p-3 flex items-center justify-between shadow-2xs mb-4">
+            <div class="flex items-center gap-2.5">
+                <span class="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">🍽️</span>
+                <div>
+                    <p class="text-xs font-black text-slate-800">Filter Aktif: {{ $selectedCategory->name }}</p>
+                    <p class="text-[10px] text-slate-500">Menampilkan produk & toko yang menyediakan {{ $selectedCategory->name }}</p>
+                </div>
+            </div>
+            <a href="{{ route('customer.food.index') }}" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-rose-200 text-rose-600 font-extrabold text-[10px] rounded-xl transition shadow-2xs flex items-center gap-1">
+                <span>✕</span> Hapus Filter
+            </a>
+        </div>
+
+        @if(isset($categoryProducts) && $categoryProducts->isNotEmpty())
+        <div class="mb-4">
+            <h4 class="font-black text-slate-800 text-xs mb-3 flex items-center gap-1.5">
+                <span>⚡</span> Pilihan Produk & Menu {{ $selectedCategory->name }} ({{ $categoryProducts->count() }} Menu)
+            </h4>
+            <div class="grid grid-cols-2 gap-3">
+                @foreach($categoryProducts as $catProd)
+                <div class="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="h-24 bg-slate-100 rounded-xl overflow-hidden mb-2 relative">
+                            @if($catProd->image)
+                                <img src="{{ $catProd->image }}" class="w-full h-full object-cover">
+                            @else
+                                <div class="w-full h-full flex items-center justify-center text-slate-400 text-xs font-bold">No Image</div>
+                            @endif
+                            @if($catProd->has_discount)
+                                <div class="absolute top-1.5 left-1.5 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">-{{ $catProd->discount_percentage }}%</div>
+                            @endif
+                        </div>
+                        <p class="text-[9px] font-bold text-rose-600 truncate">{{ $catProd->merchant->name ?? 'Toko Kuliner' }}</p>
+                        <h5 class="text-xs font-black text-slate-800 line-clamp-2 mt-0.5 leading-snug">{{ $catProd->name }}</h5>
+                    </div>
+                    <div class="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+                        <div>
+                            <span class="text-xs font-black text-slate-900">Rp{{ number_format($catProd->final_price, 0, ',', '.') }}</span>
+                            @if($catProd->has_discount)
+                                <span class="text-[9px] text-slate-400 line-through block">Rp{{ number_format($catProd->estimated_price, 0, ',', '.') }}</span>
+                            @endif
+                        </div>
+                        <button type="button" 
+                                onclick="event.stopPropagation(); event.preventDefault(); addFoodToCart(this, {{ $catProd->id }}, '{{ addslashes($catProd->name) }}')"
+                                class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-[10px] rounded-lg transition shadow-xs flex items-center gap-1 cursor-pointer">
+                            <span>+</span>
+                            <span>Beli</span>
+                        </button>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+    </div>
+    @endif
+
     <!-- Resto List (Resto Terpopuler) -->
     <div class="px-4">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="font-black text-slate-800 text-sm">Resto Terpopuler</h3>
+            <h3 class="font-black text-slate-800 text-sm">
+                {{ isset($selectedCategory) && $selectedCategory ? 'Resto Pilihan: ' . $selectedCategory->name : 'Resto Terpopuler' }}
+            </h3>
             <a href="{{ route('customer.food.nearby') }}" class="text-[10px] text-rose-600 font-bold hover:underline flex items-center gap-0.5">
                 <span>Resto Sekitarmu</span>
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
@@ -207,4 +276,76 @@
         </div>
     </div>
 </div>
+
+<script>
+    function addFoodToCart(button, productId, productName) {
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = `
+            <svg class="w-3 h-3 animate-spin inline-block mr-0.5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>...</span>
+        `;
+
+        fetch(`/customer/cart/add/${productId}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Gagal menambahkan ke keranjang');
+            return response.json();
+        })
+        .then(data => {
+            button.classList.remove('bg-rose-600', 'hover:bg-rose-700');
+            button.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+            button.innerHTML = `<span>✓</span><span>Ditambah</span>`;
+
+            // Update cart badges in header & mobile nav if present
+            const badges = document.querySelectorAll('.cart-badge, [id*="cart-count"], nav a[href*="cart"] span.bg-rose-600');
+            badges.forEach(badge => {
+                badge.textContent = data.cart_count;
+                badge.classList.remove('hidden');
+            });
+
+            // Show Toast Notification
+            showFoodToast(productName ? `"${productName}" berhasil masuk keranjang!` : data.message);
+
+            setTimeout(() => {
+                button.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+                button.classList.add('bg-rose-600', 'hover:bg-rose-700');
+                button.innerHTML = originalHtml;
+                button.disabled = false;
+            }, 1800);
+        })
+        .catch(err => {
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+            alert(err.message || 'Terjadi kesalahan');
+        });
+    }
+
+    function showFoodToast(message) {
+        let toast = document.getElementById('food-cart-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'food-cart-toast';
+            toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl text-xs font-extrabold shadow-xl border border-slate-700 flex items-center gap-2 transform transition-all duration-300 pointer-events-none';
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<span>🛒</span><span>${message}</span>`;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translate(-50%, 0)';
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translate(-50%, -10px)';
+        }, 3000);
+    }
+</script>
 @endsection

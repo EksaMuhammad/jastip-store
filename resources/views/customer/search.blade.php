@@ -4,24 +4,167 @@
 
 @section('content')
 <div class="min-h-screen bg-slate-50/50 pb-16">
-    <!-- Header Pencarian (Sticky Top Bar) -->
+    <!-- Header Pencarian (Sticky Top Bar dengan Live Autocomplete) -->
     <div class="sticky top-0 z-50 bg-white border-b border-slate-200/80 px-4 py-3 shadow-xs">
         <div class="max-w-2xl mx-auto flex items-center gap-3">
-            <a href="{{ route('customer.dashboard') }}" class="text-slate-500 hover:text-slate-800 p-1.5 rounded-full hover:bg-slate-100 transition" title="Kembali ke Beranda">
+            <a href="{{ route('customer.dashboard') }}" class="text-slate-500 hover:text-slate-800 p-1.5 rounded-full hover:bg-slate-100 transition shrink-0" title="Kembali ke Beranda">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </a>
-            <form action="{{ route('customer.search') }}" method="GET" class="flex-grow relative">
-                <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari layanan, toko, makanan, ekspedisi..." autofocus 
-                    class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-800 placeholder-slate-400 pl-10 pr-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150 h-[40px]">
-                <div class="absolute left-3.5 top-2.5 text-slate-400 pointer-events-none">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </div>
-                @if(request('q'))
-                    <a href="{{ route('customer.search') }}" class="absolute right-3.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold" title="Hapus pencarian">
-                        ✕
+            
+            <div x-data="searchAutocomplete({ endpoint: '{{ route('customer.search.live') }}', searchUrl: '{{ route('customer.search') }}', initialQuery: @json(request('q', '')) })" 
+                 @click.outside="open = false" 
+                 class="relative flex-grow block">
+                <form action="{{ route('customer.search') }}" method="GET" @submit="handleSubmit($event)">
+                    <div class="relative">
+                        <input type="text" 
+                               name="q" 
+                               x-model="query" 
+                               @input.debounce.250ms="performSearch()"
+                               @focus="if(results && results.total > 0) open = true"
+                               @keydown.escape="open = false"
+                               placeholder="Cari layanan, toko, makanan, ekspedisi..." 
+                               autocomplete="off" 
+                               autofocus 
+                               class="w-full bg-[#F3F4F6] border border-slate-200 text-slate-800 placeholder-slate-400 pl-10 pr-10 py-2.5 rounded-full text-xs font-semibold focus:outline-none focus:bg-white focus:border-rose-500 transition duration-150 h-[40px]">
+                        
+                        <div class="absolute left-3.5 top-2.5 text-slate-400 pointer-events-none">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </div>
+                        
+                        <!-- Clear button -->
+                        <button type="button" 
+                                x-show="query && query.length > 0" 
+                                @click="query = ''; results = null; open = false;"
+                                class="absolute right-3.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold" 
+                                title="Hapus pencarian">
+                            ✕
+                        </button>
+
+                        <!-- Loading spinner -->
+                        <div x-show="loading" class="absolute right-8 top-3" style="display: none;">
+                            <svg class="animate-spin w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Floating Dropdown Hasil Pencarian Langsung -->
+                <div x-show="open && query && query.trim().length > 0" 
+                     x-cloak 
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 translate-y-1 scale-98"
+                     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave="transition ease-in duration-100"
+                     x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave-end="opacity-0 translate-y-1 scale-98"
+                     class="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden text-left divide-y divide-slate-100 max-h-[460px] overflow-y-auto">
+                    
+                    <!-- 1. Layanan Jastip -->
+                    <template x-if="results && results.services && results.services.length > 0">
+                        <div>
+                            <div class="px-3.5 py-1.5 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                                <span>🚀 Layanan Jastip</span>
+                                <span class="text-[9px] text-rose-600 font-bold" x-text="results.services.length + ' Ditemukan'"></span>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <template x-for="svc in results.services" :key="'svc-' + svc.id">
+                                    <a :href="svc.url" class="flex items-center gap-3 p-2.5 hover:bg-rose-50/60 transition group">
+                                        <div class="w-9 h-9 rounded-xl bg-slate-100 p-1 flex items-center justify-center shrink-0 border border-slate-200 group-hover:scale-105 transition-transform">
+                                            <img :src="svc.image" :alt="svc.name" class="w-7 h-7 object-contain">
+                                        </div>
+                                        <div class="min-w-0 flex-grow">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <span class="font-extrabold text-xs text-slate-900 group-hover:text-rose-600 transition" x-text="svc.name"></span>
+                                                <span class="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border" :class="svc.badge_color" x-text="svc.subtitle"></span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-500 line-clamp-1 mt-0.5 leading-snug" x-text="svc.description"></p>
+                                        </div>
+                                        <span class="text-slate-400 group-hover:text-rose-600 text-xs font-bold">→</span>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 2. Toko & Restoran -->
+                    <template x-if="results && results.merchants && results.merchants.length > 0">
+                        <div>
+                            <div class="px-3.5 py-1.5 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                                <span>🏪 Toko & Restoran</span>
+                                <span class="text-[9px] text-amber-600 font-bold" x-text="results.merchants.length + ' Mitra'"></span>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <template x-for="m in results.merchants" :key="'m-' + m.id">
+                                    <a :href="m.url" class="flex items-center gap-3 p-2.5 hover:bg-amber-50/60 transition group">
+                                        <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center shrink-0 text-base">
+                                            <span x-text="m.type === 'mart' ? '🛒' : '🏪'"></span>
+                                        </div>
+                                        <div class="min-w-0 flex-grow">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="font-extrabold text-xs text-slate-900 group-hover:text-amber-700 transition truncate" x-text="m.name"></span>
+                                                <span class="text-[8px] font-bold text-amber-700 bg-amber-100/70 px-1 rounded" x-text="m.type_label"></span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-400 truncate mt-0.5" x-text="m.address"></p>
+                                        </div>
+                                        <span class="text-slate-400 group-hover:text-amber-700 text-xs font-bold">→</span>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 3. Produk / Menu Makanan -->
+                    <template x-if="results && results.products && results.products.length > 0">
+                        <div>
+                            <div class="px-3.5 py-1.5 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                                <span>🍔 Menu & Produk</span>
+                                <span class="text-[9px] text-rose-600 font-bold" x-text="results.products.length + ' Produk'"></span>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <template x-for="p in results.products" :key="'p-' + p.id">
+                                    <a :href="p.url" class="flex items-center gap-3 p-2.5 hover:bg-rose-50/60 transition group">
+                                        <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden text-base">
+                                            <template x-if="p.image">
+                                                <img :src="p.image" :alt="p.name" class="w-full h-full object-cover">
+                                            </template>
+                                            <template x-if="!p.image">
+                                                <span class="text-[10px] font-bold text-slate-400" x-text="p.initials"></span>
+                                            </template>
+                                        </div>
+                                        <div class="min-w-0 flex-grow">
+                                            <div class="flex items-center justify-between gap-1">
+                                                <span class="font-bold text-xs text-slate-900 group-hover:text-rose-600 transition truncate" x-text="p.name"></span>
+                                                <span class="font-black text-xs text-rose-600 shrink-0" x-text="p.formatted_price"></span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-400 truncate mt-0.5" x-text="p.merchant_name"></p>
+                                        </div>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Tidak Ada Hasil Instan -->
+                    <template x-if="!loading && results && results.total === 0">
+                        <div class="p-4 text-center space-y-1">
+                            <p class="text-xs font-semibold text-slate-700">Tidak ada layanan, produk, atau toko yang cocok</p>
+                            <p class="text-[10px] text-slate-400">Tekan Enter atau ketuk di bawah untuk mencari di seluruh database.</p>
+                        </div>
+                    </template>
+
+                    <!-- Tombol Lihat Semua Hasil (Enter) -->
+                    <a :href="results?.search_all_url || (searchUrl + '?q=' + encodeURIComponent(query))" 
+                       class="flex items-center justify-between px-3.5 py-2.5 bg-rose-50/70 hover:bg-rose-100/90 text-rose-700 font-bold text-xs transition">
+                        <span class="flex items-center gap-2 truncate">
+                            <span>🔍</span>
+                            <span class="truncate">Lihat semua hasil untuk "<span class="font-black text-rose-800" x-text="query"></span>"</span>
+                        </span>
+                        <span class="text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 shadow-2xs">
+                            <span>Cari</span>
+                            <span>↵</span>
+                        </span>
                     </a>
-                @endif
-            </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -218,8 +361,8 @@
                     <a href="?q=beli+antar" class="px-3.5 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-full text-xs font-bold transition flex items-center gap-1">
                         <span>🍔</span> Beli-Antar
                     </a>
-                    <a href="?q=toko+kirim" class="px-3.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 rounded-full text-xs font-bold transition flex items-center gap-1">
-                        <span>🛒</span> Toko Kirim
+                    <a href="?q=belanja+retail" class="px-3.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 rounded-full text-xs font-bold transition flex items-center gap-1">
+                        <span>🛒</span> Belanja Retail
                     </a>
                     <a href="?q=ambil+antar" class="px-3.5 py-1.5 bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 rounded-full text-xs font-bold transition flex items-center gap-1">
                         <span>📦</span> Ambil & Antar

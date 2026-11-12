@@ -27,8 +27,8 @@ new class extends Component
     protected function rules()
     {
         return [
-            'ktp_image' => ['required', 'image', 'max:2048'], // Max 2MB
-            'selfie_image' => ['required', 'image', 'max:2048'], // Max 2MB
+            'ktp_image' => ['required', 'image', 'max:25600'], // Max 25MB
+            'selfie_image' => ['required', 'image', 'max:25600'], // Max 25MB
         ];
     }
 

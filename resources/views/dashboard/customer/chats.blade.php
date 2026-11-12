@@ -6,9 +6,18 @@
 <div class="min-h-screen bg-white pb-16">
     
     <!-- Top Header (Gojek Style) -->
-    <div class="bg-white border-b border-slate-200 sticky top-20 z-40 px-4 py-3.5 shadow-sm">
-        <div class="max-w-md mx-auto">
+    <div class="bg-white border-b border-slate-200 sticky top-16 sm:static z-40 sm:z-auto px-4 py-3.5 shadow-sm sm:shadow-none">
+        <div class="max-w-md mx-auto flex items-center justify-between">
             <h2 class="font-display font-black text-lg text-slate-900 leading-none">Chat</h2>
+            <button type="button" 
+                    onclick="markAllCustomerChatsRead()" 
+                    class="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-full transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    title="Tandai semua obrolan sebagai dibaca">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7m-7 6l2 2 4-4"></path>
+                </svg>
+                <span>Tandai Semua Dibaca</span>
+            </button>
         </div>
     </div>
 
@@ -23,7 +32,6 @@
                 <div class="flex flex-col items-center gap-1 cursor-pointer" onclick="showMaintenanceToast(event)">
                     <div class="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white relative shadow-md shadow-orange-500/20">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                        <span class="absolute -top-1 -right-1 bg-rose-600 text-[8px] font-black text-white px-1.5 py-0.5 rounded-full border border-white">1</span>
                     </div>
                     <span class="text-[10px] font-bold text-slate-700">Inbox</span>
                 </div>
@@ -83,13 +91,15 @@
                         </p>
                     </div>
                 </div>
-                @if($unreadSupportCount > 0)
-                    <span class="shrink-0 bg-rose-600 text-[9px] font-extrabold text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
-                        {{ $unreadSupportCount }}
-                    </span>
-                @else
-                    <span class="text-slate-400 text-xs">›</span>
-                @endif
+                <div id="cs-support-unread-container" class="shrink-0">
+                    @if($unreadSupportCount > 0)
+                        <span id="cs-support-unread-badge" class="bg-rose-600 text-[9px] font-extrabold text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
+                            {{ $unreadSupportCount }}
+                        </span>
+                    @else
+                        <span class="text-slate-400 text-xs">›</span>
+                    @endif
+                </div>
             </a>
 
             @if($conversations->isEmpty())
@@ -101,8 +111,9 @@
             @else
                 <div class="divide-y divide-slate-100">
                     @foreach($conversations as $conv)
-                        <div class="py-3.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 rounded-2xl px-2 -mx-2 transition"
-                             onclick="window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: {{ $conv['order_id'] }}, orderLabel: '{{ addslashes($conv['order_description']) }}' } }))">
+                        <div id="chat-item-{{ $conv['order_id'] }}"
+                             class="py-3.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 rounded-2xl px-2 -mx-2 transition"
+                             onclick="openCustomerOrderChat({{ $conv['order_id'] }}, '{{ addslashes($conv['order_description']) }}')">
                             
                             <!-- Left section: Avatar & Message info -->
                             <div class="flex items-center gap-3 min-w-0 flex-1">
@@ -128,11 +139,13 @@
                             </div>
                             
                             <!-- Right section: Unread Badge -->
-                            @if($conv['unread_count'] > 0)
-                                <span class="shrink-0 bg-rose-600 text-[9px] font-extrabold text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm shadow-rose-600/20">
-                                    {{ $conv['unread_count'] }}
-                                </span>
-                            @endif
+                            <div id="unread-container-{{ $conv['order_id'] }}" class="order-unread-container shrink-0">
+                                @if($conv['unread_count'] > 0)
+                                    <span class="bg-rose-600 text-[9px] font-extrabold text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm shadow-rose-600/20">
+                                        {{ $conv['unread_count'] }}
+                                    </span>
+                                @endif
+                            </div>
 
                         </div>
                     @endforeach
@@ -142,6 +155,70 @@
 
     </div>
 </div>
+
+<script>
+    function openCustomerOrderChat(orderId, orderLabel) {
+        // Hapus seketika badge unread order ini dari DOM
+        const container = document.getElementById('unread-container-' + orderId);
+        if (container) {
+            container.innerHTML = '';
+        }
+        window.dispatchEvent(new CustomEvent('open-chat', {
+            detail: { orderId: orderId, orderLabel: orderLabel }
+        }));
+    }
+
+    async function markAllCustomerChatsRead() {
+        try {
+            const res = await fetch("{{ route('customer.chats.mark-all-read') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Bersihkan semua badge di daftar order
+                document.querySelectorAll('.order-unread-container').forEach(el => el.innerHTML = '');
+
+                // Bersihkan badge top circle icon Bantuan CS jika ada
+                const topCsBadge = document.querySelector('a[href="{{ route('customer.support.chat') }}"] .animate-pulse');
+                if (topCsBadge) topCsBadge.remove();
+
+                // Bersihkan badge pinned bar bantuan
+                const pinnedContainer = document.getElementById('cs-support-unread-container');
+                if (pinnedContainer) {
+                    pinnedContainer.innerHTML = '<span class="text-slate-400 text-xs">›</span>';
+                }
+
+                // Bersihkan badge merah pada lonceng notifikasi header jika ada
+                const headerBellBadge = document.querySelector('#btn-customer-notifications span.bg-rose-600');
+                if (headerBellBadge) {
+                    headerBellBadge.remove();
+                }
+
+                // Munculkan toast notifikasi
+                const toast = document.createElement('div');
+                toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg z-50 flex items-center gap-2';
+                toast.innerHTML = '<span>✓</span><span>Semua pesan telah ditandai sebagai dibaca</span>';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 2500);
+            }
+        } catch (e) {
+            console.error('Gagal menandai chat terbaca:', e);
+        }
+    }
+
+    // Dengarkan jika modal chat membaca riwayat di latar
+    window.addEventListener('chat-read', function(e) {
+        if (e.detail && e.detail.orderId) {
+            const container = document.getElementById('unread-container-' + e.detail.orderId);
+            if (container) container.innerHTML = '';
+        }
+    });
+</script>
 
 @include('components.chat.order-chat-modal', [
     'viewerRole' => 'customer',

@@ -3,9 +3,9 @@
 @section('title', 'Aktivitas Saya')
 
 @section('content')
-<div class="min-h-screen bg-[#F3F4F6] pb-16" 
+<div class="min-h-screen bg-[#F3F4F6] pb-28" 
      x-data="{ 
-        activeTab: new URLSearchParams(window.location.search).get('tab') || 'dalam_proses',
+        activeTab: ['dalam_proses', 'riwayat'].includes(new URLSearchParams(window.location.search).get('tab')) ? new URLSearchParams(window.location.search).get('tab') : 'dalam_proses',
         orders: [],
         initialLoaded: false,
         pollHandle: null,
@@ -54,55 +54,62 @@
                 'tiba_tujuan': 'Tiba di Tujuan'
             };
             return labels[status] || status.replace('_', ' ');
+        },
+
+        getMultiStopProgressLabel(stops, status) {
+            if (!stops || stops.length === 0) return '';
+            const completed = stops.filter(s => s.status === 'completed');
+            if (completed.length === stops.length) {
+                return '✓ Semua toko selesai diambil! Jastiper siap mengantar.';
+            }
+            const currentStop = stops.find(s => s.status !== 'completed');
+            if (currentStop) {
+                if (completed.length === 0) {
+                    return '🛵 Lagi ambil barang pertama (' + (currentStop.name || 'Toko 1') + ')';
+                } else {
+                    return '🛍️ Stop ' + completed.length + ' selesai! Menuju Stop ' + currentStop.stop_number + ' (' + (currentStop.name || '') + ')';
+                }
+            }
+            return 'Sedang proses belanja multi-toko';
         }
      }">
     
-    <!-- Top Navigation Header (Gojek Style) -->
-    <div class="bg-white border-b border-slate-200 sticky top-20 z-40 px-4 py-3 shadow-sm">
+    <!-- Top Navigation Header (Sticky on Mobile & Desktop / Laptop) -->
+    <div class="bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-16 sm:top-20 z-40 px-4 pt-3.5 pb-2 shadow-xs transition-all">
         <div class="max-w-md mx-auto">
-            <h2 class="font-display font-black text-lg text-slate-900 leading-none">Aktivitas</h2>
+            <div class="flex items-center justify-between">
+                <h2 class="font-display font-black text-lg text-slate-900 leading-none">Aktivitas</h2>
+                <div class="flex items-center gap-1.5">
+                    <span class="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-rose-100">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                        Pesanan
+                    </span>
+                </div>
+            </div>
             
-            <!-- Tabs Row -->
-            <div class="flex justify-between items-center mt-4 border-b border-slate-100 text-xs font-bold text-slate-400">
-                <button @click="activeTab = 'riwayat'" 
-                        :class="activeTab === 'riwayat' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
-                        class="flex-1 text-center transition">
-                    Riwayat
-                </button>
+            <!-- Tabs Row: Dalam proses & Riwayat -->
+            <div class="flex items-center mt-3 border-b border-slate-100 text-xs font-bold text-slate-400">
                 <button @click="activeTab = 'dalam_proses'" 
-                        :class="activeTab === 'dalam_proses' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
+                        :class="activeTab === 'dalam_proses' ? 'text-rose-600 border-b-2 border-rose-600 pb-2.5 font-black' : 'pb-2.5 text-slate-400 hover:text-slate-600 font-bold'" 
                         class="flex-1 text-center transition">
                     Dalam proses
                 </button>
-                <button @click="activeTab = 'terjadwal'" 
-                        :class="activeTab === 'terjadwal' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
+                <button @click="activeTab = 'riwayat'" 
+                        :class="activeTab === 'riwayat' ? 'text-rose-600 border-b-2 border-rose-600 pb-2.5 font-black' : 'pb-2.5 text-slate-400 hover:text-slate-600 font-bold'" 
                         class="flex-1 text-center transition">
-                    Terjadwal
-                </button>
-                <button @click="activeTab = 'draf'" 
-                        :class="activeTab === 'draf' ? 'text-rose-600 border-b-2 border-rose-600 pb-2' : 'pb-2'" 
-                        class="flex-1 text-center transition">
-                    Draf
+                    Riwayat
                 </button>
             </div>
-        </div>
-    </div>
 
-    <!-- Main Content Container -->
-    <div class="max-w-md mx-auto px-4 mt-4">
-        
-        <!-- ================= RIWAYAT TAB ================= -->
-        <div x-show="activeTab === 'riwayat'" class="space-y-4 animate-fade-in" x-transition>
-
-            <!-- Transaction Filters (GoPay style) -->
-            <div class="flex items-center gap-2 pb-1 overflow-visible">
+            <!-- Sticky Filters (Khusus Tab Riwayat) -->
+            <div x-show="activeTab === 'riwayat'" class="flex items-center gap-2 pt-2.5 pb-1 overflow-visible" x-transition>
                 <!-- Dropdown Tanggal -->
                 <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm focus:outline-none">
+                    <button @click="open = !open" class="px-3.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-100 flex items-center gap-1 shrink-0 shadow-2xs focus:outline-none">
                         <span>Semua Tanggal</span>
                         <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-30 w-36 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
+                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-50 w-36 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
                         <button @click="open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition">Semua Tanggal</button>
                         <button @click="open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition">Bulan Ini</button>
                     </div>
@@ -110,15 +117,15 @@
 
                 <!-- Dropdown Layanan -->
                 <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm focus:outline-none">
+                    <button @click="open = !open" class="px-3.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-100 flex items-center gap-1 shrink-0 shadow-2xs focus:outline-none">
                         <span x-text="filterLayananLabel">Layanan</span>
                         <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-30 w-44 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
+                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-50 w-44 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
                         <button @click="filterLayanan = 'semua'; filterLayananLabel = 'Semua Layanan'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'semua' ? 'text-rose-600' : ''">Semua Layanan</button>
                         <button @click="filterLayanan = 'beli-antar'; filterLayananLabel = 'Beli-Antar'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'beli-antar' ? 'text-rose-600' : ''">Beli-Antar</button>
                         <button @click="filterLayanan = 'ambil-antar'; filterLayananLabel = 'Ambil & Antar'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'ambil-antar' ? 'text-rose-600' : ''">Ambil & Antar</button>
-                        <button @click="filterLayanan = 'toko-kirim'; filterLayananLabel = 'Toko Kirim'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'toko-kirim' ? 'text-rose-600' : ''">Toko Kirim</button>
+                        <button @click="filterLayanan = 'toko-kirim'; filterLayananLabel = 'Belanja Retail'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'toko-kirim' ? 'text-rose-600' : ''">Belanja Retail</button>
                         <button @click="filterLayanan = 'dokumen'; filterLayananLabel = 'Dokumen'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'dokumen' ? 'text-rose-600' : ''">Dokumen</button>
                         <button @click="filterLayanan = 'multi-stop'; filterLayananLabel = 'Multi-Stop'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterLayanan === 'multi-stop' ? 'text-rose-600' : ''">Multi-Stop</button>
                     </div>
@@ -126,16 +133,24 @@
 
                 <!-- Dropdown Metode -->
                 <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-50 flex items-center gap-1 shrink-0 shadow-sm focus:outline-none">
+                    <button @click="open = !open" class="px-3.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-full text-xs font-extrabold transition hover:bg-slate-100 flex items-center gap-1 shrink-0 shadow-2xs focus:outline-none">
                         <span x-text="filterMetodeLabel">Metode</span>
                         <svg class="w-3 h-3 text-slate-400 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-30 w-36 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
+                    <div x-show="open" @click.away="open = false" class="absolute left-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 z-50 w-36 text-xs font-bold text-slate-700 animate-fade-in" x-cloak>
                         <button @click="filterMetode = 'semua'; filterMetodeLabel = 'Semua Metode'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterMetode === 'semua' ? 'text-rose-600' : ''">Semua Metode</button>
                         <button @click="filterMetode = 'jkpay'; filterMetodeLabel = 'JK PAY'; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-50 transition" :class="filterMetode === 'jkpay' ? 'text-rose-600' : ''">JK PAY</button>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Main Content Container (Data-data ke bawah yang ke-scroll) -->
+    <div class="max-w-md mx-auto px-4 mt-4">
+        
+        <!-- ================= RIWAYAT TAB ================= -->
+        <div x-show="activeTab === 'riwayat'" class="space-y-4 animate-fade-in" x-transition>
 
             <!-- List of Past Orders Grouped by Date -->
             @if($pastOrders->isEmpty())
@@ -193,16 +208,20 @@
 
                                         <!-- Right: Pricing & Payment Method -->
                                         <div class="text-right shrink-0">
-                                            @if($order->status === 'dibatalkan')
+                                            @if($order->status === 'bermasalah')
+                                                <span class="text-xs font-extrabold text-amber-600">-Rp{{ number_format($order->agreed_fare ?? $order->estimated_fare, 0, ',', '.') }}</span>
+                                                <span class="text-[9px] font-black text-amber-700 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-md inline-block mt-0.5">⚠️ Dalam Komplain</span>
+                                            @elseif($order->status === 'dibatalkan')
                                                 <span class="text-xs font-extrabold text-rose-600">-Rp{{ number_format($order->agreed_fare ?? $order->estimated_fare, 0, ',', '.') }}</span>
                                                 <span class="text-[9px] font-bold text-rose-500 block">Dibatalkan</span>
                                             @else
                                                 <span class="text-xs font-extrabold text-slate-800">-Rp{{ number_format($order->agreed_fare ?? $order->estimated_fare, 0, ',', '.') }}</span>
                                                 <span class="text-[9px] font-bold text-emerald-600 block">Selesai</span>
                                             @endif
-                                            <div class="flex items-center justify-end gap-1 mt-0.5 text-[8px] font-bold text-slate-400">
-                                                <svg class="w-2.5 h-2.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
-                                                <span>JK PAY</span>
+                                            <div class="flex items-center justify-end gap-1.5 mt-1">
+                                                <a href="{{ route('customer.orders.invoice', $order->id) }}" target="_blank" onclick="event.stopPropagation()" class="text-[9px] font-extrabold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md transition shadow-2xs flex items-center gap-0.5">
+                                                    <span>📄</span> Nota
+                                                </a>
                                             </div>
                                         </div>
                                         
@@ -255,10 +274,26 @@
                                         <span x-show="order.items.length > 3" class="text-[8px] text-slate-400 font-bold self-center" x-text="'+' + (order.items.length - 3) + ' lagi'"></span>
                                     </div>
                                 </template>
+
+                                <!-- Live Multi-Stop Tracker Pill -->
+                                <template x-if="order.multi_stops && order.multi_stops.length > 1">
+                                    <div class="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-200 text-[9px] text-amber-900 flex items-center justify-between gap-1.5 shadow-2xs">
+                                        <div class="flex items-center gap-1.5 min-w-0">
+                                            <span class="text-xs shrink-0">📦</span>
+                                            <span class="font-extrabold truncate" x-text="getMultiStopProgressLabel(order.multi_stops, order.status)"></span>
+                                        </div>
+                                        <span class="font-mono text-[8.5px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0" x-text="order.multi_stops.filter(s => s.status === 'completed').length + '/' + order.multi_stops.length + ' Selesai'"></span>
+                                    </div>
+                                </template>
+
                                 <div class="flex items-center gap-2 mt-1">
                                     <p class="text-[9px] text-slate-400">Status: <span class="font-extrabold text-rose-500 uppercase" x-text="getStatusLabel(order.status)"></span></p>
                                     <span class="text-slate-300">•</span>
                                     <a :href="'/customer/orders/' + order.id" class="text-[9px] font-bold text-rose-600 hover:underline">Rincian &rarr;</a>
+                                    <span class="text-slate-300">•</span>
+                                    <a :href="'/customer/orders/' + order.id + '/invoice'" target="_blank" class="text-[9px] font-bold text-slate-700 hover:text-slate-900 hover:underline flex items-center gap-0.5">
+                                        <span>📄</span> Nota
+                                    </a>
                                 </div>
                             </div>
                             <div class="text-right shrink-0">
@@ -336,24 +371,6 @@
                         </div>
                     </div>
                 </template>
-            </div>
-        </div>
-
-        <!-- ================= TERJADWAL TAB ================= -->
-        <div x-show="activeTab === 'terjadwal'" class="space-y-4 animate-fade-in" x-transition>
-            <div class="bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-sm">
-                <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                <h4 class="font-bold text-slate-700 text-sm">Tidak ada pesanan terjadwal</h4>
-                <p class="text-xs text-slate-400 mt-1 max-w-[240px] mx-auto leading-normal">Gunakan fitur belanja terjadwal untuk menjadwalkan jasa titip belanja rutin Anda secara otomatis.</p>
-            </div>
-        </div>
-
-        <!-- ================= DRAF TAB ================= -->
-        <div x-show="activeTab === 'draf'" class="space-y-4 animate-fade-in" x-transition>
-            <div class="bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-sm">
-                <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                <h4 class="font-bold text-slate-700 text-sm">Tidak ada draf pesanan</h4>
-                <p class="text-xs text-slate-400 mt-1 max-w-[240px] mx-auto leading-normal">Draf pesanan belanja yang belum Anda selesaikan konfirmasinya akan tersimpan di sini.</p>
             </div>
         </div>
 

@@ -27,7 +27,7 @@ class SearchController extends Controller
         ],
         [
             'id' => 'toko-kirim',
-            'name' => 'Toko Kirim',
+            'name' => 'Belanja Retail',
             'subtitle' => 'Minimarket/Pasar',
             'description' => 'Belanja kebutuhan harian, sembako, dan belanjaan pasar tradisional/supermarket.',
             'url' => '/customer/mart',
@@ -35,7 +35,7 @@ class SearchController extends Controller
             'image' => 'images/services/toko-kirim.png',
             'badge' => 'Minimarket / Pasar',
             'badge_color' => 'bg-amber-50 text-amber-700 border-amber-200',
-            'keywords' => ['toko kirim', 'toko-kirim', 'toko', 'mart', 'gomart', 'minimarket', 'indomaret', 'alfamart', 'pasar', 'sembako', 'sayur', 'buah', 'daging', 'ikan', 'supermarket', 'belanja bulanan', 'kebutuhan harian', 'kelontong', 'hypermart', 'superindo', 'belanjaan'],
+            'keywords' => ['belanja retail', 'retail', 'toko kirim', 'toko-kirim', 'toko', 'mart', 'gomart', 'minimarket', 'indomaret', 'alfamart', 'pasar', 'sembako', 'sayur', 'buah', 'daging', 'ikan', 'supermarket', 'belanja bulanan', 'kebutuhan harian', 'kelontong', 'hypermart', 'superindo', 'belanjaan'],
         ],
         [
             'id' => 'ambil-antar',
@@ -103,6 +103,104 @@ class SearchController extends Controller
             ->get();
 
         return view('customer.search', compact('merchants', 'products', 'matchedServices', 'allServices', 'query'));
+    }
+
+    /**
+     * Endpoint API Live Autocomplete Search untuk dropdown instan (Layanan, Toko, Produk)
+     */
+    public function liveSearch(Request $request)
+    {
+        $query = trim($request->input('q', ''));
+        if (mb_strlen($query) < 1) {
+            return response()->json([
+                'query' => '',
+                'services' => [],
+                'merchants' => [],
+                'products' => [],
+                'total' => 0,
+            ]);
+        }
+
+        $qLower = strtolower($query);
+
+        // 1. Cocokkan 4 Layanan Belanja Jastip Utama (Beli-Antar, Belanja Retail, Ambil-Antar, Ekspedisi)
+        $matchedServices = collect(self::$services)->filter(function ($svc) use ($qLower) {
+            if (str_contains(strtolower($svc['name']), $qLower)) return true;
+            if (str_contains(strtolower($svc['subtitle']), $qLower)) return true;
+            if (str_contains(strtolower($svc['description']), $qLower)) return true;
+            foreach ($svc['keywords'] as $kw) {
+                if (str_contains(strtolower($kw), $qLower) || str_contains($qLower, strtolower($kw))) {
+                    return true;
+                }
+            }
+            return false;
+        })->map(function ($svc) {
+            return [
+                'id' => $svc['id'],
+                'name' => $svc['name'],
+                'subtitle' => $svc['subtitle'],
+                'description' => $svc['description'],
+                'badge' => $svc['badge'],
+                'badge_color' => $svc['badge_color'],
+                'url' => url($svc['url']),
+                'image' => asset($svc['image']),
+            ];
+        })->values()->take(4);
+
+        // 2. Cocokkan Mitra Toko / Merchant (Kuliner & Mart)
+        $merchants = Merchant::where('is_active', true)
+            ->where(function ($sub) use ($query) {
+                $sub->where('name', 'like', "%{$query}%")
+                    ->orWhere('description', 'like', "%{$query}%")
+                    ->orWhere('address', 'like', "%{$query}%");
+            })
+            ->take(3)
+            ->get()
+            ->map(function ($m) {
+                return [
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'type' => $m->type ?? 'food',
+                    'type_label' => ($m->type === 'mart' ? 'Minimarket / Retail' : 'Restoran / Kuliner'),
+                    'address' => $m->address ?: 'Area Malang Raya & Sekitarnya',
+                    'initials' => strtoupper(substr($m->name, 0, 2)),
+                    'url' => route('customer.merchant.show', $m->id),
+                ];
+            });
+
+        // 3. Cocokkan Produk / Menu Makanan
+        $products = Product::where('is_available', true)
+            ->where(function ($sub) use ($query) {
+                $sub->where('name', 'like', "%{$query}%")
+                    ->orWhere('description', 'like', "%{$query}%");
+            })
+            ->with('merchant')
+            ->take(4)
+            ->get()
+            ->map(function ($p) {
+                $finalPrice = (float) ($p->final_price ?? $p->estimated_price);
+                return [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'merchant_name' => $p->merchant ? $p->merchant->name : 'Mitra Toko',
+                    'price' => $finalPrice,
+                    'formatted_price' => 'Rp ' . number_format($finalPrice, 0, ',', '.'),
+                    'image' => $p->image_url ?? $p->image ?? null,
+                    'initials' => strtoupper(substr($p->name, 0, 2)),
+                    'url' => $p->merchant_id ? route('customer.merchant.show', $p->merchant_id) : route('customer.search', ['q' => $p->name]),
+                ];
+            });
+
+        $total = $matchedServices->count() + $merchants->count() + $products->count();
+
+        return response()->json([
+            'query' => $query,
+            'services' => $matchedServices,
+            'merchants' => $merchants,
+            'products' => $products,
+            'search_all_url' => route('customer.search', ['q' => $query]),
+            'total' => $total,
+        ]);
     }
 
     public function searchPlaces(Request $request)

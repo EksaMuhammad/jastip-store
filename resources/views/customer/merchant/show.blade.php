@@ -128,7 +128,7 @@
                 </div>
                 <div class="shrink-0 flex items-end justify-end self-stretch py-1 pr-1">
                     <!-- Add button -->
-                    <button onclick="addToCart({{ $product->id }})" class="w-8 h-8 rounded-full border-2 border-rose-600 text-rose-600 flex items-center justify-center hover:bg-rose-50 transition">
+                    <button type="button" onclick="event.stopPropagation(); event.preventDefault(); addToCart({{ $product->id }})" class="w-8 h-8 rounded-full border-2 border-rose-600 text-rose-600 flex items-center justify-center hover:bg-rose-50 transition">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                     </button>
                 </div>

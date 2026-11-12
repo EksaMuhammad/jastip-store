@@ -4,13 +4,13 @@
 
 @section('content')
 <!-- Full-viewport Admin Wrapper -->
-<div class="flex min-h-screen lg:h-screen lg:overflow-hidden bg-[#F3F4F6]">
+<div class="flex min-h-screen bg-[#F3F4F6]">
     
     <!-- UNIFIED LEFT SIDEBAR -->
     @include('layouts.admin-sidebar')
 
     <!-- RIGHT CONTENT AREA -->
-    <div class="flex-1 flex flex-col min-w-0 lg:h-screen lg:overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0">
         
         <!-- Top Nav Bar -->
         <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 shrink-0 z-40 shadow-xs">
@@ -31,11 +31,11 @@
             </div>
         </header>
 
-        <!-- Main Body Content (Flex column with fixed top section and scrollable table) -->
-        <main class="flex-1 flex flex-col min-h-0 p-4 lg:p-6 gap-3.5 overflow-hidden">
+        <!-- Main Body Content (Scrollable Container) -->
+        <main class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
 
-            <!-- FROZEN TOP SECTION: Title, Filter & KPI Cards -->
-            <div class="shrink-0 space-y-3">
+            <!-- Title, Filter & KPI Cards -->
+            <div class="space-y-3">
                 <!-- Title & Subtitle Banner -->
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div>
@@ -49,6 +49,10 @@
                     </div>
 
                     <div class="flex items-center gap-2">
+                        <a href="{{ route('admin.mutations.print', request()->query()) }}" target="_blank" class="px-3.5 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition shadow-2xs flex items-center gap-2 cursor-pointer">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            <span>Cetak Laporan / PDF</span>
+                        </a>
                         <a href="{{ route('admin.dashboard') }}#master-mutasi" class="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-2xs flex items-center gap-2">
                             <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                             Lihat di Dashboard
@@ -238,9 +242,123 @@
                 </div>
             </div>
 
-            <!-- TABEL MASTER DATA MUTASI (SCROLLABLE CONTAINER) -->
-            <div class="flex-1 flex flex-col min-h-0 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div class="px-5 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 shrink-0">
+            <!-- KARTU RINGKAS DANA ASURANSI & TALANGAN BARANG -->
+            <div class="p-4 rounded-2xl border {{ $insurancePool['is_deficit'] ? 'bg-rose-50/70 border-rose-200' : 'bg-emerald-50/60 border-emerald-200' }} shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b {{ $insurancePool['is_deficit'] ? 'border-rose-100' : 'border-emerald-100' }}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-xl {{ $insurancePool['is_deficit'] ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700' }} flex items-center justify-center font-bold text-sm shrink-0">
+                            🛡️
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="text-xs sm:text-sm font-bold text-slate-900">Pool Dana Asuransi Barang</h3>
+                                @if($insurancePool['is_deficit'])
+                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white animate-pulse">DEFISIT / PLATFORM NOMBOKI</span>
+                                @else
+                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-600 text-white">SURPLUS KAS</span>
+                                @endif
+                            </div>
+                            <p class="text-[11px] text-slate-600 mt-0.5">Kas khusus pool premi perlindungan pesanan dan talangan ganti rugi barang.</p>
+                        </div>
+                    </div>
+
+                    <a href="{{ route('admin.settings.tariffs') }}#asuransi" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-2xs">
+                        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <span>Atur Premi & Trigger</span>
+                    </a>
+                </div>
+
+                <!-- 4 Metrik Kas Asuransi -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 text-xs">
+                    <div class="p-2.5 rounded-xl bg-white/80 border border-slate-200/80">
+                        <span class="text-[10px] font-bold text-slate-400 block uppercase">Total Premi Masuk</span>
+                        <span class="text-sm font-black text-emerald-700 block mt-0.5 font-mono">
+                            Rp {{ number_format($insurancePool['total_premi_all_time'], 0, ',', '.') }}
+                        </span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Akumulasi premi dari order</span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-white/80 border border-slate-200/80">
+                        <span class="text-[10px] font-bold text-slate-400 block uppercase">Klaim Ganti Rugi Keluar</span>
+                        <span class="text-sm font-black text-rose-600 block mt-0.5 font-mono">
+                            Rp {{ number_format($insurancePool['total_klaim_all_time'], 0, ',', '.') }}
+                        </span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Ditalangi ke customer</span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-white/80 border border-slate-200/80">
+                        <span class="text-[10px] font-bold text-slate-400 block uppercase">Saldo Bersih Pool Kas</span>
+                        <span class="text-sm font-black {{ $insurancePool['is_deficit'] ? 'text-rose-600' : 'text-emerald-700' }} block mt-0.5 font-mono">
+                            {{ $insurancePool['net_pool_all_time'] >= 0 ? '+' : '' }}Rp {{ number_format($insurancePool['net_pool_all_time'], 0, ',', '.') }}
+                        </span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Posisi likuiditas kas asuransi</span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-white/80 border border-slate-200/80">
+                        <span class="text-[10px] font-bold text-slate-400 block uppercase">Piutang Jastiper Minus</span>
+                        <span class="text-sm font-black text-amber-800 block mt-0.5 font-mono">
+                            Rp {{ number_format($insurancePool['total_jastiper_debt'], 0, ',', '.') }}
+                        </span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">Talangan yang akan dipotongkan</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KARTU RINGKAS PENDAPATAN & LABA PLATFORM (KOMISI ONGKIR + MARGIN MARKUP TOKO) -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center font-bold text-sm shrink-0">
+                            🏷️
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h2 class="text-xs sm:text-sm font-bold text-slate-900">Laba Bersih & Margin Platform (Periode: {{ $daysLabel }})</h2>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    Total Laba: Rp {{ number_format($totalLabaPlatform, 0, ',', '.') }}
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-0.5 truncate">Pemasukan platform dari potongan komisi jastiper dan selisih markup harga modal (HPP) barang merchant.</p>
+                        </div>
+                    </div>
+
+                    <a href="{{ route('admin.settings.tariffs') }}" class="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer">
+                        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <span>Pengaturan Tarif</span>
+                    </a>
+                </div>
+
+                <!-- 3 Metrik Laba Platform -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 text-xs">
+                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 block uppercase">Komisi Ongkir Jastiper</span>
+                        <span class="text-sm font-black text-emerald-600 block mt-0.5 font-mono">
+                            Rp {{ number_format($totalCommissionOngkir, 0, ',', '.') }}
+                        </span>
+                        <span class="text-[10px] text-slate-400 block mt-0.5">Potongan dari ongkos kirim pesanan</span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 block uppercase">Laba Markup Barang Toko</span>
+                        <span class="text-sm font-black text-emerald-600 block mt-0.5 font-mono">
+                            Rp {{ number_format($totalMarkupProfit, 0, ',', '.') }}
+                        </span>
+                        <span class="text-[10px] text-slate-400 block mt-0.5">Margin otomatis dari produk toko merchant</span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                        <span class="text-[10px] font-bold text-emerald-700 block uppercase">Total Laba Bersih Platform</span>
+                        <span class="text-sm font-black text-emerald-700 block mt-0.5 font-mono">
+                            Rp {{ number_format($totalLabaPlatform, 0, ',', '.') }}
+                        </span>
+                        <span class="text-[10px] text-emerald-600/80 block mt-0.5">Komisi jastiper + laba markup toko</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABEL MASTER DATA MUTASI -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div class="px-5 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
                     <div>
                         <h2 class="text-sm font-black text-slate-900 flex items-center gap-2">
                             <span>Daftar Mutasi Keuangan</span>
@@ -269,8 +387,8 @@
                     </div>
                 </div>
 
-                <!-- Scrollable Table Body -->
-                <div class="flex-1 min-h-0 overflow-auto">
+                <!-- Table Body -->
+                <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 sticky top-0 z-10 shadow-2xs">
                             <tr>

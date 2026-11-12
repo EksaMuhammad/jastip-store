@@ -3,13 +3,13 @@
 @section('title', 'Panel Admin - Daftar Pelanggan')
 
 @section('content')
-<div class="flex min-h-screen lg:h-screen lg:overflow-hidden bg-[#F3F4F6]">
+<div class="flex min-h-screen bg-[#F3F4F6]">
     
     <!-- UNIFIED LEFT SIDEBAR -->
     @include('layouts.admin-sidebar')
 
     <!-- RIGHT CONTENT AREA -->
-    <div class="flex-1 flex flex-col min-w-0 lg:h-screen lg:overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0">
         
         <!-- Top Nav Bar -->
         <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 shrink-0 z-40">
@@ -31,7 +31,7 @@
         </header>
 
         <!-- Main Body -->
-        <main class="flex-1 flex flex-col min-h-0 p-4 lg:p-6 gap-3.5 overflow-hidden">
+        <main class="flex-1 p-4 lg:p-6 space-y-4">
             
             <!-- FROZEN TOP SECTION: Header & Search Toolbar -->
             <div class="shrink-0 space-y-3">
@@ -43,6 +43,10 @@
                     </div>
 
                     <div class="flex items-center gap-3">
+                        <a href="{{ route('admin.customers.print', request()->query()) }}" target="_blank" class="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition shadow-2xs flex items-center gap-2 cursor-pointer">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            <span>Cetak Laporan / PDF</span>
+                        </a>
                         <div class="bg-white px-3.5 py-1.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-xs">
                                 {{ $totalCustomersCount }}
@@ -88,8 +92,8 @@
             </div>
 
             <!-- Customer Table (Scrollable Area) -->
-            <div class="flex-1 flex flex-col min-h-0 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-                <div class="flex-1 min-h-0 overflow-auto">
+            <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+                <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs text-slate-600">
                         <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 sticky top-0 z-10 shadow-2xs">
                             <tr>

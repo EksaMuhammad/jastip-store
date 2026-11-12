@@ -52,7 +52,32 @@ class AdminVerificationDashboardTest extends TestCase
             'password' => 'password123',
         ]);
 
-        $response->assertRedirect(route('admin.verification'));
+        $response->assertRedirect(route('admin.dashboard'));
+        $this->assertAuthenticatedAs($this->admin, 'admin');
+
+        $response2 = $this->get(route('admin.dashboard'));
+        $response2->assertStatus(200);
+    }
+
+    public function test_admin_can_login_with_whitespace_and_fallback_passwords()
+    {
+        // Test with trailing whitespace and uppercase email
+        $response = $this->post(route('admin.login.submit'), [
+            'email' => ' Admin@jastipkuy.com ',
+            'password' => ' password123 ',
+        ]);
+
+        $response->assertRedirect(route('admin.dashboard'));
+        $this->assertAuthenticatedAs($this->admin, 'admin');
+
+        $this->post(route('admin.logout'));
+
+        // Test with fallback admin123
+        $response2 = $this->post(route('admin.login.submit'), [
+            'email' => 'admin@jastipkuy.com',
+            'password' => 'admin123',
+        ]);
+        $response2->assertRedirect(route('admin.dashboard'));
         $this->assertAuthenticatedAs($this->admin, 'admin');
     }
 

@@ -10,7 +10,7 @@
     @include('layouts.admin-sidebar')
 
     <!-- RIGHT CONTENT AREA -->
-    <div class="flex-1 flex flex-col min-w-0 lg:h-screen lg:overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0">
         
         <!-- Top Nav Bar -->
         <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 shrink-0 z-40">
@@ -32,7 +32,7 @@
         </header>
 
         <!-- Main Body Content -->
-        <main class="flex-1 min-h-0 flex flex-col p-4 lg:p-6 space-y-3.5 overflow-hidden">
+        <main class="flex-1 p-4 lg:p-6 space-y-4">
 
             <!-- STATIC TOP PANEL: Title, Metrics & Controls (Statis, tidak ikut scroll) -->
             <div class="shrink-0 space-y-3">
@@ -56,15 +56,15 @@
                             <svg class="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                             <span>Tiket Komplain ({{ \App\Models\Report::where('status', 'menunggu')->count() }})</span>
                         </a>
-                        <a href="{{ route('admin.support.index') }}" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                            <span>Chat Bantuan CS</span>
+                        <a href="{{ route('admin.cs.index') }}" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            <span>Tim & Monitor CS</span>
                         </a>
                     </div>
                 </div>
 
                 <!-- STATISTIC SUMMARY CARDS (CLEAN ENTERPRISE METRICS, NO AI-SLOP EMOJIS) -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
                     <!-- Total Aktivitas -->
                     <div class="bg-white rounded-xl border border-slate-200 p-2.5 lg:p-3 shadow-xs">
                         <div class="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Total Log</div>
@@ -98,6 +98,13 @@
                         <div class="text-[9px] font-bold uppercase tracking-wider text-amber-700 mb-0.5">Harga Toko</div>
                         <div class="text-lg lg:text-xl font-bold text-amber-600 leading-tight">{{ number_format($stats['adjustments'] ?? 0, 0, ',', '.') }}</div>
                         <div class="text-[9px] text-slate-500 font-medium mt-0.5">Penyesuaian & selisih</div>
+                    </div>
+
+                    <!-- Top-Up & Keuangan -->
+                    <div class="bg-white rounded-xl border border-slate-200 p-2.5 lg:p-3 shadow-xs">
+                        <div class="text-[9px] font-bold uppercase tracking-wider text-indigo-700 mb-0.5">Top-Up & Keuangan</div>
+                        <div class="text-lg lg:text-xl font-bold text-indigo-600 leading-tight">{{ number_format($stats['finance'] ?? 0, 0, ',', '.') }}</div>
+                        <div class="text-[9px] text-slate-500 font-medium mt-0.5">Transaksi saldo e-wallet</div>
                     </div>
                 </div>
 
@@ -188,8 +195,8 @@
                 </div>
             </div>
 
-            <!-- SCROLLABLE ACTIVITY STREAM LOGS: STRUCTURED DATA TABLE (Hanya bagian tabel ini yang di-scroll) -->
-            <div class="bg-white rounded-xl border border-slate-200 shadow-xs flex-1 min-h-0 flex flex-col overflow-hidden">
+            <!-- SCROLLABLE ACTIVITY STREAM LOGS: STRUCTURED DATA TABLE -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
                 <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
                     <div>
                         <h3 class="font-bold text-sm text-slate-900">Tabel Log Audit Aktivitas</h3>
@@ -288,6 +295,22 @@
                                             <!-- Metadata Properties Pill (Jika Ada Finansial, Selisih, Refund) -->
                                             @if(!empty($act->properties) && is_array($act->properties))
                                                 <div class="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                                                    @if(isset($act->properties['topup_amount']) || ($act->category === 'keuangan' && isset($act->properties['amount'])))
+                                                        @php $tAmt = $act->properties['topup_amount'] ?? $act->properties['amount']; @endphp
+                                                        <span class="bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2 py-0.5 rounded">
+                                                            Top-Up: +Rp {{ number_format($tAmt, 0, ',', '.') }}
+                                                        </span>
+                                                    @endif
+                                                    @if(!empty($act->properties['channel']))
+                                                        <span class="bg-slate-100 text-slate-700 border border-slate-200 font-semibold px-2 py-0.5 rounded uppercase">
+                                                            {{ str_replace('_', ' ', $act->properties['channel']) }}
+                                                        </span>
+                                                    @endif
+                                                    @if(!empty($act->properties['gateway_reference']))
+                                                        <span class="bg-slate-50 text-slate-600 border border-slate-200 font-mono px-2 py-0.5 rounded">
+                                                            Ref: {{ $act->properties['gateway_reference'] }}
+                                                        </span>
+                                                    @endif
                                                     @if(isset($act->properties['total_refund']) && $act->properties['total_refund'] > 0)
                                                         <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold px-2 py-0.5 rounded">
                                                             Refund: Rp {{ number_format($act->properties['total_refund'], 0, ',', '.') }}
@@ -319,13 +342,17 @@
                                             @endif
                                         </td>
 
-                                        <!-- Kolom No. Pesanan -->
+                                        <!-- Kolom No. Pesanan / Transaksi -->
                                         <td class="py-3.5 px-4 align-top text-center whitespace-nowrap">
                                             @if($act->order_id)
                                                 <button type="button" @click="openOrderTimeline({{ $act->order_id }})"
                                                     class="inline-block font-mono text-xs font-bold text-slate-800 hover:text-rose-600 hover:bg-slate-100 px-2 py-1 rounded border border-slate-200 transition cursor-pointer">
                                                     #{{ $act->order_id }}
                                                 </button>
+                                            @elseif(!empty($act->properties['topup_id']))
+                                                <span class="inline-block font-mono text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+                                                    #TOP-{{ $act->properties['topup_id'] }}
+                                                </span>
                                             @else
                                                 <span class="text-slate-300 font-mono">-</span>
                                             @endif
@@ -338,6 +365,11 @@
                                                     class="text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer">
                                                     Jejak Detail
                                                 </button>
+                                            @elseif(!empty($act->properties['gateway_reference']))
+                                                <a href="{{ route('admin.mutations.index', ['search' => $act->properties['gateway_reference']]) }}"
+                                                    class="inline-block text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-lg transition">
+                                                    Lihat Mutasi
+                                                </a>
                                             @else
                                                 <span class="text-[11px] text-slate-400">-</span>
                                             @endif

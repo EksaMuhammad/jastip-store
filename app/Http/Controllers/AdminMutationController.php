@@ -19,6 +19,17 @@ class AdminMutationController extends Controller
     }
 
     /**
+     * Cetak Laporan Keuangan & Mutasi Kas Perusahaan (Print/PDF).
+     */
+    public function print(Request $request)
+    {
+        $request->merge(['per_page' => 500]);
+        $data = $this->buildMutationQuery($request);
+
+        return view('admin.mutations.print', $data);
+    }
+
+    /**
      * Helper untuk memproses query mutasi dan menghitung KPI.
      */
     public function buildMutationQuery(Request $request, string $pageName = 'page'): array
@@ -144,8 +155,24 @@ class AdminMutationController extends Controller
             'pembayaran_order' => 'Pembayaran Order (Wallet)',
             'withdraw' => 'Penarikan Dana (Withdraw)',
             'refund' => 'Pengembalian Dana (Refund)',
+            'asuransi_klaim' => 'Ganti Rugi Klaim Asuransi (Customer)',
+            'beban_ganti_rugi' => 'Beban Ganti Rugi Jastiper (Talangan Platform)',
             'komisi' => 'Potongan Komisi Platform',
         ];
+
+        // Ringkasan Kas & Pool Proteksi Asuransi Platform
+        $insurancePool = app(\App\Services\InsuranceService::class)->getPoolSummary($startDate, $endDate);
+
+        // Ringkasan Laba Finansial Platform: Komisi Ongkir Driver + Margin Markup Barang Toko
+        $markupOrderQuery = \App\Models\Order::where('status', 'selesai')->where('merchant_markup_profit', '>', 0);
+        if ($startDate && $endDate) {
+            $markupOrderQuery->whereBetween('updated_at', [$startDate, $endDate]);
+        }
+        $totalMarkupProfit = (float) $markupOrderQuery->sum('merchant_markup_profit');
+        $totalCommissionOngkir = (float) \App\Models\WalletTransaction::where('source', 'komisi')
+            ->when($startDate && $endDate, fn($q) => $q->whereBetween('created_at', [$startDate, $endDate]))
+            ->sum('amount');
+        $totalLabaPlatform = $totalCommissionOngkir + $totalMarkupProfit;
 
         return [
             'mutations' => $mutations,
@@ -161,6 +188,10 @@ class AdminMutationController extends Controller
             'netMutasi' => $netMutasi,
             'totalCount' => $totalCount,
             'availableSources' => $availableSources,
+            'insurancePool' => $insurancePool,
+            'totalMarkupProfit' => $totalMarkupProfit,
+            'totalCommissionOngkir' => $totalCommissionOngkir,
+            'totalLabaPlatform' => $totalLabaPlatform,
             'startDate' => $startDate ? $startDate->format('Y-m-d') : null,
             'endDate' => $endDate ? $endDate->format('Y-m-d') : null,
         ];

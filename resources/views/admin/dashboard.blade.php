@@ -96,13 +96,13 @@
                 <!-- ROW 1: 4 KARTU FINANSIAL UTAMA OWNER (Untung Bersih, Kas Masuk, Kas Keluar & Refund, Escrow) -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     
-                    <!-- Card 1: Keuntungan Bersih Platform (Laba Komisi Aplikasi) -->
+                    <!-- Card 1: Keuntungan Bersih Platform (Laba Komisi Aplikasi + Margin Markup Toko) -->
                     <div class="bg-gradient-to-br from-emerald-500/10 via-white to-white border-2 border-emerald-300 rounded-2xl p-5 shadow-xs hover:shadow-md transition relative overflow-hidden flex flex-col justify-between">
                         <div>
                             <div class="flex items-start justify-between gap-2">
                                 <div>
                                     <span class="text-[10px] font-black text-emerald-700 uppercase tracking-wider block">Laba Bersih Aplikasi</span>
-                                    <h4 class="font-extrabold text-sm text-slate-900 mt-0.5">Keuntungan Komisi</h4>
+                                    <h4 class="font-extrabold text-sm text-slate-900 mt-0.5">Total Keuntungan Platform</h4>
                                 </div>
                                 <span class="text-[9px] font-extrabold text-emerald-700 bg-emerald-100/90 border border-emerald-200 px-2 py-0.5 rounded-full uppercase shrink-0">
                                     100% Hak Owner
@@ -110,13 +110,19 @@
                             </div>
                             <div class="mt-3">
                                 <span class="text-2xl font-black text-emerald-600 tracking-tight">
-                                    Rp {{ number_format($platformCommissionEarned, 0, ',', '.') }}
+                                    Rp {{ number_format($totalPlatformProfit, 0, ',', '.') }}
                                 </span>
                             </div>
                         </div>
-                        <div class="mt-3 pt-2.5 border-t border-emerald-100/80 flex items-center justify-between text-[11px]">
-                            <span class="text-slate-500">Nilai Order Selesai (GMV):</span>
-                            <span class="font-black text-slate-800">Rp {{ number_format($grossOrderFare, 0, ',', '.') }}</span>
+                        <div class="mt-3 pt-2.5 border-t border-emerald-100/80 grid grid-cols-2 gap-2 text-[10px]">
+                            <div class="bg-white/80 p-1.5 rounded-lg border border-emerald-100">
+                                <span class="text-slate-400 block text-[9px]">Komisi Ongkir:</span>
+                                <strong class="text-slate-800 text-[11px]">Rp {{ number_format($platformCommissionEarned, 0, ',', '.') }}</strong>
+                            </div>
+                            <div class="bg-white/80 p-1.5 rounded-lg border border-emerald-100">
+                                <span class="text-slate-400 block text-[9px]">Markup Toko:</span>
+                                <strong class="text-slate-800 text-[11px]">Rp {{ number_format($itemMarkupProfit, 0, ',', '.') }}</strong>
+                            </div>
                         </div>
                     </div>
 
@@ -712,6 +718,55 @@
                             </h4>
                             <p class="text-[11px] text-slate-500 mt-1">Selisih total kredit terhadap debit di ekosistem saldo</p>
                         </div>
+                    </div>
+
+                    <!-- Dana Asuransi & Talangan Card -->
+                    <div class="mb-6 p-4 rounded-xl border {{ $insurancePool['is_deficit'] ? 'bg-rose-50/70 border-rose-200' : 'bg-amber-50/60 border-amber-200' }} flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🛡️</span>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h4 class="font-extrabold text-xs sm:text-sm text-slate-900">Kas & Pool Dana Asuransi Barang (Talangan Platform)</h4>
+                                    @if($insurancePool['is_deficit'])
+                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white animate-pulse">DEFISIT / PLATFORM NOMBOKI</span>
+                                    @else
+                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-600 text-white">SURPLUS KAS</span>
+                                    @endif
+                                </div>
+                                <p class="text-[11px] text-slate-600 mt-0.5">
+                                    Premi Masuk: <strong class="text-emerald-700">Rp {{ number_format($insurancePool['total_premi_all_time'], 0, ',', '.') }}</strong> | 
+                                    Klaim Keluar: <strong class="text-rose-600">Rp {{ number_format($insurancePool['total_klaim_all_time'], 0, ',', '.') }}</strong> | 
+                                    Saldo Bersih: <strong class="{{ $insurancePool['is_deficit'] ? 'text-rose-600' : 'text-emerald-700' }}">{{ $insurancePool['net_pool_all_time'] >= 0 ? '+' : '' }}Rp {{ number_format($insurancePool['net_pool_all_time'], 0, ',', '.') }}</strong> | 
+                                    Piutang Jastiper Minus: <strong class="text-amber-800">Rp {{ number_format($insurancePool['total_jastiper_debt'], 0, ',', '.') }}</strong>
+                                </p>
+                            </div>
+                        </div>
+                        <a href="{{ route('admin.mutations.index') }}" class="px-3.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold transition shrink-0 shadow-2xs flex items-center gap-1.5">
+                            <span>Audit Kas Asuransi</span>
+                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </a>
+                    </div>
+
+                    <!-- Margin Markup Toko & Komisi Platform -->
+                    <div class="mb-6 p-4 rounded-xl border bg-emerald-50/60 border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🏷️</span>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h4 class="font-extrabold text-xs sm:text-sm text-slate-900">Pendapatan Platform: Komisi Ongkir & Margin Markup Toko</h4>
+                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-600 text-white">LABA AKTIF</span>
+                                </div>
+                                <p class="text-[11px] text-slate-600 mt-0.5">
+                                    Komisi Ongkir: <strong class="text-emerald-700">Rp {{ number_format($platformCommissionEarned, 0, ',', '.') }}</strong> | 
+                                    Margin Markup Toko (HPP): <strong class="text-emerald-700">Rp {{ number_format($itemMarkupProfit, 0, ',', '.') }}</strong> | 
+                                    Total Keuntungan Bersih: <strong class="text-emerald-700">Rp {{ number_format($totalPlatformProfit, 0, ',', '.') }}</strong>
+                                </p>
+                            </div>
+                        </div>
+                        <a href="{{ route('admin.settings.tariffs') }}" class="px-3.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold transition shrink-0 shadow-2xs flex items-center gap-1.5">
+                            <span>Atur Tarif & % Markup</span>
+                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </a>
                     </div>
 
                     <!-- Quick Navigation & Tips Card -->

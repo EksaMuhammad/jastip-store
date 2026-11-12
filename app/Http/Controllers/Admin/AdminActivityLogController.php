@@ -20,6 +20,11 @@ class AdminActivityLogController extends Controller
         $orderId = $request->query('order_id');
         $dateFilter = $request->query('date', 'all');
 
+        // Backfill otomatis riwayat keuangan/top-up jika log kategori keuangan belum pernah dibuat
+        if (ActivityLog::where('category', 'keuangan')->count() === 0 && \App\Models\Topup::exists()) {
+            \App\Services\ActivityLogger::backfillExistingHistory();
+        }
+
         $query = ActivityLog::with('order')->latest();
 
         // 1. Filter Pencarian Teks
@@ -29,7 +34,8 @@ class AdminActivityLogController extends Controller
                   ->orWhere('description', 'like', "%{$search}%")
                   ->orWhere('user_name', 'like', "%{$search}%")
                   ->orWhere('order_id', 'like', "%{$search}%")
-                  ->orWhere('ip_address', 'like', "%{$search}%");
+                  ->orWhere('ip_address', 'like', "%{$search}%")
+                  ->orWhere('properties->gateway_reference', 'like', "%{$search}%");
             });
         }
 
@@ -66,6 +72,7 @@ class AdminActivityLogController extends Controller
             'orders' => ActivityLog::whereIn('category', ['pesanan', 'pengantaran'])->count(),
             'tickets' => ActivityLog::whereIn('category', ['komplain_tiket', 'chat_cs'])->count(),
             'adjustments' => ActivityLog::where('category', 'harga_toko')->count(),
+            'finance' => ActivityLog::where('category', 'keuangan')->count(),
         ];
 
         $activities = $query->paginate(25)->withQueryString();

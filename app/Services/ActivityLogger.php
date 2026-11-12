@@ -11,6 +11,7 @@ use App\Models\SupportMessage;
 use App\Models\Customer;
 use App\Models\Jastiper;
 use App\Models\Admin;
+use App\Models\Topup;
 use Illuminate\Support\Facades\Request;
 
 class ActivityLogger
@@ -83,6 +84,63 @@ class ActivityLogger
                 'customer_id' => $order->customer_id,
                 'jastiper_id' => $order->jastiper_id,
             ], $properties),
+        ]);
+    }
+
+    /**
+     * Catat aktivitas transaksi keuangan & top-up saldo e-wallet.
+     */
+    public static function logTopup(
+        Topup $topup,
+        string $action,
+        string $title,
+        string $description,
+        $actor = null,
+        array $properties = []
+    ): ActivityLog {
+        $userType = 'customer';
+        $userId = null;
+        $userName = 'Customer';
+
+        if ($actor instanceof Admin) {
+            $userType = 'admin';
+            $userId = $actor->id;
+            $userName = $actor->name ?? 'Admin Support';
+        } elseif ($actor instanceof Customer) {
+            $userType = 'customer';
+            $userId = $actor->id;
+            $userName = $actor->name;
+        } elseif ($actor instanceof Jastiper) {
+            $userType = 'jastiper';
+            $userId = $actor->id;
+            $userName = $actor->name;
+        } else {
+            $owner = $topup->wallet?->owner;
+            if ($owner) {
+                $userType = $topup->wallet->owner_role ?? 'customer';
+                $userId = $owner->id;
+                $userName = $owner->name;
+            }
+        }
+
+        return self::log([
+            'user_type' => $userType,
+            'user_id' => $userId,
+            'user_name' => $userName,
+            'order_id' => null,
+            'category' => 'keuangan',
+            'action' => $action,
+            'title' => $title,
+            'description' => $description,
+            'properties' => array_merge([
+                'topup_id' => $topup->id,
+                'gateway_reference' => $topup->gateway_reference,
+                'amount' => (float) $topup->amount,
+                'topup_amount' => (float) $topup->amount,
+                'channel' => $topup->channel,
+                'status' => $topup->status,
+            ], $properties),
+            'created_at' => $topup->verified_at ?? $topup->updated_at ?? now(),
         ]);
     }
 
@@ -302,6 +360,64 @@ class ActivityLogger
                     'description' => "{$actorName}: \"" . \Illuminate\Support\Str::limit($sm->message, 120) . "\"",
                     'properties' => ['support_message_id' => $sm->id, 'has_attachment' => !empty($sm->attachment_path)],
                     'created_at' => $sm->created_at,
+                ]);
+                $count++;
+            }
+        }
+
+        // 6. Backfill Transaksi Top-Up Saldo Keuangan
+        $topups = Topup::with('wallet.owner')->get();
+        foreach ($topups as $topup) {
+            $existsTopup = ActivityLog::where('category', 'keuangan')
+                ->where('properties->topup_id', $topup->id)
+                ->exists();
+
+            if (!$existsTopup) {
+                $owner = $topup->wallet?->owner;
+                $ownerRole = $topup->wallet?->owner_role ?? 'customer';
+                $ownerName = $owner?->name ?? "User #{$topup->wallet?->owner_id}";
+                $amountFormatted = 'Rp ' . number_format((float) $topup->amount, 0, ',', '.');
+                $channelName = strtoupper(str_replace('_', ' ', $topup->channel ?? 'Midtrans'));
+
+                $action = match ($topup->status) {
+                    'berhasil' => 'topup_berhasil',
+                    'ditolak_pengajuan' => 'topup_ditolak',
+                    'gagal' => 'topup_gagal',
+                    default => 'topup_menunggu',
+                };
+
+                $title = match ($topup->status) {
+                    'berhasil' => "Top-Up Saldo Berhasil (+{$amountFormatted})",
+                    'ditolak_pengajuan' => "Pengajuan Top-Up Ditolak ({$amountFormatted})",
+                    'gagal' => "Top-Up Saldo Gagal ({$amountFormatted})",
+                    default => "Pengajuan Top-Up Saldo ({$amountFormatted})",
+                };
+
+                $desc = match ($topup->status) {
+                    'berhasil' => "Pengguna {$ownerName} berhasil melakukan top-up saldo sebesar {$amountFormatted} via {$channelName} (Ref: {$topup->gateway_reference}). Saldo telah dikreditkan ke e-wallet.",
+                    'ditolak_pengajuan' => "Pengajuan top-up oleh {$ownerName} sebesar {$amountFormatted} (Ref: {$topup->gateway_reference}) ditolak. Catatan: \"{$topup->rejection_note}\".",
+                    'gagal' => "Transaksi top-up {$ownerName} sebesar {$amountFormatted} via {$channelName} telah dibatalkan atau kedaluwarsa.",
+                    default => "Pengguna {$ownerName} mengajukan tiket top-up saldo sebesar {$amountFormatted} via {$channelName} (Ref: {$topup->gateway_reference}). Menunggu pembayaran.",
+                };
+
+                self::log([
+                    'user_type' => $ownerRole,
+                    'user_id' => $topup->wallet?->owner_id,
+                    'user_name' => $ownerName,
+                    'order_id' => null,
+                    'category' => 'keuangan',
+                    'action' => $action,
+                    'title' => $title,
+                    'description' => $desc,
+                    'properties' => [
+                        'topup_id' => $topup->id,
+                        'gateway_reference' => $topup->gateway_reference,
+                        'amount' => (float) $topup->amount,
+                        'topup_amount' => (float) $topup->amount,
+                        'channel' => $topup->channel,
+                        'status' => $topup->status,
+                    ],
+                    'created_at' => $topup->verified_at ?? $topup->updated_at ?? $topup->created_at,
                 ]);
                 $count++;
             }

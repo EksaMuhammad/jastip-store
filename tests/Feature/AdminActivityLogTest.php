@@ -219,4 +219,46 @@ class AdminActivityLogTest extends TestCase
             'action' => 'order_created',
         ]);
     }
+
+    /**
+     * Uji 6: Top-up saldo dicatat ke kategori keuangan dan dapat difilter di log aktivitas.
+     */
+    public function test_topup_activity_is_logged_and_filterable()
+    {
+        $wallet = $this->customer->wallet ?: \App\Models\Wallet::create([
+            'owner_role' => 'customer',
+            'owner_id' => $this->customer->id,
+            'balance' => 0,
+        ]);
+
+        $topup = \App\Models\Topup::create([
+            'wallet_id' => $wallet->id,
+            'amount' => 150000,
+            'status' => 'berhasil',
+            'method' => 'transfer',
+            'channel' => 'qris',
+            'gateway_reference' => 'TOPUP-TEST-1234',
+        ]);
+
+        ActivityLogger::logTopup(
+            $topup,
+            'topup_berhasil',
+            'Top-Up Saldo Berhasil (+Rp 150.000)',
+            "Customer {$this->customer->name} berhasil melakukan top-up",
+            $this->customer
+        );
+
+        $this->assertDatabaseHas('activity_logs', [
+            'category' => 'keuangan',
+            'action' => 'topup_berhasil',
+            'title' => 'Top-Up Saldo Berhasil (+Rp 150.000)',
+        ]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->get(route('admin.activities.index', ['category' => 'keuangan']));
+
+        $response->assertStatus(200);
+        $response->assertSee('Top-Up Saldo Berhasil (+Rp 150.000)');
+        $response->assertSee('TOPUP-TEST-1234');
+    }
 }

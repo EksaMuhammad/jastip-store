@@ -3,7 +3,7 @@
 @section('title', 'Admin Login')
 
 @section('content')
-<div class="relative min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-900 overflow-hidden">
+<div class="relative min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-900">
     <!-- Decorative background elements -->
     <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/20 rounded-full filter blur-3xl opacity-50 animate-pulse"></div>
     <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-rose-500/20 rounded-full filter blur-3xl opacity-50 animate-pulse" style="animation-delay: 2s;"></div>
@@ -90,9 +90,24 @@
                 <div class="pt-2">
                     <button 
                         type="submit" 
-                        class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm py-3.5 rounded-sm border-2 border-slate-950 shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition duration-150 uppercase tracking-wide"
+                        class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm py-3.5 rounded-sm border-2 border-slate-950 shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition duration-150 uppercase tracking-wide cursor-pointer"
                     >
                         🔒 Masuk Ke Panel Admin
+                    </button>
+                </div>
+
+                <!-- Info Kredensial Default & Tombol Isi Otomatis -->
+                <div class="mt-4 p-3 bg-slate-900/90 border border-slate-800 rounded flex items-center justify-between gap-3 text-xs">
+                    <div class="min-w-0">
+                        <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Kredensial Default Admin:</span>
+                        <span class="text-slate-200 font-mono text-[11px]">admin@jastipkuy.com</span> / <span class="text-rose-400 font-mono text-[11px] font-bold">password123</span>
+                    </div>
+                    <button 
+                        type="button" 
+                        onclick="document.getElementById('email').value='admin@jastipkuy.com';document.getElementById('password').value='password123';"
+                        class="shrink-0 px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded text-[10px] font-bold transition cursor-pointer"
+                    >
+                        Isi Otomatis
                     </button>
                 </div>
             </form>

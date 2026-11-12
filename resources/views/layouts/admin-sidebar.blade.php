@@ -109,6 +109,26 @@
                     @endif
                 </a>
 
+                <!-- Tim & Monitor Customer Service (CS) -->
+                @php
+                    $onlineCsSidebarCount = \App\Models\CustomerService::where('is_online', true)->where('is_active', true)->where('last_active_at', '>=', now()->subMinutes(5))->count();
+                @endphp
+                <a href="{{ route('admin.cs.index') }}" 
+                   class="flex items-center justify-between px-3 py-2 rounded-xl text-xs transition {{ request()->routeIs('admin.cs*') ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-slate-850 font-medium' }}">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-4 h-4 {{ request()->routeIs('admin.cs*') ? 'text-white' : 'text-slate-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        <span>Tim & Monitor CS</span>
+                    </div>
+                    @if($onlineCsSidebarCount > 0)
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800/80">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            {{ $onlineCsSidebarCount }} Online
+                        </span>
+                    @elseif(request()->routeIs('admin.cs*'))
+                        <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
+                    @endif
+                </a>
+
                 <!-- Pengaduan & Sengketa Komplain -->
                 @php
                     $pendingReportsCount = \App\Models\Report::where('status', 'menunggu')->count();
@@ -124,25 +144,6 @@
                             {{ $pendingReportsCount }}
                         </span>
                     @elseif(request()->routeIs('admin.reports*'))
-                        <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
-                    @endif
-                </a>
-
-                <!-- Live Chat Bantuan Pelanggan (Customer Support) -->
-                @php
-                    $unreadSupportAdminCount = \App\Models\SupportMessage::unreadForAdmin()->count();
-                @endphp
-                <a href="{{ route('admin.support.index') }}" 
-                   class="flex items-center justify-between px-3 py-2 rounded-xl text-xs transition {{ request()->routeIs('admin.support*') ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-slate-850 font-medium' }}">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-4 h-4 {{ request()->routeIs('admin.support*') ? 'text-white' : 'text-slate-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                        <span>Chat Bantuan CS</span>
-                    </div>
-                    @if($unreadSupportAdminCount > 0)
-                        <span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-900/60 text-rose-300 border border-rose-800/80">
-                            {{ $unreadSupportAdminCount }}
-                        </span>
-                    @elseif(request()->routeIs('admin.support*'))
                         <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
                     @endif
                 </a>

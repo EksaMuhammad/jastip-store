@@ -17,7 +17,7 @@
     @include('layouts.admin-sidebar')
 
     <!-- RIGHT CONTENT AREA -->
-    <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0 min-h-screen">
 
         <!-- Top Nav Bar -->
         <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 shrink-0 z-40">

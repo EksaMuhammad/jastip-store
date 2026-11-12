@@ -14,6 +14,7 @@ class SupportMessage extends Model
     protected $fillable = [
         'customer_id',
         'admin_id',
+        'cs_id',
         'sender_type',
         'message',
         'attachment_path',
@@ -33,6 +34,11 @@ class SupportMessage extends Model
     public function admin()
     {
         return $this->belongsTo(Admin::class, 'admin_id');
+    }
+
+    public function cs()
+    {
+        return $this->belongsTo(CustomerService::class, 'cs_id');
     }
 
     public function order()

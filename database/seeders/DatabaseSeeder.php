@@ -24,10 +24,15 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // 3. Seed Admins
-        Admin::create([
-            'email' => 'admin@jastipkuy.com',
-            'password_hash' => Hash::make('password123'),
-            'name' => 'Admin JastipKuy',
-        ]);
+        Admin::firstOrCreate(
+            ['email' => 'admin@jastipkuy.com'],
+            [
+                'password_hash' => Hash::make('password123'),
+                'name' => 'Admin JastipKuy',
+            ]
+        );
+
+        // 4. Seed Customer Service (CS) Officers
+        $this->call(CustomerServiceSeeder::class);
     }
 }

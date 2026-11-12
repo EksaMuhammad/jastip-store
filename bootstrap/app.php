@@ -35,6 +35,9 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('merchant') || $request->is('merchant/*')) {
                 return route('merchant.login');
             }
+            if ($request->is('cs') || $request->is('cs/*')) {
+                return route('cs.login');
+            }
             return route('login');
         });
 
@@ -44,8 +47,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/midtrans',
             'api/*',
+            'livewire/*',
+            'livewire-*/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, \Illuminate\Http\Request $request) {
+            \Illuminate\Support\Facades\Log::warning('CSRF Token Mismatch Details', [
+                'uri' => $request->getRequestUri(),
+                'method' => $request->getMethod(),
+                'host' => $request->getHost(),
+                'header_csrf' => $request->header('X-CSRF-TOKEN'),
+                'input_token' => $request->input('_token'),
+                'session_token' => $request->hasSession() ? $request->session()->token() : 'NO_SESSION',
+                'session_id' => $request->hasSession() ? $request->session()->getId() : 'NO_SESSION_ID',
+                'cookies' => $request->cookies->all(),
+            ]);
+        });
     })->create();

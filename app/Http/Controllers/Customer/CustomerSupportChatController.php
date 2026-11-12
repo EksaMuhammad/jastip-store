@@ -118,6 +118,9 @@ class CustomerSupportChatController extends Controller
             'order_id' => $request->order_id,
         ]);
 
+        // Auto-assign ke Petugas CS yang sedang free atau masuk ke antrean aktif
+        app(\App\Services\CustomerSupportRoutingService::class)->routeCustomerChat($customer);
+
         \App\Services\ActivityLogger::log([
             'user_type' => 'customer',
             'user_id' => $customer->id,

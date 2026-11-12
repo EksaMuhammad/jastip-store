@@ -56,6 +56,10 @@ return [
             'driver' => 'session',
             'provider' => 'merchants',
         ],
+        'cs' => [
+            'driver' => 'session',
+            'provider' => 'customer_services',
+        ],
     ],
 
     /*
@@ -96,6 +100,10 @@ return [
         'merchants' => [
             'driver' => 'eloquent',
             'model' => App\Models\Merchant::class,
+        ],
+        'customer_services' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\CustomerService::class,
         ],
     ],
 
